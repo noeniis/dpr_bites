@@ -1,0 +1,48 @@
+final dummyMenus = [
+  {
+    'id': 'm1',
+    'restaurantId': 'r1',
+    'name': 'Nasi Pecel',
+    'price': 20000,
+    'stock': 10,
+    'image': 'assets/images/pecel.jpeg',
+    'desc': 'Nasi pecel lengkap dengan rempeyek dan telur.',
+  },
+  {
+    'id': 'm2',
+    'restaurantId': 'r1',
+    'name': 'Nasi Goreng',
+    'price': 18000,
+    'stock': 7,
+    'image': 'assets/images/nasi_goreng.jpeg',
+    'desc': 'Nasi goreng spesial dengan telur.',
+  },
+  {
+    'id': 'm3',
+    'restaurantId': 'r1',
+    'name': 'Ayam Bakar',
+    'price': 25000,
+    'stock': 5,
+    'image': 'assets/images/kantinmakmur.jpeg',
+    'desc': 'Ayam bakar bumbu manis gurih.',
+  },
+  {
+    'id': 'm4',
+    'restaurantId': 'r2',
+    'name': 'Soto Ayam',
+    'price': 15000,
+    'stock': 8,
+    'image': 'assets/images/soto_ayam.jpeg',
+    'desc': 'Soto ayam kuah segar.',
+  },
+  {
+    'id': 'm5',
+    'restaurantId': 'r3',
+    'name': 'Pecel Lele',
+    'price': 16000,
+    'stock': 10,
+    'image': 'assets/images/pecel_lele.jpeg',
+    'desc': 'Lele goreng dan sambal khas.',
+  },
+  // dst, bisa tambah menu lain di restoran mana saja
+];
