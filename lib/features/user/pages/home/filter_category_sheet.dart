@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../../common/widgets/custom_widgets.dart';
+import '../../../../common/widgets/custom_widgets.dart';
 
-class FilterPriceSheet extends StatefulWidget {
+class FilterCategorySheet extends StatefulWidget {
   final String? initialValue;
-  const FilterPriceSheet({this.initialValue, super.key});
+  const FilterCategorySheet({this.initialValue, super.key});
   @override
-  State<FilterPriceSheet> createState() => _FilterPriceSheetState();
-
+  State<FilterCategorySheet> createState() => _FilterCategorySheetState();
 }
 
-class _FilterPriceSheetState extends State<FilterPriceSheet> {
-  String? selectedRange;
+class _FilterCategorySheetState extends State<FilterCategorySheet> {
+  String? selectedCat;
   void initState() {
     super.initState();
-    selectedRange = widget.initialValue; // <-- set defaultnya dari atas!
+    selectedCat = widget.initialValue; // <-- set defaultnya dari atas!
   }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -23,19 +23,14 @@ class _FilterPriceSheetState extends State<FilterPriceSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            "Pilih Rentang Harga",
+            "Kategori Kuliner",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
           ),
           const SizedBox(height: 20),
-          ...[
-            '<15.000',
-            '15.000 – 25.000',
-            '15.000 – 35.000',
-            '>35.000',
-          ].map((label) => RadioListTile<String>(
+          ...['Makanan', 'Minuman', 'Jajanan'].map((label) => RadioListTile<String>(
                 value: label,
-                groupValue: selectedRange,
-                onChanged: (v) => setState(() => selectedRange = v),
+                groupValue: selectedCat,
+                onChanged: (v) => setState(() => selectedCat = v),
                 title: Text(label),
                 activeColor: const Color(0xFFD53D3D),
                 contentPadding: EdgeInsets.zero,
@@ -53,7 +48,7 @@ class _FilterPriceSheetState extends State<FilterPriceSheet> {
               Expanded(
                 child: CustomButtonKotak(
                   text: "Terapkan",
-                  onPressed: () => Navigator.pop(context, selectedRange),
+                  onPressed: () => Navigator.pop(context, selectedCat),
                 ),
               ),
             ],
