@@ -1,19 +1,70 @@
+import 'package:dpr_bites/features/user/home/home_page.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'forgot_password.dart';
 import 'register_page.dart';
+// Import halaman utama user & seller
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
+import 'package:dpr_bites/common/data/dummy_accounts.dart';
+import '../../../common/data/dummy_accounts.dart';
 
-
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final usernameController = TextEditingController();
-    final passwordController = TextEditingController();
+  State<LoginPage> createState() => _LoginPageState();
+}
 
+class _LoginPageState extends State<LoginPage> {
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+  String? errorMessage;
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  void handleLogin() {
+    final username = usernameController.text.trim();
+    final password = passwordController.text.trim();
+
+    final account = dummyAccounts.firstWhere(
+      (acc) => acc['username'] == username && acc['password'] == password,
+      orElse: () => {},
+    );
+
+    if (account.isEmpty) {
+      setState(() {
+        errorMessage = 'Username atau password salah';
+      });
+      return;
+    }
+
+
+    setState(() {
+      errorMessage = null;
+    });
+
+    // Redirect sesuai role
+    if (account['role'] == 'user') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
+    } else if (account['role'] == 'seller') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -109,18 +160,25 @@ class LoginPage extends StatelessWidget {
                         controller: passwordController,
                         prefixIcon: const Icon(Icons.lock, color: Color(0xFFD53D3D)),
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 16),
+
+                      if (errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
 
                       // Tombol Masuk
                       CustomButtonKotak(
                         text: " Masuk ke Sistem",
-                        onPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const OnboardingChecklistPage()),
-                            );
-                        },
+                        onPressed: handleLogin,
                       ),
                       const SizedBox(height: 10),
 
@@ -225,7 +283,7 @@ class LoginPage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Icon(Icons.chevron_right, color: Colors.grey[600]),
+                      Icon(Icons.chevron_right, color: Colors.grey),
                     ],
                   ),
                 ),
