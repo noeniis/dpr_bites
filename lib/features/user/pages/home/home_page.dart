@@ -6,6 +6,7 @@ import '../../../../common/data/dummy_menus.dart';
 import 'filter_category_sheet.dart';
 import 'filter_price_sheet.dart';
 import 'package:dpr_bites/features/user/pages/search/search_page.dart';
+import 'package:dpr_bites/features/user/pages/restaurant_detail/restaurant_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -154,14 +155,24 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 18),
 
                 // List restoran (scroll)
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 25),
-                    itemCount: filteredRestaurants.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 18),
-                    itemBuilder: (context, idx) {
-                      final resto = filteredRestaurants[idx];
-                      return CustomEmptyCard(
+               Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 25),
+                  itemCount: filteredRestaurants.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 18),
+                  itemBuilder: (context, idx) {
+                    final resto = filteredRestaurants[idx];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RestaurantDetailPage(restaurant: resto), // <-- mapping resto ke restaurant
+                          ),
+                        );
+                      },
+                      child: CustomEmptyCard(
                         child: Padding(
                           padding: const EdgeInsets.all(14),
                           child: Row(
@@ -219,10 +230,11 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
+              )
               ],
             ),
           ),

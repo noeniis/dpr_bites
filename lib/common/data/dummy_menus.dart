@@ -7,6 +7,7 @@ final dummyMenus = [
     'stock': 10,
     'image': 'lib/assets/images/pecel.jpeg',
     'desc': 'Nasi pecel lengkap dengan rempeyek dan telur.',
+    "recommended": true,
   },
   {
     'id': 'm2',
@@ -16,6 +17,7 @@ final dummyMenus = [
     'stock': 7,
     'image': 'lib/assets/images/nasi_goreng.jpeg',
     'desc': 'Nasi goreng spesial dengan telur.',
+    "recommended": true,
   },
   {
     'id': 'm3',
@@ -25,6 +27,7 @@ final dummyMenus = [
     'stock': 5,
     'image': 'lib/assets/images/kantinmakmur.jpeg',
     'desc': 'Ayam bakar bumbu manis gurih.',
+    "recommended": true,
   },
   {
     'id': 'm4',
@@ -34,6 +37,7 @@ final dummyMenus = [
     'stock': 8,
     'image': 'lib/assets/images/soto_ayam.jpeg',
     'desc': 'Soto ayam kuah segar.',
+    "recommended": true,
   },
   {
     'id': 'm5',
@@ -43,6 +47,7 @@ final dummyMenus = [
     'stock': 10,
     'image': 'lib/assets/images/pecel_lele.jpeg',
     'desc': 'Lele goreng dan sambal khas.',
+    "recommended": true,
   },
   // dst, bisa tambah menu lain di restoran mana saja
 ];
