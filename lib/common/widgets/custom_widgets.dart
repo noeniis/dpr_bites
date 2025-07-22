@@ -128,11 +128,13 @@ class CustomInputField extends StatefulWidget {
   final String hintText;
   final TextEditingController? controller;
   final Widget? prefixIcon;
+  final ValueChanged<String>? onSubmitted;
 
   const CustomInputField({
     required this.hintText,
     this.controller,
     this.prefixIcon,
+    this.onSubmitted,
     super.key,
   });
 
@@ -195,6 +197,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
+         onSubmitted: widget.onSubmitted,
       ),
     );
   }
@@ -349,7 +352,6 @@ class CustomButtonKotak extends StatelessWidget {
 }
 
 //7. Custom Button Filter Kotak
-// 4. Custom Filter Chip
 class CustomFilterChipKotak extends StatelessWidget {
   final String label;
   final bool selected;

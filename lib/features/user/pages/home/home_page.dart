@@ -5,6 +5,7 @@ import '../../../../common/data/dummy_restaurants.dart';
 import '../../../../common/data/dummy_menus.dart';
 import 'filter_category_sheet.dart';
 import 'filter_price_sheet.dart';
+import 'package:dpr_bites/features/user/pages/search/search_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,6 +19,8 @@ class _HomePageState extends State<HomePage> {
   String? selectedRating;
   String? selectedPrice;
   String? selectedCategory;
+  final searchController = TextEditingController();
+  
 
   // Dummy: filter function
   List<Map<String, dynamic>> get filteredRestaurants {
@@ -74,8 +77,18 @@ class _HomePageState extends State<HomePage> {
                     Expanded(
                       child: CustomInputField(
                         hintText: "Apa yang Anda Cari?",
-                        prefixIcon: const Icon(Icons.search),
-                        // controller: ...
+                        controller: searchController,
+                        prefixIcon: const Icon(Icons.search, color: Color(0xFFD53D3D)),
+                        onSubmitted: (val) {
+                          print("onSubmitted: $val");
+                          if (val.trim().isEmpty) return;
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SearchPage(initialQuery: val.trim()),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -143,11 +156,11 @@ class _HomePageState extends State<HomePage> {
                 // List restoran (scroll)
                 Expanded(
                   child: ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 25),
                     itemCount: filteredRestaurants.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 18),
                     itemBuilder: (context, idx) {
                       final resto = filteredRestaurants[idx];
-                      // Bisa ganti pakai widget RestaurantCard biar lebih modular
                       return CustomEmptyCard(
                         child: Padding(
                           padding: const EdgeInsets.all(14),
@@ -158,8 +171,8 @@ class _HomePageState extends State<HomePage> {
                                 borderRadius: BorderRadius.circular(12),
                                 child: Image.asset(
                                   resto['profilePic'],
-                                  width: 68,
-                                  height: 68,
+                                  width: 75,
+                                  height: 75,
                                   fit: BoxFit.cover,
                                 ),
                               ),

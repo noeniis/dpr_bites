@@ -70,6 +70,8 @@ flutter:
   - lib/assets/images/nasi_goreng.jpeg
   - lib/assets/images/soto_ayam.jpeg
   - lib/assets/images/pecel_lele.jpeg
+  - lib/assets/images/ricebowl.jpeg
+  - lib/assets/images/ayam_teriyaki.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

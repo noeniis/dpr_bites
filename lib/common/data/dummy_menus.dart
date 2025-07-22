@@ -5,7 +5,7 @@ final dummyMenus = [
     'name': 'Nasi Pecel',
     'price': 20000,
     'stock': 10,
-    'image': 'assets/images/pecel.jpeg',
+    'image': 'lib/assets/images/pecel.jpeg',
     'desc': 'Nasi pecel lengkap dengan rempeyek dan telur.',
   },
   {
@@ -14,7 +14,7 @@ final dummyMenus = [
     'name': 'Nasi Goreng',
     'price': 18000,
     'stock': 7,
-    'image': 'assets/images/nasi_goreng.jpeg',
+    'image': 'lib/assets/images/nasi_goreng.jpeg',
     'desc': 'Nasi goreng spesial dengan telur.',
   },
   {
@@ -23,7 +23,7 @@ final dummyMenus = [
     'name': 'Ayam Bakar',
     'price': 25000,
     'stock': 5,
-    'image': 'assets/images/kantinmakmur.jpeg',
+    'image': 'lib/assets/images/kantinmakmur.jpeg',
     'desc': 'Ayam bakar bumbu manis gurih.',
   },
   {
@@ -32,7 +32,7 @@ final dummyMenus = [
     'name': 'Soto Ayam',
     'price': 15000,
     'stock': 8,
-    'image': 'assets/images/soto_ayam.jpeg',
+    'image': 'lib/assets/images/soto_ayam.jpeg',
     'desc': 'Soto ayam kuah segar.',
   },
   {
@@ -41,7 +41,7 @@ final dummyMenus = [
     'name': 'Pecel Lele',
     'price': 16000,
     'stock': 10,
-    'image': 'assets/images/pecel_lele.jpeg',
+    'image': 'lib/assets/images/pecel_lele.jpeg',
     'desc': 'Lele goreng dan sambal khas.',
   },
   // dst, bisa tambah menu lain di restoran mana saja

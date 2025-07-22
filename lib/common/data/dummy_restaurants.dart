@@ -26,4 +26,22 @@ final dummyRestaurants = [
     'ratingCount': 20,
     'sellerId': 's3',
   },
+  {
+    'id': 'r4',
+    'name': 'Ricebowl 101',
+    'desc': 'Nasi dan ayamm',
+    'profilePic': 'lib/assets/images/ricebowl.jpeg',
+    'rating': 4.2,
+    'ratingCount': 10,
+    'sellerId': 's4',
+  },
+  {
+    'id': 'r5',
+    'name': 'Rumah Makan Isa',
+    'desc': 'Soto, ayam, dan aneka sambal.',
+    'profilePic': 'lib/assets/images/ayam_teriyaki.jpeg',
+    'rating': 4.9,
+    'ratingCount': 20,
+    'sellerId': 's5',
+  },
 ];

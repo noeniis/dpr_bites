@@ -1,10 +1,9 @@
-import 'package:dpr_bites/features/user/home/home_page.dart';
+import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'forgot_password.dart';
 import 'register_page.dart';
-// Import halaman utama user & seller
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
 import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import '../../../common/data/dummy_accounts.dart';
