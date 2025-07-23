@@ -49,5 +49,25 @@ final dummyMenus = [
     'desc': 'Lele goreng dan sambal khas.',
     "recommended": true,
   },
+  {
+    'id': 'm6',
+    'restaurantId': 'r5',
+    'name': 'Pecel Lele',
+    'price': 16000,
+    'stock': 10,
+    'image': 'lib/assets/images/pecel_lele.jpeg',
+    'desc': 'Lele goreng dan sambal khas.',
+    "recommended": true,
+  },
+  {
+    'id': 'm7',
+    'restaurantId': 'r3',
+    'name': 'Pecel Lele',
+    'price': 16000,
+    'stock': 10,
+    'image': 'lib/assets/images/pecel_lele.jpeg',
+    'desc': 'Lele goreng dan sambal khas.',
+    "recommended": true,
+  },
   // dst, bisa tambah menu lain di restoran mana saja
 ];

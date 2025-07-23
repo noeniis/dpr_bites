@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:dpr_bites/common/data/dummy_restaurants.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
+import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 
-class RatingPage extends StatelessWidget {
-  final Map<String, dynamic> restaurant;
-  const RatingPage({required this.restaurant, super.key});
+class RestaurantRatingPage extends StatelessWidget {
+  final String restaurantId;
+  const RestaurantRatingPage({super.key, required this.restaurantId});
 
   @override
   Widget build(BuildContext context) {
-    // Dummy reviews
-    final reviews = [
-      {"name": "Ilham a.", "menu": "Nasi Goreng", "rating": 5, "comment": ""},
-      {"name": "Irma", "menu": "Nasi Pecel, Nasi Goreng", "rating": 4, "comment": ""},
-      // dst
-    ];
+    final resto = dummyRestaurants.firstWhere((r) => r['id'] == restaurantId) as Map<String, dynamic>;
 
     return GradientBackground(
       child: Scaffold(
@@ -20,80 +17,78 @@ class RatingPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF602829)),
-            onPressed: () => Navigator.pop(context),
-          ),
+          title: const Text("Ulasan Restoran"),
+          leading: BackButton(color: Colors.pink),
         ),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Summary rating
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0,2)),
-                      ]
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.star, color: Colors.amber, size: 36),
-                        Text(
-                          "${restaurant['rating']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Color(0xFFD53D3D)),
-                        ),
-                        Text("${restaurant['ratingCount']} Review", style: const TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  // Bisa tambahkan barchart rating di sini kalau mau (lihat mockup)
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              ...reviews.map((r) {
-              final rev = r as Map<String, dynamic>;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+              CustomEmptyCard(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      CircleAvatar(child: Text(rev['name']?[0] ?? '?')),
-                      const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(rev['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 10),
-                                ...List.generate(
-                                  (rev['rating'] ?? 0) as int,
-                                  (i) => const Icon(Icons.star, color: Colors.amber, size: 16),
-                                ),
-                              ],
+                        child: Text(
+                          resto['name'],
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
-                            Text("Pesanan: ${rev['menu'] ?? ''}", style: const TextStyle(fontSize: 12)),
-                            if ((rev['comment'] ?? '') != "") Text(rev['comment']),
                           ],
                         ),
-                      )
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 18),
+                            const SizedBox(width: 2),
+                            Text("${resto['rating']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 2),
+                            Text("(${resto['ratingCount']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                            const Text(" ulasan)", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              );
-            }),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView(
+                  children: [
+                    CustomEmptyCard(
+                      child: ListTile(
+                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        title: const Text("Mahasiswa A"),
+                        subtitle: const Text("Makanannya enak dan murah!"),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CustomEmptyCard(
+                      child: ListTile(
+                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                        title: const Text("Mahasiswa B"),
+                        subtitle: const Text("Pelayanan cepat, recommended."),
+                      ),
+                    ),
+                    // Tambahkan dummy review lain jika perlu
+                  ],
+                ),
+              ),
             ],
           ),
         ),

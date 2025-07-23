@@ -4,6 +4,7 @@ import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_restaurants.dart';
 import '../../../../common/data/dummy_menus.dart';
 import 'filter_category_sheet.dart';
+import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
 import 'package:dpr_bites/features/user/pages/search/search_page.dart';
 import 'package:dpr_bites/features/user/pages/restaurant_detail/restaurant_detail_page.dart';
@@ -61,7 +62,10 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 ),
                 onPressed: () {
-                  // TODO: buka halaman keranjang
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CartPage()),
+                    );
                 },
               ),
             ),
@@ -168,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => RestaurantDetailPage(restaurant: resto), // <-- mapping resto ke restaurant
+                            builder: (_) => RestaurantDetailPage(restaurantId: resto['id']),
                           ),
                         );
                       },
