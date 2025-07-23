@@ -4,15 +4,22 @@ import 'package:dpr_bites/app/gradient_background.dart';
 
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
-  const MenuDetailPage({super.key, required this.menu});
+  final int initialQty;
+  const MenuDetailPage({super.key, required this.menu, this.initialQty = 0});
 
   @override
   State<MenuDetailPage> createState() => _MenuDetailPageState();
 }
 
 class _MenuDetailPageState extends State<MenuDetailPage> {
-  int qty = 1;
+  late int qty;
   final TextEditingController noteController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    qty = widget.initialQty > 0 ? widget.initialQty : 1;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +42,13 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                     Center(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.asset(menu['image'], height: 200, fit: BoxFit.cover),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Image.asset(
+                            menu['image'],
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -106,7 +119,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                     CustomButtonOval(
                       text: "Tambah",
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.pop(context, qty);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text("${menu['name']} ditambahkan ke keranjang"),

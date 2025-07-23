@@ -12,9 +12,9 @@ final dummyCarts = [
     'image': 'lib/assets/images/kantinmakmur.jpeg',
   },
   {
-    'restaurantName': 'Bakmie Pak Ano',
+    'restaurantName': 'Ricebowl 101',
     'itemCount': 1,
     'estimate': '20 Menit',
-    'image': 'lib/assets/images/bakmie.jpeg',
+    'image': 'lib/assets/images/ricebowl.jpeg',
 },
 ];

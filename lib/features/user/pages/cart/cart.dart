@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../app/app_theme.dart';
 import '../../../../common/data/dummy_carts.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 

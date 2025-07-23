@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_restaurants.dart';
-import '../../../../common/data/dummy_menus.dart';
 import 'filter_category_sheet.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';

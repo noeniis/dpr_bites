@@ -11,6 +11,47 @@ class RestaurantRatingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final resto = dummyRestaurants.firstWhere((r) => r['id'] == restaurantId) as Map<String, dynamic>;
 
+    // Dummy breakdown rating dan review
+    final rating = double.tryParse(resto['rating'].toString()) ?? 0.0;
+    final ratingCount = resto['ratingCount'] ?? 0;
+    final ratingBreakdown = [
+      {'star': 5, 'count': 7},
+      {'star': 4, 'count': 4},
+      {'star': 3, 'count': 1},
+      {'star': 2, 'count': 0},
+      {'star': 1, 'count': 0},
+    ];
+    final reviews = [
+      {
+        'name': 'Ihsan a.',
+        'pesanan': 'Nasi Goreng',
+        'rating': 5,
+      },
+      {
+        'name': 'Irma',
+        'pesanan': 'Nasi Pecel, Nasi Goreng',
+        'rating': 5,
+      },
+      {
+        'name': 'Hasan M. I.',
+        'pesanan': 'Nasi Goreng',
+        'rating': 4,
+      },
+      {
+        'name': 'Hanafi',
+        'pesanan': 'Nasi Goreng',
+        'rating': 3,
+      },
+      {
+        'name': 'Ratnasari',
+        'pesanan': 'Nasi Ayam Katsu',
+        'rating': 5,
+      },
+    ];
+
+    int maxBar = ratingBreakdown.map((e) => e['count'] as int).fold(0, (a, b) => a > b ? a : b);
+    maxBar = maxBar == 0 ? 1 : maxBar;
+
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -25,40 +66,80 @@ class RestaurantRatingPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header rating besar
               CustomEmptyCard(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          resto['name'],
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      // Bintang besar dan rating
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          border: Border.all(color: Color(0xFFD53D3D), width: 2),
                           borderRadius: BorderRadius.circular(16),
+                          color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                              color: Colors.pink.withOpacity(0.07),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        child: Column(
                           children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 18),
-                            const SizedBox(width: 2),
-                            Text("${resto['rating']}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(width: 2),
-                            Text("(${resto['ratingCount']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                            const Text(" ulasan)", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Icon(Icons.star, color: Color(0xFFD53D3D), size: 36),
+                            const SizedBox(height: 4),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFFD53D3D)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      // Breakdown bar
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ...ratingBreakdown.map((e) {
+                              final star = e['star'] as int;
+                              final count = e['count'] as int;
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Text(star.toString(), style: const TextStyle(fontSize: 13)),
+                                    const SizedBox(width: 2),
+                                    Icon(Icons.star, color: Colors.amber, size: 14),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Container(
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFF2F2F2),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: FractionallySizedBox(
+                                          alignment: Alignment.centerLeft,
+                                          widthFactor: count / maxBar,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: star >= 4 ? Color(0xFFFFD600) : Color(0xFFD3D3D3),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(count.toString(), style: const TextStyle(fontSize: 13)),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
                           ],
                         ),
                       ),
@@ -66,27 +147,67 @@ class RestaurantRatingPage extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.only(left: 12, top: 2, bottom: 8),
+                child: Text(
+                  "$ratingCount Review",
+                  style: const TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w500, fontSize: 15),
+                ),
+              ),
               Expanded(
-                child: ListView(
-                  children: [
-                    CustomEmptyCard(
-                      child: ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: const Text("Mahasiswa A"),
-                        subtitle: const Text("Makanannya enak dan murah!"),
+                child: ListView.separated(
+                  itemCount: reviews.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final r = reviews[i];
+                    final name = r['name'] as String;
+                    final pesanan = r['pesanan'] as String;
+                    final rating = r['rating'] as int;
+                    return CustomEmptyCard(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: const Color(0xFFE6F7EC),
+                                  child: Text(
+                                    name.isNotEmpty ? name[0].toUpperCase() : '',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3A3A3A)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                ...List.generate(5, (idx) => Icon(
+                                  idx < rating ? Icons.star : Icons.star_border,
+                                  color: Colors.amber,
+                                  size: 18,
+                                )),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Pesanan: $pesanan",
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF3A3A3A)),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    CustomEmptyCard(
-                      child: ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
-                        title: const Text("Mahasiswa B"),
-                        subtitle: const Text("Pelayanan cepat, recommended."),
-                      ),
-                    ),
-                    // Tambahkan dummy review lain jika perlu
-                  ],
+                    );
+                  },
                 ),
               ),
             ],

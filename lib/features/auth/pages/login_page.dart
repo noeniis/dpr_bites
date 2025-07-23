@@ -6,7 +6,6 @@ import 'forgot_password.dart';
 import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
 import 'package:dpr_bites/common/data/dummy_accounts.dart';
-import '../../../common/data/dummy_accounts.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
