@@ -63,7 +63,7 @@ class TextFieldLine extends StatefulWidget {
 
 class _TextFieldLineState extends State<TextFieldLine> {
   late TextEditingController _controller;
-  bool _hasCleared = false; // Biar cuma clear sekali saat di-tap pertama
+  // bool _hasCleared = false; // Tidak perlu clear otomatis
 
   @override
   void initState() {
@@ -84,13 +84,8 @@ class _TextFieldLineState extends State<TextFieldLine> {
       children: [
         Text(widget.label, style: const TextStyle(fontSize: 14)),
         widget.editable
-            ? Focus(
-                onFocusChange: (focus) {
-                  if (focus && !_hasCleared && _controller.text.isNotEmpty) {
-                    _controller.clear();
-                    setState(() => _hasCleared = true);
-                  }
-                },
+            ? SizedBox(
+                height: 32,
                 child: TextField(
                   controller: _controller,
                   obscureText: widget.obscure,
@@ -98,11 +93,18 @@ class _TextFieldLineState extends State<TextFieldLine> {
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
+                  textInputAction: TextInputAction.done,
+                  minLines: 1,
+                  maxLines: 1,
+                  expands: false,
                   decoration: const InputDecoration(
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(vertical: 6),
                     border: InputBorder.none,
-                    hintText: "Masukkan ${/*label*/""}", // placeholder opsional
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    hintText: "",
                   ),
                 ),
               )
@@ -326,7 +328,6 @@ class CustomButtonKotak extends StatelessWidget {
       onTap: onPressed,
       child: Container(
         height: 48,
-        width: double.infinity,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFFD53D3D), Color(0xFF602829)],
