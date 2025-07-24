@@ -7,6 +7,8 @@ import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
 import 'package:dpr_bites/features/user/pages/search/search_page.dart';
 import 'package:dpr_bites/features/user/pages/restaurant_detail/restaurant_detail_page.dart';
+import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
+import 'package:dpr_bites/features/user/pages/history/history_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -45,6 +47,7 @@ class _HomePageState extends State<HomePage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          automaticallyImplyLeading: false,
           title: const Text(
             "Beranda",
             style: TextStyle(color: Color(0xFF602829), fontWeight: FontWeight.bold),
@@ -249,14 +252,35 @@ class _HomePageState extends State<HomePage> {
           currentIndex: 0,
           selectedFontSize: 14,
           unselectedFontSize: 13,
-          iconSize: 30, // Beranda aktif
+          iconSize: 30,
           onTap: (i) {
-            // TODO: Navigasi ke tab lain (keranjang, favorit, profil)
+            if (i == 0) {
+              // Home
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const HomePage()),
+              );
+            } else if (i == 1) {
+              // History
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryPage()),
+              );
+            } else if (i == 2) {
+              // Favorit
+              Navigator.pushReplacementNamed(context, '/favorit');
+            } else if (i == 3) {
+              // Profile
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            }
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-            BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined), label: "Keranjang"),
-            BottomNavigationBarItem(icon: Icon(Icons.favorite_border), label: "Favorite"),
+            BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+            BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Favorit"),
             BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profil"),
           ],
         ),

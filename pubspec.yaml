@@ -73,6 +73,12 @@ flutter:
   - lib/assets/images/ricebowl.jpeg
   - lib/assets/images/ayam_teriyaki.jpeg
   - lib/assets/images/bakmie.jpeg
+  - lib/assets/images/spatulaknife.png
+  - lib/assets/images/iconCircle.png
+  - lib/assets/images/iconLocation.png
+  - lib/assets/images/iconUser.png
+  - lib/assets/images/iconCamera.png
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

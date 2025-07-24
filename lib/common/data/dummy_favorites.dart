@@ -1,7 +1,7 @@
 final dummyFavorites = [
   {
     'userId': 'u1',
-    'menuIds': ['m1', 'm3'], // user ini favoritkan Nasi Pecel & Ayam Bakar
+    'menuIds': ['m1', 'm2', 'm3', 'm5'], // user ini favoritkan 4 menu
   },
   {
     'userId': 'u2',
