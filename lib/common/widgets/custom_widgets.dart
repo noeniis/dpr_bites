@@ -127,13 +127,17 @@ class _TextFieldLineState extends State<TextFieldLine> {
 class CustomInputField extends StatefulWidget {
   final String hintText;
   final TextEditingController? controller;
+  final bool obscureText;
   final Widget? prefixIcon;
+  final Widget? suffixIcon;
   final ValueChanged<String>? onSubmitted;
 
   const CustomInputField({
     required this.hintText,
     this.controller,
+    this.obscureText = false,
     this.prefixIcon,
+    this.suffixIcon,
     this.onSubmitted,
     super.key,
   });
@@ -169,9 +173,11 @@ class _CustomInputFieldState extends State<CustomInputField> {
       },
       child: TextField(
         controller: _controller,
+        obscureText: widget.obscureText,
         decoration: InputDecoration(
           hintText: widget.hintText,
           prefixIcon: widget.prefixIcon,
+          suffixIcon: widget.suffixIcon,
           filled: true,
           fillColor: Colors.white,
           enabledBorder: OutlineInputBorder(

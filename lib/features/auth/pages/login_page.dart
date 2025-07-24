@@ -6,6 +6,7 @@ import 'forgot_password.dart';
 import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
 import 'package:dpr_bites/common/data/dummy_accounts.dart';
+import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,6 +31,22 @@ class _LoginPageState extends State<LoginPage> {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
+    // Username khusus
+    if (username == 'seller2') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+      );
+      return;
+    }
+    if (username == 'ikafahriza') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+      );
+      return;
+    }
+
     final account = dummyAccounts.firstWhere(
       (acc) => acc['username'] == username && acc['password'] == password,
       orElse: () => {},
@@ -41,7 +58,6 @@ class _LoginPageState extends State<LoginPage> {
       });
       return;
     }
-
 
     setState(() {
       errorMessage = null;
@@ -56,7 +72,7 @@ class _LoginPageState extends State<LoginPage> {
     } else if (account['role'] == 'seller') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
       );
     }
   }

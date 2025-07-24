@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/profil_seller.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/kelola_uang.dart';
+import 'package:dpr_bites/features/auth/pages/login_page.dart';
 
 class SellerDashboardPage extends StatelessWidget {
   const SellerDashboardPage({super.key});
@@ -222,41 +227,51 @@ class SellerDashboardPage extends StatelessWidget {
 
                 const SizedBox(height: 6),
 
-                // MENU: Akun, Notifikasi, Analisis, dsb
+                // MENU
                 const Text("Akun", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.person_outline, color: Colors.black),
                   title: const Text("Profil penjual"),
                   onTap: () {
-                    // TODO: ke halaman profil penjual
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.notifications_none, color: Colors.black),
-                  title: const Text("Notifikasi"),
-                  onTap: () {
-                    // TODO: ke halaman notifikasi
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfilSellerPage()),
+                    );
                   },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.menu_book, color: Colors.black),
                   title: const Text("Menu Gerai"),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MenuRestoPage()),
+                    );
+                  },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.star_border, color: Colors.black),
                   title: const Text("Ulasan"),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UlasanPage()),
+                    );
+                  },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.monetization_on, color: Colors.black),
                   title: const Text("Kelola keuangan"),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const KelolaUangPage()),
+                    );
+                  },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -266,7 +281,11 @@ class SellerDashboardPage extends StatelessWidget {
                     style: TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w600),
                   ),
                   onTap: () {
-                    // TODO: Logout
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                      (route) => false,
+                    );
                   },
                 ),
 

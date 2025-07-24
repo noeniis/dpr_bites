@@ -9,4 +9,9 @@ final dummyAccounts = [
     'password': 'seller123',
     'role': 'seller',
   },
+  {
+    'username': 'seller2',
+    'password': 'seller123',
+    'role': 'seller',
+  },
 ];
