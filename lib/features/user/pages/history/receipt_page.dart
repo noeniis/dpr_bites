@@ -4,6 +4,7 @@ import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_orders.dart';
+import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dart';
 
 class ReceiptPage extends StatelessWidget {
   final Map<String, dynamic> order;
@@ -374,6 +375,23 @@ class ReceiptPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
+                if (status == 'berlangsung') ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: CustomButtonKotak(
+                      text: 'Lihat Proses Pesanan',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const CheckoutProcessPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 SizedBox(
                   width: double.infinity,
                   height: 56,

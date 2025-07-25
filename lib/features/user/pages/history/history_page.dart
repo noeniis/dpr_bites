@@ -8,15 +8,17 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 
+
 class HistoryPage extends StatefulWidget {
-  const HistoryPage({super.key});
+  final String? initialFilter;
+  const HistoryPage({super.key, this.initialFilter});
 
   @override
   State<HistoryPage> createState() => _HistoryPageState();
 }
 
 class _HistoryPageState extends State<HistoryPage> {
-  String filter = 'berlangsung';
+  late String filter;
 
   List<Map<String, dynamic>> get filteredOrders {
     return dummyOrders.where((o) {
@@ -28,6 +30,12 @@ class _HistoryPageState extends State<HistoryPage> {
         return o['status'] == 'dibatalkan';
       }
     }).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    filter = widget.initialFilter ?? 'berlangsung';
   }
 
   @override
