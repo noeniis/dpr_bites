@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../common/data/dummy_carts.dart';
 import '../../../../common/widgets/custom_widgets.dart';
+import '../checkout/checkout_page.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({Key? key}) : super(key: key);
@@ -151,6 +152,15 @@ class _CartPageState extends State<CartPage> {
                         fit: BoxFit.cover,
                       ),
                     ),
+                    onTap: isEditMode
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CheckoutPage(),
+                              ),
+                            );
+                          },
                   );
                 },
               ),

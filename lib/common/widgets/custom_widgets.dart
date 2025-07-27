@@ -25,6 +25,7 @@ class CustomEmptyCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF767070), width: 1.2),
         boxShadow: const [
           BoxShadow(
             color: Color(0x1A000000),
@@ -243,6 +244,7 @@ class CustomFilterChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) icon!,
@@ -314,40 +316,52 @@ class CustomButtonOval extends StatelessWidget {
 class CustomButtonKotak extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
+  final Color? backgroundColor;
+  final Color? textColor;
 
   const CustomButtonKotak({
     required this.text,
     this.onPressed,
+    this.backgroundColor,
+    this.textColor,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isDisabled = onPressed == null;
+    final Color bgColor = backgroundColor ?? Colors.transparent;
+    final Color fgColor = textColor ?? (isDisabled ? Colors.white.withOpacity(0.55) : Colors.white);
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: onPressed,
       child: Container(
         height: 48,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFD53D3D), Color(0xFF602829)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
+          color: backgroundColor != null ? bgColor : null,
+          gradient: (backgroundColor == null)
+              ? LinearGradient(
+                  colors: isDisabled
+                      ? [const Color(0xFFD53D3D).withOpacity(0.35), const Color(0xFF602829).withOpacity(0.35)]
+                      : [const Color(0xFFD53D3D), const Color(0xFF602829)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.redAccent.withOpacity(0.07),
+              color: (isDisabled ? Colors.redAccent.withOpacity(0.04) : Colors.redAccent.withOpacity(0.07)),
               blurRadius: 6,
-              offset: Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         alignment: Alignment.center,
         child: Text(
           text,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: fgColor,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
