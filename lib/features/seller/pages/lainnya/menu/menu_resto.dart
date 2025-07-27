@@ -1,9 +1,11 @@
 
+import 'package:dpr_bites/features/seller/pages/profil_gerai/tambah_menu_page.dart';
 import 'package:flutter/material.dart';
 import '../../../../../app/gradient_background.dart';
 import '../../../../../common/widgets/custom_widgets.dart';
 import '../../../../../common/data/dummy_menus.dart';
 import 'edit_menu.dart';
+import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 
 class MenuRestoPage extends StatefulWidget {
   const MenuRestoPage({Key? key}) : super(key: key);
@@ -67,7 +69,12 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.red),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+              );
+            },
           ),
           title: const Text('Daftar Menu', style: TextStyle(color: Colors.black)),
           backgroundColor: Colors.transparent,
@@ -168,7 +175,17 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
               const SizedBox(height: 10),
               CustomButtonOval(
                 text: 'Tambah menu',
-                onPressed: () {},
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TambahMenuPage()),
+                  );
+                  if (result != null && result is Map<String, dynamic>) {
+                    setState(() {
+                      _menus.add(result);
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 10),
             ],

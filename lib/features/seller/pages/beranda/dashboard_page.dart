@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
+import 'package:dpr_bites/features/seller/pages/pesanan/pesanan_page.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/profil_seller.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
@@ -301,7 +302,15 @@ class SellerDashboardPage extends StatelessWidget {
           unselectedItemColor: Colors.black54,
           currentIndex: 0, // branda (home)
           onTap: (i) {
-            // TODO: handle tab switch
+            if (i == 1) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PesananPage(),
+                ),
+              );
+            }
+            // Tab 0 (Beranda) does nothing since already here
           },
           items: const [
             BottomNavigationBarItem(

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'features/seller/pages/beranda/dashboard_page.dart';
 import 'app/app_theme.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/user/pages/home/home_page.dart';
 import 'features/user/pages/favorit/favorit.dart';
 import 'features/user/pages/history/history_page.dart';
 import 'features/user/pages/profile/profile_page.dart';
+import 'features/seller/pages/beranda/onboarding_checklist_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,6 +28,8 @@ class MyApp extends StatelessWidget {
         '/favorit': (context) => const FavoritPage(),
         '/history': (context) => const HistoryPage(),
         '/profile': (context) => const ProfilePage(),
+        '/onboarding_checklist': (context) => const OnboardingChecklistPage(),
+        '/dashboard': (context) => const SellerDashboardPage(),
       },
       home: const LoginPage(),
     );

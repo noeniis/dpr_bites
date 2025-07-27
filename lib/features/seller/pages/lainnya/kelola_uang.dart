@@ -141,8 +141,7 @@ class _KelolaUangPageState extends State<KelolaUangPage> {
                   nmId: 'NMID01010000000001',
                 ),
               ),
-              const Spacer(),
-              CustomBottomNavBar(selectedIndex: 2),
+              // const Spacer(),
             ],
           ),
         ),
@@ -244,15 +243,6 @@ class CustomBottomNavBar extends StatelessWidget {
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
         ),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavBarItem(icon: Icons.home, label: 'Beranda', selected: selectedIndex == 0),
-          _NavBarItem(icon: Icons.assignment, label: 'Pesanan', selected: selectedIndex == 1),
-          _NavBarItem(icon: Icons.menu, label: 'Lainnya', selected: selectedIndex == 2),
-        ],
       ),
     );
   }
