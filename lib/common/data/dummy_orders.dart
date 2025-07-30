@@ -57,7 +57,7 @@ final dummyOrders = [
     'price': 17000,
     'date': '2025-07-10',
     'dateDisplay': '10 Jul 2025, 07:20 WIB',
-    'status': 'selesai',
+    'status': 'berlangsung',
     'icon': 'lib/assets/images/spatulaknife.png',
     'orderSummary': [
       {'qty': 1, 'menu': 'Mie Ayam', 'price': 15000},
