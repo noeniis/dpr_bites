@@ -1,3 +1,4 @@
+import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_checkout.dart';
@@ -45,6 +46,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   int? editingQtyIndex;
   int? editingNoteIndex;
   final Map<int, TextEditingController> _noteControllers = {};
+  String selectedPayment = 'qris';
 
   @override
   void initState() {
@@ -104,7 +106,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         }
         if (editingNoteIndex != null) {
           // Simpan catatan
-          items[editingNoteIndex!]['note'] = _noteControllers[editingNoteIndex!]?.text ?? '';
+          items[editingNoteIndex!]['note'] =
+              _noteControllers[editingNoteIndex!]?.text ?? '';
           editingNoteIndex = null;
           needSet = true;
         }
@@ -171,7 +174,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           item['name'],
@@ -186,7 +190,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                             if (editingNoteIndex == i) {
                                               // Simpan catatan dan keluar mode edit
                                               setState(() {
-                                                items[i]['note'] = _noteControllers[i]?.text ?? '';
+                                                items[i]['note'] =
+                                                    _noteControllers[i]?.text ??
+                                                    '';
                                                 editingNoteIndex = null;
                                                 editingQtyIndex = null;
                                               });
@@ -198,7 +204,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                             }
                                           },
                                           child: Text(
-                                            editingNoteIndex == i ? 'Simpan' : 'Ubah',
+                                            editingNoteIndex == i
+                                                ? 'Simpan'
+                                                : 'Ubah',
                                             style: const TextStyle(
                                               color: Colors.blue,
                                               fontSize: 12,
@@ -207,12 +215,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                           ),
                                         ),
                                         // Tampilkan catatan jika ada, kecuali sedang edit
-                                        if ((item['note'] ?? '').toString().isNotEmpty && editingNoteIndex != i)
+                                        if ((item['note'] ?? '')
+                                                .toString()
+                                                .isNotEmpty &&
+                                            editingNoteIndex != i)
                                           Padding(
-                                            padding: const EdgeInsets.only(top: 4, right: 8),
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                              right: 8,
+                                            ),
                                             child: Text(
                                               item['note'],
-                                              style: const TextStyle(fontSize: 13, color: Color(0xFFB0B0B0)),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Color(0xFFB0B0B0),
+                                              ),
                                             ),
                                           ),
                                       ],
@@ -222,10 +239,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        item['price'].toString().replaceAllMapped(
-                                          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                                          (m) => '${m[1]}.',
-                                        ),
+                                        item['price']
+                                            .toString()
+                                            .replaceAllMapped(
+                                              RegExp(
+                                                r'(\d{1,3})(?=(\d{3})+(?!\d))',
+                                              ),
+                                              (m) => '${m[1]}.',
+                                            ),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -247,17 +268,23 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                     color: Color(0xFFD53D3D),
                                                     width: 2,
                                                   ),
-                                                  borderRadius: BorderRadius.circular(20),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
                                                 ),
                                                 alignment: Alignment.center,
                                                 child: Row(
-                                                  mainAxisAlignment: MainAxisAlignment.center,
-                                                  mainAxisSize: MainAxisSize.min,
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
                                                   children: [
                                                     InkWell(
                                                       onTap: () async {
-                                                        if (items[i]['qty'] == 1) {
-                                                          await _showDeleteDialog(i);
+                                                        if (items[i]['qty'] ==
+                                                            1) {
+                                                          await _showDeleteDialog(
+                                                            i,
+                                                          );
                                                         } else {
                                                           setState(() {
                                                             items[i]['qty']--;
@@ -267,16 +294,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                       child: const Icon(
                                                         Icons.remove,
                                                         size: 16,
-                                                        color: Color(0xFFD53D3D),
+                                                        color: Color(
+                                                          0xFFD53D3D,
+                                                        ),
                                                       ),
                                                     ),
                                                     Padding(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 4,
+                                                          ),
                                                       child: Text(
                                                         '${item['qty']}',
                                                         style: const TextStyle(
-                                                          color: Color(0xFFD53D3D),
-                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(
+                                                            0xFFD53D3D,
+                                                          ),
+                                                          fontWeight:
+                                                              FontWeight.bold,
                                                           fontSize: 15,
                                                         ),
                                                       ),
@@ -290,7 +325,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                       child: const Icon(
                                                         Icons.add,
                                                         size: 16,
-                                                        color: Color(0xFFD53D3D),
+                                                        color: Color(
+                                                          0xFFD53D3D,
+                                                        ),
                                                       ),
                                                     ),
                                                   ],
@@ -324,20 +361,34 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ),
                               if (editingNoteIndex == i)
                                 Padding(
-                                  padding: const EdgeInsets.only(top: 8, right: 8, left: 72),
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    right: 8,
+                                    left: 72,
+                                  ),
                                   child: TextField(
                                     controller: _noteControllers[i],
                                     decoration: InputDecoration(
                                       hintText: 'Catatan untuk restoran',
                                       isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: Color(0xFFB0B0B0), width: 1),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFB0B0B0),
+                                          width: 1,
+                                        ),
                                       ),
                                       focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(color: Color(0xFFB0B0B0), width: 1.5),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFB0B0B0),
+                                          width: 1.5,
+                                        ),
                                       ),
                                     ),
                                     minLines: 1,
@@ -345,7 +396,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     style: const TextStyle(fontSize: 13),
                                     onEditingComplete: () {
                                       setState(() {
-                                        items[i]['note'] = _noteControllers[i]?.text ?? '';
+                                        items[i]['note'] =
+                                            _noteControllers[i]?.text ?? '';
                                         editingNoteIndex = null;
                                         editingQtyIndex = null;
                                       });
@@ -361,7 +413,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Subtotal', style: TextStyle(fontSize: 15)),
+                          const Text(
+                            'Subtotal',
+                            style: TextStyle(fontSize: 15),
+                          ),
                           Text(
                             subtotal.toString().replaceAllMapped(
                               RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
@@ -427,18 +482,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   if (result != null) {
                     setState(() {
                       location['name'] = result['nama'] ?? location['name'];
-                      location['detail'] = result['detail'] ?? location['detail'];
+                      location['detail'] =
+                          result['detail'] ?? location['detail'];
                     });
                   }
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFD53D3D), width: 1.5),
+                    border: Border.all(
+                      color: const Color(0xFFD53D3D),
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.redAccent.withOpacity(0.07),
@@ -469,7 +531,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               ),
                             ),
                             Text(
-                              isDelivery ? location['detail'] : 'Lokasi restoran',
+                              isDelivery
+                                  ? location['detail']
+                                  : 'Lokasi restoran',
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.grey,
@@ -483,49 +547,152 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   ),
                 ),
               ),
-              // Pembayaran QRIS
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFD53D3D), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.07),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.qr_code, color: Color(0xFFD53D3D), size: 28),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Qris',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF602829),
-                        ),
+              // Pembayaran (QRIS & Tunai)
+              InkWell(
+                onTap: () async {
+                  await showModalBottomSheet(
+                    context: context,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(24),
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Color(0xFFD53D3D)),
-                  ],
+                    builder: (ctx) {
+                      return AnimatedPadding(
+                        duration: const Duration(milliseconds: 200),
+                        padding: MediaQuery.of(ctx).viewInsets,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 24,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Pilih Metode Pembayaran',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              ListTile(
+                                leading: const Icon(
+                                  Icons.qr_code,
+                                  color: Color(0xFFD53D3D),
+                                  size: 32,
+                                ),
+                                title: const Text(
+                                  'QRIS',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                trailing: selectedPayment == 'qris'
+                                    ? const Icon(
+                                        Icons.check,
+                                        color: Colors.green,
+                                      )
+                                    : null,
+                                onTap: () {
+                                  setState(() => selectedPayment = 'qris');
+                                  Navigator.of(ctx).pop();
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(
+                                  Icons.money,
+                                  color: Color(0xFFD53D3D),
+                                  size: 32,
+                                ),
+                                title: const Text(
+                                  'Tunai',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                trailing: selectedPayment == 'cash'
+                                    ? const Icon(
+                                        Icons.check,
+                                        color: Colors.green,
+                                      )
+                                    : null,
+                                onTap: () {
+                                  setState(() => selectedPayment = 'cash');
+                                  Navigator.of(ctx).pop();
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFD53D3D),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.07),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      selectedPayment == 'qris'
+                          ? const Icon(
+                              Icons.qr_code,
+                              color: Color(0xFFD53D3D),
+                              size: 28,
+                            )
+                          : const Icon(
+                              Icons.money,
+                              color: Color(0xFFD53D3D),
+                              size: 28,
+                            ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          selectedPayment == 'qris' ? 'Qris' : 'Tunai',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF602829),
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Color(0xFFD53D3D)),
+                    ],
+                  ),
                 ),
               ),
               // Total Harga dan Tombol Pesan
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8.0,
+                  horizontal: 2,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'Total Harga',
-                      style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
                     ),
                     Text(
                       total.toString().replaceAllMapped(
@@ -545,42 +712,210 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 child: CustomButtonOval(
                   text: 'Pesan',
                   onPressed: () async {
-                    // Tampilkan dialog QRIS
                     bool batal = false;
-                    await showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (ctx) {
-                        return WillPopScope(
-                          onWillPop: () async {
-                            // Jika tekan back, konfirmasi batal
-                            final confirm = await _showCancelConfirmDialog();
-                            if (confirm) {
-                              Navigator.of(ctx).pop();
-                              batal = true;
-                            }
-                            return false;
-                          },
-                          child: PembayaranQrisDialog(
-                            onKonfirmasi: () {
-                              Navigator.of(ctx).pop();
-                            },
-                            onBatal: () async {
+                    if (selectedPayment == 'qris') {
+                      // Tampilkan dialog QRIS
+                      await showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (ctx) {
+                          return WillPopScope(
+                            onWillPop: () async {
                               final confirm = await _showCancelConfirmDialog();
                               if (confirm) {
                                 Navigator.of(ctx).pop();
                                 batal = true;
                               }
+                              return false;
                             },
+                            child: PembayaranQrisDialog(
+                              onKonfirmasi: () {
+                                Navigator.of(ctx).pop();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CheckoutProcessPage(),
+                                  ),
+                                );
+                              },
+                              onBatal: () async {
+                                final confirm =
+                                    await _showCancelConfirmDialog();
+                                if (confirm) {
+                                  Navigator.of(ctx).pop();
+                                  batal = true;
+                                }
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    } else {
+                      // Tunai: animasi bottom sheet konfirmasi
+                      if (isDelivery) {
+                        await showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
                           ),
+                          builder: (ctx) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 32,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.money,
+                                    color: Color(0xFFD53D3D),
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Pembayaran Tunai',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Siapkan uang sebesar Rp${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')} kepada petugas yang mengantar makanan anda',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey[300],
+                                          foregroundColor: Colors.black,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(ctx).pop();
+                                        },
+                                        child: const Text('Batal'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFD53D3D),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(ctx).pop();
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => CheckoutProcessPage(),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('Konfirmasi'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            );
+                          },
                         );
-                      },
-                    );
+                      } else {
+                        await showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
+                          ),
+                          builder: (ctx) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 32,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.money,
+                                    color: Color(0xFFD53D3D),
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                    'Pembayaran Tunai',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Silakan bayar langsung ke kasir saat pesanan diantar atau diambil dengan total pembayaran Rp${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey[300],
+                                          foregroundColor: Colors.black,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(ctx).pop();
+                                        },
+                                        child: const Text('Batal'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFD53D3D),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          Navigator.of(ctx).pop();
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => CheckoutProcessPage(),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text('Konfirmasi'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      }
+                    }
                     if (batal) {
-                      // Navigasi ke halaman history (langsung ke widget HistoryPage)
                       if (mounted) {
                         Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (_) => HistoryPage(initialFilter: 'dibatalkan')),
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                HistoryPage(initialFilter: 'dibatalkan'),
+                          ),
                         );
                       }
                     }
