@@ -4,10 +4,9 @@ import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'forgot_password.dart';
 import 'register_page.dart';
-import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
-import 'package:dpr_bites/common/data/dummy_accounts.dart';
+import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,6 +18,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
+  bool _obscurePassword = true;
   String? errorMessage;
 
   @override
@@ -28,57 +28,64 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void handleLogin() {
+  Future<void> handleLogin() async {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
-    // Username khusus
-    if (username == 'seller2') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-      );
+    // Validasi field kosong
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        errorMessage = 'Username dan password harus diisi';
+      });
       return;
     }
-    if (username == 'ikafahriza') {
-      // Reset checklist sebelum masuk onboarding
-      OnboardingChecklistStorage.forceReset().then((_) {
+
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .where('password', isEqualTo: password)
+          .get();
+
+      if (query.docs.isEmpty) {
+        setState(() {
+          errorMessage = 'Username atau password salah';
+        });
+        return;
+      }
+
+      final user = query.docs.first.data();
+      setState(() {
+        errorMessage = null;
+      });
+
+      if (user['role'] == 'Pegawai') {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+          MaterialPageRoute(builder: (_) => const HomePage()),
         );
-      });
-      return;
-    }
-    
-
-    final account = dummyAccounts.firstWhere(
-      (acc) => acc['username'] == username && acc['password'] == password,
-      orElse: () => {},
-    );
-
-    if (account.isEmpty) {
+      } else if (user['role'] == 'Penjual') {
+        // Cek onboarding
+        final onboardingSteps =
+            user['onboardingSteps'] as List<dynamic>? ?? [false, false, false];
+        final onboardingCompleted = user['onboardingCompleted'] ?? false;
+        if (onboardingCompleted == true ||
+            onboardingSteps.every((e) => e == true)) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+          );
+        }
+      }
+    } catch (e) {
       setState(() {
-        errorMessage = 'Username atau password salah';
+        errorMessage = 'Terjadi kesalahan: $e';
       });
-      return;
-    }
-
-    setState(() {
-      errorMessage = null;
-    });
-
-    // Redirect sesuai role
-    if (account['role'] == 'user') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-      );
-    } else if (account['role'] == 'seller') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-      );
     }
   }
 
@@ -120,7 +127,11 @@ class _LoginPageState extends State<LoginPage> {
                               color: const Color(0xFFFFE5EC),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.login, color: Color(0xFFD53D3D), size: 28),
+                            child: const Icon(
+                              Icons.login,
+                              color: Color(0xFFD53D3D),
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Column(
@@ -129,7 +140,9 @@ class _LoginPageState extends State<LoginPage> {
                               Text(
                                 'Akses Masuk',
                                 style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
                                 ),
                               ),
                               SizedBox(height: 2),
@@ -157,10 +170,37 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      CustomInputField(
-                        hintText: "Masukkan username",
+                      TextField(
                         controller: usernameController,
-                        prefixIcon: const Icon(Icons.person, color: Color(0xFFD53D3D)),
+                        decoration: InputDecoration(
+                          hintText: "Masukkan username",
+                          prefixIcon: const Icon(
+                            Icons.person,
+                            color: Color(0xFFD53D3D),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD9D9D9),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD53D3D),
+                            ),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD9D9D9),
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 18),
 
@@ -174,10 +214,51 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      CustomInputField(
-                        hintText: "Masukkan password",
+                      TextField(
                         controller: passwordController,
-                        prefixIcon: const Icon(Icons.lock, color: Color(0xFFD53D3D)),
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          hintText: "Masukkan password",
+                          prefixIcon: const Icon(
+                            Icons.lock,
+                            color: Color(0xFFD53D3D),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: Color(0xFFD53D3D),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD9D9D9),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD53D3D),
+                            ),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD9D9D9),
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -209,7 +290,9 @@ class _LoginPageState extends State<LoginPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const ForgotPasswordPage()),
+                                builder: (context) =>
+                                    const ForgotPasswordPage(),
+                              ),
                             );
                           },
                           style: TextButton.styleFrom(
@@ -237,7 +320,13 @@ class _LoginPageState extends State<LoginPage> {
                   children: const [
                     Expanded(child: Divider(thickness: 1.2)),
                     SizedBox(width: 10),
-                    Text("or", style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+                    Text(
+                      "or",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     SizedBox(width: 10),
                     Expanded(child: Divider(thickness: 1.2)),
                   ],
@@ -249,10 +338,11 @@ class _LoginPageState extends State<LoginPage> {
                   text: " Registrasi Akun",
                   onPressed: () {
                     Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const RegisterPage()),
-                            );
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterPage(),
+                      ),
+                    );
                   },
                 ),
 
@@ -275,7 +365,11 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.help_outline, color: Color(0xFFD53D3D), size: 28),
+                        child: const Icon(
+                          Icons.help_outline,
+                          color: Color(0xFFD53D3D),
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(

@@ -37,6 +37,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
       });
     }
   }
+
   // Controller untuk inputan
   final bannerController = TextEditingController();
   final listingController = TextEditingController();
@@ -87,7 +88,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
           ),
         ),
         body: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +136,9 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                                     color: Colors.grey[200],
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Center(child: Text("Belum ada gambar banner")),
+                                  child: const Center(
+                                    child: Text("Belum ada gambar banner"),
+                                  ),
                                 ),
                           const SizedBox(height: 8),
                           ElevatedButton(
@@ -164,7 +167,9 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                                     color: Colors.grey[200],
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: const Center(child: Text("Belum ada gambar listing")),
+                                  child: const Center(
+                                    child: Text("Belum ada gambar listing"),
+                                  ),
                                 ),
                           const SizedBox(height: 8),
                           ElevatedButton(
@@ -242,7 +247,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                   ],
                 ),
 
-                const Spacer(),
+                SizedBox(height: 30),
                 // Tombol Simpan dan Lanjutkan
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),

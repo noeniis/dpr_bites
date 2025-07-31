@@ -1,12 +1,32 @@
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dpr_bites/features/seller/pages/proses_pengajuan/proses_pengajuan_page.dart';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/profile_gerai_page.dart';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/daftar_menu_page.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 
 class OnboardingChecklistPage extends StatelessWidget {
+  Future<String> _getCurrentUserId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId') ?? '';
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>>
+  _getUserOnboardingStatus() async {
+    final userId = await _getCurrentUserId();
+    if (userId.isEmpty) {
+      throw Exception(
+        'User ID tidak ditemukan. Pastikan sudah login dan userId tersimpan.',
+      );
+    }
+    return await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+  }
+
   const OnboardingChecklistPage({super.key});
 
   @override
@@ -17,19 +37,27 @@ class OnboardingChecklistPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-        
+
           actions: [
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.black),
               onPressed: () {},
-            )
+            ),
           ],
         ),
         body: SafeArea(
-          child: FutureBuilder<List<bool>>(
-            future: OnboardingChecklistStorage.getStatus(),
+          child: FutureBuilder<DocumentSnapshot>(
+            future: _getUserOnboardingStatus(),
             builder: (context, snapshot) {
-              final status = snapshot.data ?? [false, false, false];
+              List<bool> status = [false, false, false];
+              if (snapshot.hasData &&
+                  snapshot.data != null &&
+                  snapshot.data!.exists) {
+                final data = snapshot.data!.data() as Map<String, dynamic>?;
+                if (data != null && data['onboardingSteps'] != null) {
+                  status = List<bool>.from(data['onboardingSteps']);
+                }
+              }
               print('Checklist status: $status');
               // Redirect jika semua selesai
               if (status.every((e) => e)) {
@@ -37,8 +65,12 @@ class OnboardingChecklistPage extends StatelessWidget {
                   Navigator.pushReplacementNamed(context, '/dashboard');
                 });
               }
+
               return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -67,8 +99,17 @@ class OnboardingChecklistPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.only(right: 14, top: 2),
-                                child: Icon(Icons.verified, color: status[0] ? Colors.grey : Color(0xFFD53D3D), size: 38),
+                                padding: const EdgeInsets.only(
+                                  right: 14,
+                                  top: 2,
+                                ),
+                                child: Icon(
+                                  Icons.verified,
+                                  color: status[0]
+                                      ? Colors.grey
+                                      : Color(0xFFD53D3D),
+                                  size: 38,
+                                ),
                               ),
                               Expanded(
                                 child: Column(
@@ -76,12 +117,23 @@ class OnboardingChecklistPage extends StatelessWidget {
                                   children: [
                                     Text(
                                       "Selesaikan proses pengajuan",
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: status[0] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: status[0]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       "Lengkapi detail informasi gerai dan metode pembayaran Anda untuk menyelesaikan proses pendaftaran kantin.",
-                                      style: TextStyle(fontSize: 14, color: status[0] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: status[0]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 6),
                                     Align(
@@ -92,13 +144,20 @@ class OnboardingChecklistPage extends StatelessWidget {
                                             : () {
                                                 Navigator.push(
                                                   context,
-                                                  MaterialPageRoute(builder: (_) => const ProsesPengajuanPage()),
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const ProsesPengajuanPage(),
+                                                  ),
                                                 );
                                               },
                                         child: Text(
-                                          status[0] ? "Sudah selesai" : "Selesaikan sekarang",
+                                          status[0]
+                                              ? "Sudah selesai"
+                                              : "Selesaikan sekarang",
                                           style: TextStyle(
-                                            color: status[0] ? Colors.grey : Color(0xFFD53D3D),
+                                            color: status[0]
+                                                ? Colors.grey
+                                                : Color(0xFFD53D3D),
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -127,8 +186,17 @@ class OnboardingChecklistPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.only(right: 14, top: 2),
-                                child: Icon(Icons.home, color: status[1] ? Colors.grey : Color(0xFFD53D3D), size: 38),
+                                padding: const EdgeInsets.only(
+                                  right: 14,
+                                  top: 2,
+                                ),
+                                child: Icon(
+                                  Icons.home,
+                                  color: status[1]
+                                      ? Colors.grey
+                                      : Color(0xFFD53D3D),
+                                  size: 38,
+                                ),
                               ),
                               Expanded(
                                 child: Column(
@@ -136,27 +204,47 @@ class OnboardingChecklistPage extends StatelessWidget {
                                   children: [
                                     Text(
                                       "Profil gerai",
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: status[1] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: status[1]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       "Tarik perhatian pelanggan dengan visual menarik dan kata kunci yang tepat.",
-                                      style: TextStyle(fontSize: 14, color: status[1] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: status[1]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 6),
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: TextButton(
-                                        onPressed: status[1] ? null : () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(builder: (_) => const ProfilGeraiPage()),
-                                          );
-                                        },
+                                        onPressed: status[1]
+                                            ? null
+                                            : () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const ProfilGeraiPage(),
+                                                  ),
+                                                );
+                                              },
                                         child: Text(
-                                          status[1] ? "Sudah selesai" : "Lengkapi profil",
+                                          status[1]
+                                              ? "Sudah selesai"
+                                              : "Lengkapi profil",
                                           style: TextStyle(
-                                            color: status[1] ? Colors.grey : Color(0xFFD53D3D),
+                                            color: status[1]
+                                                ? Colors.grey
+                                                : Color(0xFFD53D3D),
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -184,8 +272,17 @@ class OnboardingChecklistPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.only(right: 14, top: 2),
-                                child: Icon(Icons.fastfood, color: status[2] ? Colors.grey : Color(0xFFD53D3D), size: 38),
+                                padding: const EdgeInsets.only(
+                                  right: 14,
+                                  top: 2,
+                                ),
+                                child: Icon(
+                                  Icons.fastfood,
+                                  color: status[2]
+                                      ? Colors.grey
+                                      : Color(0xFFD53D3D),
+                                  size: 38,
+                                ),
                               ),
                               Expanded(
                                 child: Column(
@@ -193,27 +290,47 @@ class OnboardingChecklistPage extends StatelessWidget {
                                   children: [
                                     Text(
                                       "Pengaturan menu",
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: status[2] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: status[2]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       "Sajikan hidangan lezat untuk dinikmati para pelanggan.",
-                                      style: TextStyle(fontSize: 14, color: status[2] ? Colors.grey : Colors.black),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: status[2]
+                                            ? Colors.grey
+                                            : Colors.black,
+                                      ),
                                     ),
                                     const SizedBox(height: 6),
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: TextButton(
-                                        onPressed: status[2] ? null : () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(builder: (_) => const DaftarMenuPage()),
-                                          );
-                                        },
+                                        onPressed: status[2]
+                                            ? null
+                                            : () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        const DaftarMenuPage(),
+                                                  ),
+                                                );
+                                              },
                                         child: Text(
-                                          status[2] ? "Sudah selesai" : "Atur menu",
+                                          status[2]
+                                              ? "Sudah selesai"
+                                              : "Atur menu",
                                           style: TextStyle(
-                                            color: status[2] ? Colors.grey : Color(0xFFD53D3D),
+                                            color: status[2]
+                                                ? Colors.grey
+                                                : Color(0xFFD53D3D),
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "637893891180",
+    "project_id": "dpr-bites-5ad99",
+    "storage_bucket": "dpr-bites-5ad99.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637893891180:android:7307abc2fd4d20245eb449",
+        "android_client_info": {
+          "package_name": "com.example.dpr_bites"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlBjZZGGnSA9wXCyL4mAVu4IpsK_pRBrk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
