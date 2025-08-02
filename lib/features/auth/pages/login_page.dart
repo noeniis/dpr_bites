@@ -57,9 +57,11 @@ class _LoginPageState extends State<LoginPage> {
 
       final userDoc = query.docs.first;
       final user = userDoc.data();
+
       // Simpan userId (documentId) ke SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('userId', userDoc.id);
+
       setState(() {
         errorMessage = null;
       });
