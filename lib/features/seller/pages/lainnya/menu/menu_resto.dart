@@ -1,9 +1,9 @@
-
+import 'dart:io';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/tambah_menu_page.dart';
 import 'package:flutter/material.dart';
 import '../../../../../app/gradient_background.dart';
 import '../../../../../common/widgets/custom_widgets.dart';
-import '../../../../../common/data/dummy_menus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_menu.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 
@@ -17,8 +17,6 @@ class MenuRestoPage extends StatefulWidget {
 class _MenuRestoPageState extends State<MenuRestoPage> {
   final TextEditingController _searchController = TextEditingController();
   String _search = '';
-  int _selectedFilter = 0;
-  final List<String> _filters = ['Semua', 'Ketersediaan', 'Layanan'];
 
   @override
   void dispose() {
@@ -26,39 +24,24 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> _menus = List<Map<String, dynamic>>.from(dummyMenus);
+  // Data menu diambil dari Firestore
 
-  List<Map<String, dynamic>> get _filteredMenus {
-    List<Map<String, dynamic>> menus = List<Map<String, dynamic>>.from(_menus);
-    if (_search.isNotEmpty) {
-      menus = menus.where((m) => m['name'].toLowerCase().contains(_search.toLowerCase())).toList();
-    }
-    if (_selectedFilter == 1) {
-      menus = menus.where((m) => m['stock'] > 0).toList();
-    }
-    return menus;
-  }
-
-  void _editMenu(Map<String, dynamic> menu) async {
+  Future<void> _editMenu(Map<String, dynamic> menu, String docId) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => EditMenuPage(
           menu: menu,
-          onSave: (updatedMenu) {
-            setState(() {
-              final idx = _menus.indexWhere((m) => m['id'] == updatedMenu['id']);
-              if (idx != -1) _menus[idx] = updatedMenu;
-            });
+          onSave: (updatedMenu) async {
+            await FirebaseFirestore.instance.collection('menus').doc(docId).update(updatedMenu);
           },
-          onDelete: (id) {
-            setState(() {
-              _menus.removeWhere((m) => m['id'] == id);
-            });
+          onDelete: (id) async {
+            await FirebaseFirestore.instance.collection('menus').doc(docId).delete();
           },
         ),
       ),
     );
+    setState(() {}); // Refresh setelah kembali dari edit
   }
 
   @override
@@ -86,88 +69,98 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Search & Filter (scrollable)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 180,
-                      child: CustomInputField(
-                        hintText: 'Cari',
-                        controller: _searchController,
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                        onSubmitted: (val) => setState(() => _search = val),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ...List.generate(_filters.length, (i) => Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: CustomFilterChipKotak(
-                        label: _filters[i],
-                        selected: _selectedFilter == i,
-                        onTap: () => setState(() => _selectedFilter = i),
-                        icon: i == 0 ? const Icon(Icons.cake_outlined, size: 18) : null,
-                      ),
-                    )),
-                  ],
+              // Search only, full width
+              SizedBox(
+                width: double.infinity,
+                child: CustomInputField(
+                  hintText: 'Cari',
+                  controller: _searchController,
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  onSubmitted: (val) => setState(() => _search = val),
                 ),
               ),
               const SizedBox(height: 16),
               Expanded(
-                child: ListView.separated(
-                  itemCount: _filteredMenus.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, idx) {
-                    final menu = _filteredMenus[idx];
-                    return CustomEmptyCard(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                menu['image'],
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(menu['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-                                  const SizedBox(height: 2),
-                                  Text('Rp. ${menu['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")}', style: const TextStyle(fontSize: 14)),
-                                  const SizedBox(height: 2),
-                                  Text('Stok: ${menu['stock']}', style: TextStyle(color: Colors.red[400], fontSize: 13)),
-                                ],
-                              ),
-                            ),
-                            Column(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('menus').snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text('Belum ada menu'));
+                    }
+                    List<QueryDocumentSnapshot> docs = snapshot.data!.docs;
+                    List<Map<String, dynamic>> menus = docs.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      data['id'] = doc.id;
+                      return data;
+                    }).toList();
+                    // Search filter only
+                    if (_search.isNotEmpty) {
+                      menus = menus.where((m) => m['name'].toLowerCase().contains(_search.toLowerCase())).toList();
+                    }
+                    return ListView.separated(
+                      itemCount: menus.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, idx) {
+                        final menu = menus[idx];
+                        final docId = menu['id'];
+                        return CustomEmptyCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.edit, size: 20, color: Colors.black54),
-                                  onPressed: () => _editMenu(menu),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: menu['menuImageUrl'] != null
+                                      ? Image.file(
+                                          File(menu['menuImageUrl']),
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          width: 60,
+                                          height: 60,
+                                          color: Colors.grey[200],
+                                          child: const Icon(Icons.image, color: Colors.grey),
+                                        ),
                                 ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[100],
-                                    borderRadius: BorderRadius.circular(6),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(menu['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                      const SizedBox(height: 2),
+                                      Text('Rp. ${menu['price'].toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")}', style: const TextStyle(fontSize: 14)),
+                                      const SizedBox(height: 2),
+                                      Text('Stok: ${menu['stock']}', style: TextStyle(color: Colors.red[400], fontSize: 13)),
+                                    ],
                                   ),
-                                  padding: const EdgeInsets.all(3),
-                                  child: const Icon(Icons.check, color: Colors.green, size: 18),
+                                ),
+                                Column(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 20, color: Colors.black54),
+                                      onPressed: () => _editMenu(menu, docId),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.green[100],
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -176,15 +169,11 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
               CustomButtonOval(
                 text: 'Tambah menu',
                 onPressed: () async {
-                  final result = await Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const TambahMenuPage()),
                   );
-                  if (result != null && result is Map<String, dynamic>) {
-                    setState(() {
-                      _menus.add(result);
-                    });
-                  }
+                  setState(() {}); // Refresh setelah kembali dari tambah
                 },
               ),
               const SizedBox(height: 10),

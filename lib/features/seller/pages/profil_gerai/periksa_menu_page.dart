@@ -1,11 +1,14 @@
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 
 class PeriksaMenuPage extends StatelessWidget {
-  const PeriksaMenuPage({super.key});
+  final Map<String, dynamic> menuData;
+  const PeriksaMenuPage({super.key, required this.menuData});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +27,7 @@ class PeriksaMenuPage extends StatelessWidget {
           title: const Text(
             "Periksa Menu",
             style: TextStyle(
-              fontSize: 25,
+              fontSize: 20,
               fontFamily: 'Afacad',
               color: AppTheme.textColor,
               fontWeight: FontWeight.bold,
@@ -38,26 +41,34 @@ class PeriksaMenuPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Gambar Menu
-                Container(
-                  width: double.infinity,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    image: const DecorationImage(
-                      image: AssetImage(
-                        'lib/assets/images/waroenk88.jpeg',
+                menuData['imagePath'] != null
+                    ? Container(
+                        width: double.infinity,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          image: DecorationImage(
+                            image: FileImage(File(menuData['imagePath'])),
+                            fit: BoxFit.cover,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              offset: const Offset(0, 4),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        width: double.infinity,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.grey[200],
+                        ),
+                        child: const Center(child: Text("Belum ada gambar")),
                       ),
-                      fit: BoxFit.cover,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        offset: const Offset(0, 4),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 20),
                 const Text(
                   "Nama hidangan",
@@ -68,9 +79,9 @@ class PeriksaMenuPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  "Nasi Pecel",
-                  style: TextStyle(
+                Text(
+                  menuData['name'] ?? '',
+                  style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 16,
                     color: Colors.black,
@@ -86,9 +97,9 @@ class PeriksaMenuPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  "Rp 20.000",
-                  style: TextStyle(
+                Text(
+                  "Rp ${menuData['price'] ?? 0}",
+                  style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 16,
                     color: Colors.black,
@@ -104,10 +115,10 @@ class PeriksaMenuPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  "Hidangan khas Jawa yang terdiri dari nasi putih hangat, kacang panjang dan kemangi, dipadu dengan sambal gurih pedas yang khas. Disajikan bersama pelengkap ayam serundeng dan telur rebus.",
+                Text(
+                  menuData['description'] ?? '',
                   textAlign: TextAlign.justify,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 16,
                     color: Colors.black,
@@ -119,11 +130,35 @@ class PeriksaMenuPage extends StatelessWidget {
                     width: double.infinity,
                     child: CustomButtonKotak(
                       text: "Buat menu",
-                      onPressed: () {
-                        Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MenuRestoPage()),
-      );
+                      onPressed: () async {
+                        try {
+                          await FirebaseFirestore.instance.collection('menus').add({
+                            ...menuData,
+                            'createdAt': Timestamp.fromDate(menuData['createdAt']),
+                            'editedAt': Timestamp.fromDate(menuData['editedAt']),
+                          });
+                          final userId = menuData['userId'] ?? '';
+                          final userDoc = FirebaseFirestore.instance.collection('users').doc(userId);
+                          final doc = await userDoc.get();
+                          List<bool> steps = List<bool>.from(doc.data()?['onboardingSteps'] ?? [false, false, false]);
+                          steps[2] = true;
+                          bool completed = steps.every((e) => e);
+                          await userDoc.update({
+                            'onboardingSteps': steps,
+                            'onboardingCompleted': completed,
+                          });
+                          if (context.mounted) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MenuRestoPage()),
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Gagal menyimpan menu: $e')),
+                          );
+                        }
                       },
                     ),
                   ),

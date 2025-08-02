@@ -167,14 +167,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (focus) {
-        if (focus && !_hasCleared && _controller.text.isNotEmpty) {
-          _controller.clear();
-          setState(() => _hasCleared = true);
-        }
-      },
-      child: TextField(
+    return TextField(
         controller: _controller,
         obscureText: widget.obscureText,
         decoration: InputDecoration(
@@ -206,8 +199,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
-         onSubmitted: widget.onSubmitted,
-      ),
+        onSubmitted: widget.onSubmitted,
     );
   }
 }

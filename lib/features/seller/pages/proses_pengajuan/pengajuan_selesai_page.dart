@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PengajuanSelesaiPage extends StatelessWidget {
+  static Future<String> getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId') ?? '';
+  }
   const PengajuanSelesaiPage({super.key});
 
   @override
@@ -16,10 +21,7 @@ class PengajuanSelesaiPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
-            onPressed: () => Navigator.pop(context),
-          ),
+          automaticallyImplyLeading: false,
         ),
         body: SafeArea(
           child: Padding(
@@ -58,10 +60,22 @@ class PengajuanSelesaiPage extends StatelessWidget {
                     child: CustomButtonKotak(
                       text: "Lanjutkan ke beranda",
                       onPressed: () async {
-                        await OnboardingChecklistStorage.setStatus(0, true);
-                        Navigator.pushNamedAndRemoveUntil(
+                        // Update langkah 0 di Firestore
+                        final userId = await PengajuanSelesaiPage.getCurrentUserId();
+                        final docRef = FirebaseFirestore.instance.collection('users').doc(userId);
+                        final doc = await docRef.get();
+                        final data = doc.data() ?? {};
+                        List<bool> steps = List<bool>.from(data['onboardingSteps'] ?? [false, false, false]);
+                        steps[0] = true;
+                        bool completed = steps.every((e) => e);
+                        await docRef.update({
+                          'onboardingSteps': steps,
+                          'onboardingCompleted': completed,
+                        });
+                        // Kembali ke onboarding checklist dan trigger reload
+                        Navigator.pushAndRemoveUntil(
                           context,
-                          '/onboarding_checklist',
+                          MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
                           (route) => false,
                         );
                       },
@@ -75,4 +89,5 @@ class PengajuanSelesaiPage extends StatelessWidget {
       ),
     );
   }
+ 
 }
