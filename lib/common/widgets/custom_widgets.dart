@@ -47,6 +47,8 @@ class TextFieldLine extends StatefulWidget {
   final bool editable;
   final TextEditingController? controller;
   final Color underlineColor;
+  final String? hintText;
+  final ValueChanged<String>? onChanged;
 
   const TextFieldLine({
     super.key,
@@ -56,6 +58,8 @@ class TextFieldLine extends StatefulWidget {
     this.editable = false,
     this.controller,
     this.underlineColor = Colors.black, // default hitam
+    this.hintText,
+    this.onChanged,
   });
 
   @override
@@ -69,7 +73,8 @@ class _TextFieldLineState extends State<TextFieldLine> {
   @override
   void initState() {
     super.initState();
-    _controller = widget.controller ?? TextEditingController(text: widget.value);
+    _controller =
+        widget.controller ?? TextEditingController(text: widget.value);
   }
 
   @override
@@ -98,15 +103,16 @@ class _TextFieldLineState extends State<TextFieldLine> {
                   minLines: 1,
                   maxLines: 1,
                   expands: false,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 6),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
                     border: InputBorder.none,
                     focusedBorder: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     disabledBorder: InputBorder.none,
-                    hintText: "",
+                    hintText: widget.hintText ?? "",
                   ),
+                  onChanged: widget.onChanged,
                 ),
               )
             : Text(
@@ -185,33 +191,26 @@ class _CustomInputFieldState extends State<CustomInputField> {
           fillColor: Colors.white,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.grey[300]!,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.grey[400]!,
-              width: 1.8,
-            ),
+            borderSide: BorderSide(color: Colors.grey[400]!, width: 1.8),
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: Colors.grey[300]!,
-              width: 1.5,
-            ),
+            borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
           ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 16,
+            horizontal: 16,
+          ),
         ),
-         onSubmitted: widget.onSubmitted,
+        onSubmitted: widget.onSubmitted,
       ),
     );
   }
 }
-
 
 // 4. Custom Filter Chip
 class CustomFilterChip extends StatelessWidget {
@@ -236,7 +235,9 @@ class CustomFilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFD53D3D).withOpacity(0.12) : Colors.white,
+          color: selected
+              ? const Color(0xFFD53D3D).withOpacity(0.12)
+              : Colors.white,
           border: Border.all(
             color: selected ? const Color(0xFFD53D3D) : Colors.grey[300]!,
             width: 2,
@@ -268,11 +269,7 @@ class CustomButtonOval extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
 
-  const CustomButtonOval({
-    required this.text,
-    this.onPressed,
-    super.key,
-  });
+  const CustomButtonOval({required this.text, this.onPressed, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -331,7 +328,9 @@ class CustomButtonKotak extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDisabled = onPressed == null;
     final Color bgColor = backgroundColor ?? Colors.transparent;
-    final Color fgColor = textColor ?? (isDisabled ? Colors.white.withOpacity(0.55) : Colors.white);
+    final Color fgColor =
+        textColor ??
+        (isDisabled ? Colors.white.withOpacity(0.55) : Colors.white);
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: onPressed,
@@ -342,7 +341,10 @@ class CustomButtonKotak extends StatelessWidget {
           gradient: (backgroundColor == null)
               ? LinearGradient(
                   colors: isDisabled
-                      ? [const Color(0xFFD53D3D).withOpacity(0.35), const Color(0xFF602829).withOpacity(0.35)]
+                      ? [
+                          const Color(0xFFD53D3D).withOpacity(0.35),
+                          const Color(0xFF602829).withOpacity(0.35),
+                        ]
                       : [const Color(0xFFD53D3D), const Color(0xFF602829)],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
@@ -351,7 +353,9 @@ class CustomButtonKotak extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: (isDisabled ? Colors.redAccent.withOpacity(0.04) : Colors.redAccent.withOpacity(0.07)),
+              color: (isDisabled
+                  ? Colors.redAccent.withOpacity(0.04)
+                  : Colors.redAccent.withOpacity(0.07)),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -395,7 +399,9 @@ class CustomFilterChipKotak extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFD53D3D).withOpacity(0.12) : Colors.white,
+          color: selected
+              ? const Color(0xFFD53D3D).withOpacity(0.12)
+              : Colors.white,
           border: Border.all(
             color: selected ? const Color(0xFFD53D3D) : Colors.grey[300]!,
             width: 2,

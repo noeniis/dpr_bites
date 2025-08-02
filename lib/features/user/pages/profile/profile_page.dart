@@ -2,11 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_users.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import 'package:dpr_bites/features/auth/pages/logout.dart';
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
+
 import 'package:dpr_bites/features/user/pages/history/history_page.dart';
+
+Future<bool> checkUserData() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  final userId = prefs.getString('userId') ?? '';
+  if (userId.isEmpty) return false;
+  final doc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(userId)
+      .get();
+  return doc.exists;
+}
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,26 +33,9 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  late Map<String, String> user;
+  Map<String, dynamic> user = {};
   bool isEditing = false;
   String editingField = '';
-  final nameController = TextEditingController();
-  final usernameController = TextEditingController();
-  final phoneController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    user = Map<String, String>.from(dummyUser);
-    nameController.text = user['name'] ?? '';
-    usernameController.text = user['username'] ?? '';
-    phoneController.text = user['phone'] ?? '';
-    emailController.text = user['email'] ?? '';
-    passwordController.text = user['password'] ?? '';
-  }
-
   void startEdit(String field) {
     setState(() {
       isEditing = true;
@@ -54,16 +54,142 @@ class _ProfilePageState extends State<ProfilePage> {
         user['password'] = passwordController.text;
       isEditing = false;
       editingField = '';
-      dummyUser.clear();
-      dummyUser.addAll(user);
     });
+    _saveUserDataToFirestore().then((_) => _loadUserData());
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
   }
 
+  final nameController = TextEditingController();
+  final usernameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  String? photoPath;
+  Uint8List? photoBytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    photoBytes = null;
+  }
+
+  Future<void> _loadUserData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId') ?? '';
+    if (userId.isEmpty) {
+      print('userId kosong di SharedPreferences');
+      return;
+    }
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+    if (doc.exists) {
+      print('Data user ditemukan: ' + doc.data().toString());
+      setState(() {
+        user = doc.data() ?? {};
+        nameController.text = user['name'] ?? '';
+        usernameController.text = user['username'] ?? '';
+        phoneController.text = user['phone'] ?? '';
+        emailController.text = user['email'] ?? '';
+        passwordController.text = user['password'] ?? '';
+        photoPath = user['photoPath'];
+        photoBytes = null;
+      });
+    } else {
+      print(
+        'Dokumen user tidak ditemukan di Firestore untuk userId: ' + userId,
+      );
+    }
+  }
+
+  Future<void> _autoSaveUserData() async {
+    await _saveUserDataToFirestore();
+    await _loadUserData();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
+  }
+
+  Future<void> _saveUserDataToFirestore() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId') ?? '';
+    if (userId.isEmpty) return;
+    final dataToUpdate = {
+      'name': nameController.text,
+      'username': usernameController.text,
+      'phone': phoneController.text,
+      'email': emailController.text,
+      'password': passwordController.text,
+      'photoPath': photoPath,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .update(dataToUpdate);
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 400,
+      maxHeight: 400,
+      imageQuality: 90,
+    );
+    if (picked != null) {
+      final file = File(picked.path);
+      final bytes = await file.length();
+      if (bytes > 2 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ukuran foto maksimal 2MB')),
+        );
+        return;
+      }
+      // Simpan ke folder dokumen aplikasi
+      final appDir = await getApplicationDocumentsDirectory();
+      final userFolder = usernameController.text;
+      final userDir = Directory('${appDir.path}/users/$userFolder');
+      if (!await userDir.exists()) await userDir.create(recursive: true);
+      final ext = picked.path.split('.').last;
+      final fileName = '$userFolder.$ext';
+      final newPath = '${userDir.path}/$fileName';
+      final copied = await file.copy(newPath);
+      final bytesData = await copied.readAsBytes();
+      setState(() {
+        photoPath = newPath;
+        user['photoPath'] = newPath;
+        photoBytes = bytesData;
+      });
+      // Simpan ke Firestore, tapi tidak perlu reload data agar UI langsung update
+      await _saveUserDataToFirestore();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (user.isEmpty) {
+      return FutureBuilder(
+        future: checkUserData(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || snapshot.data == false) {
+            return const Center(
+              child: Text('Data user tidak ditemukan. Silakan login ulang.'),
+            );
+          }
+          // fallback loading
+          return const Center(child: CircularProgressIndicator());
+        },
+      );
+    }
+
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -116,32 +242,62 @@ class _ProfilePageState extends State<ProfilePage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.black26, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
                           child: ClipOval(
-                            child: Image.asset(
-                              user['photo'] ?? 'lib/assets/images/iconUser.png',
-                              width: 90,
-                              height: 90,
-                              fit: BoxFit.cover,
-                            ),
+                            child: photoBytes != null
+                                ? Image.memory(
+                                    photoBytes!,
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  )
+                                : (photoPath != null &&
+                                          photoPath!.isNotEmpty &&
+                                          File(photoPath!).existsSync()
+                                      ? Image.file(
+                                          File(photoPath!),
+                                          key: ValueKey(photoPath),
+                                          width: 90,
+                                          height: 90,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.asset(
+                                          'lib/assets/images/iconUser.png',
+                                          width: 90,
+                                          height: 90,
+                                          fit: BoxFit.cover,
+                                        )),
                           ),
                         ),
                         Positioned(
                           bottom: 6,
                           right: 6,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: Center(
-                              child: Image.asset(
-                                'lib/assets/images/iconCamera.png',
-                                width: 18,
-                                height: 18,
+                          child: GestureDetector(
+                            onTap: _pickProfilePhoto,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Image.asset(
+                                  'lib/assets/images/iconCamera.png',
+                                  width: 18,
+                                  height: 18,
+                                ),
                               ),
                             ),
                           ),
@@ -150,71 +306,56 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  GestureDetector(
-                    onTap: () => startEdit('name'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'name'),
-                      child: TextFieldLine(
-                        label: 'Nama',
-                        value: user['name'] ?? '',
-                        controller: nameController,
-                        editable: isEditing && editingField == 'name',
-                        underlineColor: Colors.black,
-                      ),
-                    ),
+                  TextFieldLine(
+                    label: 'Nama',
+                    value: user['name'] ?? '',
+                    controller: nameController,
+                    editable: true,
+                    underlineColor: Colors.black,
+                    onChanged: (val) {
+                      startEdit('name');
+                    },
                   ),
-                  GestureDetector(
-                    onTap: () => startEdit('username'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'username'),
-                      child: TextFieldLine(
-                        label: 'Username',
-                        value: user['username'] ?? '',
-                        controller: usernameController,
-                        editable: isEditing && editingField == 'username',
-                        underlineColor: Colors.black,
-                      ),
-                    ),
+                  TextFieldLine(
+                    label: 'Username',
+                    value: user['username'] ?? '',
+                    controller: usernameController,
+                    editable: true,
+                    underlineColor: Colors.black,
+                    onChanged: (val) {
+                      startEdit('username');
+                    },
                   ),
-                  GestureDetector(
-                    onTap: () => startEdit('phone'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'phone'),
-                      child: TextFieldLine(
-                        label: 'No HP',
-                        value: user['phone'] ?? '',
-                        controller: phoneController,
-                        editable: isEditing && editingField == 'phone',
-                        underlineColor: Colors.black,
-                      ),
-                    ),
+                  TextFieldLine(
+                    label: 'No HP',
+                    value: user['phone'] ?? '',
+                    controller: phoneController,
+                    editable: true,
+                    underlineColor: Colors.black,
+                    onChanged: (val) {
+                      startEdit('phone');
+                    },
                   ),
-                  GestureDetector(
-                    onTap: () => startEdit('email'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'email'),
-                      child: TextFieldLine(
-                        label: 'Email',
-                        value: user['email'] ?? '',
-                        controller: emailController,
-                        editable: isEditing && editingField == 'email',
-                        underlineColor: Colors.black,
-                      ),
-                    ),
+                  TextFieldLine(
+                    label: 'Email',
+                    value: user['email'] ?? '',
+                    controller: emailController,
+                    editable: true,
+                    underlineColor: Colors.black,
+                    onChanged: (val) {
+                      startEdit('email');
+                    },
                   ),
-                  GestureDetector(
-                    onTap: () => startEdit('password'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'password'),
-                      child: TextFieldLine(
-                        label: 'Password',
-                        value: user['password'] ?? '',
-                        controller: passwordController,
-                        editable: isEditing && editingField == 'password',
-                        obscure: true,
-                        underlineColor: Colors.black,
-                      ),
-                    ),
+                  TextFieldLine(
+                    label: 'Password',
+                    value: user['password'] ?? '',
+                    controller: passwordController,
+                    editable: true,
+                    obscure: true,
+                    underlineColor: Colors.black,
+                    onChanged: (val) {
+                      startEdit('password');
+                    },
                   ),
                   const SizedBox(height: 32),
                   CustomButtonKotak(

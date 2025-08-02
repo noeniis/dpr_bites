@@ -7,6 +7,7 @@ import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -54,7 +55,12 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final user = query.docs.first.data();
+      final userDoc = query.docs.first;
+      final user = userDoc.data();
+      // Simpan userId ke SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userId', userDoc.id);
+
       setState(() {
         errorMessage = null;
       });
