@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../../app/gradient_background.dart';
 import '../../../../../common/widgets/custom_widgets.dart';
 
@@ -27,14 +30,14 @@ class _EditMenuPageState extends State<EditMenuPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.menu['name'] ?? '');
-    _descController = TextEditingController(text: widget.menu['desc'] ?? '');
+    _descController = TextEditingController(text: widget.menu['description'] ?? '');
     _priceController = TextEditingController(text: widget.menu['price']?.toString() ?? '');
     _stock = widget.menu['stock'] ?? 1;
-    _category = 'Makanan';
+    _category = widget.menu['category'] ?? 'Makanan';
     _delivery = true;
     _pickup = true;
     _available = (widget.menu['stock'] ?? 1) > 0;
-    _imagePath = widget.menu['image'] ?? '';
+    _imagePath = widget.menu['menuImageUrl'] ?? '';
   }
 
   @override
@@ -45,22 +48,48 @@ class _EditMenuPageState extends State<EditMenuPage> {
     super.dispose();
   }
 
-  void _saveMenu() {
+  void _saveMenu() async {
     final updatedMenu = {
       ...widget.menu,
       'name': _nameController.text,
       'desc': _descController.text,
       'price': int.tryParse(_priceController.text) ?? 0,
       'stock': _stock,
-      'image': _imagePath,
+      'menuImageUrl': _imagePath,
+      'category': _category,
+      'available': _available,
     };
+    // Update ke Firestore
+    if (widget.menu['id'] != null) {
+      await FirebaseFirestore.instance.collection('menus').doc(widget.menu['id']).update(updatedMenu);
+    }
     widget.onSave?.call(updatedMenu);
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
   }
 
-  void _deleteMenu() {
-    widget.onDelete?.call(widget.menu['id']);
-    Navigator.pop(context);
+  void _deleteMenu() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Hapus'),
+        content: const Text('Apakah Anda yakin ingin menghapus menu ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && widget.menu['id'] != null) {
+      await FirebaseFirestore.instance.collection('menus').doc(widget.menu['id']).delete();
+      widget.onDelete?.call(widget.menu['id']);
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override
@@ -76,7 +105,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
           title: const Text('Edit Menu', style: TextStyle(color: Colors.black)),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          centerTitle: true,
+          centerTitle: false,
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -89,152 +118,189 @@ class _EditMenuPageState extends State<EditMenuPage> {
                   // Nama menu
                   const Text('Nama menu', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  CustomInputField(
-                    hintText: 'Nama menu',
+                  TextField(
                     controller: _nameController,
+                    decoration: const InputDecoration(
+                      hintText: 'Beri nama hidangan',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   // Foto hidangan
                   const Text('Foto hidangan', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   Row(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          _imagePath,
-                          width: 70,
-                          height: 70,
-                          fit: BoxFit.cover,
-                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: _imagePath.isNotEmpty
+                            ? Image.file(
+                                File(_imagePath),
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                width: 120,
+                                height: 120,
+                                color: Colors.grey[200],
+                                child: const Center(child: Text('Belum ada gambar')),
+                              ),
                       ),
                       const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text('Ukuran gambar maksimal 2 MB.', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                            Text('Pastikan kualitas gambar jelas dan menggugah selera.', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                          ],
-                        ),
-                      ),
                       IconButton(
                         icon: const Icon(Icons.edit, color: Colors.green),
-                        onPressed: () {},
+                        onPressed: () async {
+                          final picker = ImagePicker();
+                          final picked = await picker.pickImage(source: ImageSource.gallery);
+                          if (picked != null) {
+                            setState(() {
+                              _imagePath = picked.path;
+                            });
+                          }
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
+                  const Text('Ukuran gambar maksimal 2 MB. Pastikan kualitas gambar jelas dan menggugah selera.', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                  const SizedBox(height: 12),
                   // Deskripsi
                   const Text('Deskripsi', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  CustomInputField(
-                    hintText: 'Deskripsi menu',
+                  TextField(
                     controller: _descController,
-                    suffixIcon: Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Text('${_descController.text.length}/200', style: const TextStyle(fontSize: 12, color: Colors.black38)),
-                    ),
-                    onSubmitted: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  // Kategori
-                  const Text('Kategori', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  CustomEmptyCard(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(_category)),
-                          Icon(Icons.chevron_right, color: Colors.black38),
-                        ],
+                    maxLength: 200,
+                    decoration: const InputDecoration(
+                      hintText: 'Masukkan deskripsi hidangan ini',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Jenis layanan
-                  const Text('Jenis layanan', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(child: Text('Pengantaran')),
-                      Checkbox(
-                        value: _delivery,
-                        onChanged: (val) => setState(() => _delivery = val ?? true),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Expanded(child: Text('Ambil di tempat')),
-                      Checkbox(
-                        value: _pickup,
-                        onChanged: (val) => setState(() => _pickup = val ?? true),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   // Harga
                   const Text('Harga', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  CustomInputField(
-                    hintText: 'Harga',
+                  TextField(
                     controller: _priceController,
-                    prefixIcon: const Icon(Icons.attach_money, color: Colors.green),
-                  ),
-                  const SizedBox(height: 16),
-                  // Ketersediaan
-                  const Text('Ketersediaan', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(child: Text(_available ? 'Tersedia' : 'Tidak tersedia')),
-                      Checkbox(
-                        value: _available,
-                        onChanged: (val) => setState(() => _available = val ?? true),
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Masukkan harga menu',
+                      prefixText: 'Rp ',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        borderSide: BorderSide.none,
                       ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+                  // Kategori
+                  const Text('Kategori', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: _category,
+                    items: <String>['Makanan', 'Minuman', 'Dessert'].map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _category = value ?? 'Makanan';
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   // Jumlah stok
                   const Text('Jumlah stok', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                        onPressed: () => setState(() { if (_stock > 0) _stock--; }),
+                  TextField(
+                    controller: TextEditingController(text: _stock.toString()),
+                    keyboardType: TextInputType.number,
+                    onChanged: (val) {
+                      setState(() {
+                        _stock = int.tryParse(val) ?? 1;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Masukkan jumlah stok',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                        borderSide: BorderSide.none,
                       ),
-                      Text('$_stock', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, color: Colors.green),
-                        onPressed: () => setState(() { _stock++; }),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomButtonKotak(
-                          text: 'Selesai',
-                          onPressed: _saveMenu,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: CustomButtonKotak(
-                          text: 'Hapus menu',
-                          onPressed: _deleteMenu,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 12),
+                  // Ketersediaan
+                  const Text('Ketersediaan', style: TextStyle(fontWeight: FontWeight.bold)),
+                  CheckboxListTile(
+                    title: const Text('Tersedia'),
+                    value: _available,
+                    onChanged: (val) {
+                      setState(() {
+                        _available = val ?? true;
+                      });
+                    },
                   ),
                   const SizedBox(height: 24),
                 ],
               ),
             ),
+
+          ),
+        ),
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFFFA1A1), Color(0xFFFFA1A1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: CustomButtonKotak(
+                  text: 'Selesai',
+                  onPressed: _saveMenu,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: CustomButtonKotak(
+                  text: 'Hapus menu',
+                  onPressed: _deleteMenu,
+                ),
+              ),
+            ],
           ),
         ),
       ),

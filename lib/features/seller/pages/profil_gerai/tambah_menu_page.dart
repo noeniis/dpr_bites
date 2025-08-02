@@ -4,6 +4,8 @@ import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'periksa_menu_page.dart';
 
@@ -15,6 +17,7 @@ class TambahMenuPage extends StatefulWidget {
 }
 
 class TambahMenuPageState extends State<TambahMenuPage> {
+  String? _selectedCategory;
   XFile? _menuImage;
 
   Future<void> _pickMenuImage() async {
@@ -165,90 +168,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // Kategori
-                const Text(
-                  "Kategori",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  hint: const Text("Pilih kategori menu"),
-                  items: <String>['Makanan', 'Minuman', 'Dessert'].map((
-                    String value,
-                  ) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: (value) {},
-                  decoration: const InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Jenis Layanan
-                const Text(
-                  "Jenis layanan",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Inter',
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isPengantaran,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          _isPengantaran = value ?? false;
-                        });
-                      },
-                    ),
-                    const Text(
-                      "Pengantaran",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontFamily: 'Inter',
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Checkbox(
-                      value: _isAmbilTempat,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          _isAmbilTempat = value ?? false;
-                        });
-                      },
-                    ),
-                    const Text(
-                      "Ambil di tempat",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontFamily: 'Inter',
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
                 // Harga
                 const Text(
                   "Harga",
@@ -263,7 +182,7 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   controller: _hargaController,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    hintText: "Rp Masukkan harga",
+                    hintText: "Masukkan harga menu",
                     filled: true,
                     fillColor: Colors.white,
                     contentPadding: EdgeInsets.symmetric(
@@ -278,9 +197,9 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // Jumlah Stok
+                // Kategori
                 const Text(
-                  "Jumlah stok",
+                  "Kategori",
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Inter',
@@ -288,6 +207,38 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  hint: const Text("Pilih kategori menu"),
+                  value: _selectedCategory,
+                  items: <String>['Makanan', 'Minuman', 'Dessert'].map((
+                    String value,
+                  ) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = value;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ...existing code...
                 TextField(
                   controller: _jumlahStokController,
                   keyboardType: TextInputType.number,
@@ -326,21 +277,52 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   },
                 ),
                 const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: CustomButtonKotak(
-                    text: "Periksa menu",
-                    onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PeriksaMenuPage()),);
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ]
           ),
         ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: SizedBox(
+          width: double.infinity,
+          child: CustomButtonKotak(
+            text: "Periksa menu",
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              final userId = prefs.getString('userId') ?? '';
+              String? menuImageUrl;
+              if (_menuImage != null) {
+                final appDir = await getApplicationDocumentsDirectory();
+                final menuName = _namaMenuController.text.trim().replaceAll(' ', '_');
+                final menuDir = Directory('${appDir.path}/menus/seller/$userId');
+                await menuDir.create(recursive: true);
+                final localPath = '${menuDir.path}/$menuName.jpg';
+                await File(_menuImage!.path).copy(localPath);
+                menuImageUrl = localPath;
+              }
+              final menuMap = {
+                'userId': userId,
+                'name': _namaMenuController.text.trim(),
+                'description': _deskripsiController.text.trim(),
+                'category': _selectedCategory,
+                'imagePath': _menuImage?.path,
+                'menuImageUrl': menuImageUrl,
+                'price': int.tryParse(_hargaController.text.trim()) ?? 0,
+                'stock': int.tryParse(_jumlahStokController.text.trim()) ?? 0,
+                'available': _isTersedia,
+                'createdAt': DateTime.now(),
+                'editedAt': DateTime.now(),
+              };
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PeriksaMenuPage(menuData: menuMap),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
       ),
     );
   }

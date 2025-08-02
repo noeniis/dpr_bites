@@ -173,14 +173,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (focus) {
-        if (focus && !_hasCleared && _controller.text.isNotEmpty) {
-          _controller.clear();
-          setState(() => _hasCleared = true);
-        }
-      },
-      child: TextField(
+    return TextField(
         controller: _controller,
         obscureText: widget.obscureText,
         decoration: InputDecoration(
@@ -207,7 +200,6 @@ class _CustomInputFieldState extends State<CustomInputField> {
           ),
         ),
         onSubmitted: widget.onSubmitted,
-      ),
     );
   }
 }

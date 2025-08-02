@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilGeraiPage extends StatefulWidget {
   const ProfilGeraiPage({super.key});
@@ -14,6 +19,39 @@ class ProfilGeraiPage extends StatefulWidget {
 }
 
 class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
+  // Helper untuk salin gambar ke local storage dan return path lokal
+  Future<String?> _saveImageLocally(XFile? image, String filename) async {
+    if (image == null) return null;
+    final file = File(image.path);
+    if (!file.existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File gambar tidak ditemukan di perangkat')),
+      );
+      return null;
+    }
+    final userId = await _getUserId();
+    final appDir = await getApplicationDocumentsDirectory();
+    final dirPath = '${appDir.path}/stores_details/$userId';
+    await Directory(dirPath).create(recursive: true);
+    final localPath = '$dirPath/$filename';
+    await file.copy(localPath);
+    return localPath;
+  }
+
+  // Helper untuk ambil userId dari SharedPreferences
+  Future<String> _getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId') ?? '';
+  }
+
+  // Validasi field
+  bool _validateFields() {
+    if (_bannerImage == null || _listingImage == null) return false;
+    if (menuController.text.trim().isEmpty) return false;
+    final selected = selectedDays.entries.where((e) => e.value).map((e) => e.key).toList();
+    if (selected.isEmpty) return false;
+    return true;
+  }
   // State untuk gambar banner dan listing
   XFile? _bannerImage;
   XFile? _listingImage;
@@ -46,7 +84,21 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
 
   // Controller untuk jam operasional
   TimeOfDay selectedTimeStart = TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay selectedTimeEnd = TimeOfDay(hour: 17, minute: 0);
+  TimeOfDay selectedTimeEnd = TimeOfDay(hour: 16, minute: 0);
+
+  // Hari operasional
+  final List<String> operationalDays = [
+    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+  ];
+  final Map<String, bool> selectedDays = {
+    'Senin': false,
+    'Selasa': false,
+    'Rabu': false,
+    'Kamis': false,
+    'Jumat': false,
+    'Sabtu': false,
+    'Minggu': false,
+  };
 
   // Method untuk memilih jam buka
   Future<void> _selectTimeStart(BuildContext context) async {
@@ -86,6 +138,16 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
             icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
             onPressed: () => Navigator.pop(context),
           ),
+          title: const Text(
+            "Profil Gerai",
+            style: TextStyle(
+              fontSize: 20,
+              fontFamily: 'Afacad',
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textColor,
+            ),
+          ),
+          centerTitle: false,
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -93,17 +155,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Judul halaman
-                const Text(
-                  "Profil Gerai",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 20),
+                // ...existing code...
 
                 // Gambar banner & listing
                 const Text(
@@ -141,9 +193,19 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                                   ),
                                 ),
                           const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _pickBannerImage,
-                            child: const Text("Pilih Gambar Banner"),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _pickBannerImage,
+                              style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Text("Pilih Gambar Banner"),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -172,9 +234,19 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                                   ),
                                 ),
                           const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _pickListingImage,
-                            child: const Text("Pilih Gambar Listing"),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _pickListingImage,
+                              style: ElevatedButton.styleFrom(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Center(
+                                child: Text("Pilih Gambar Listing"),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -184,9 +256,9 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
 
                 const SizedBox(height: 30),
 
-                // Menu masakan
+                // Kategori/Jenis masakan
                 const Text(
-                  "Menu masakan",
+                  "Kategori/Jenis masakan",
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Afacad',
@@ -198,7 +270,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                 TextField(
                   controller: menuController,
                   decoration: InputDecoration(
-                    hintText: "Masukkan menu masakan",
+                    hintText: "Cth: Ayam, Nasi, Kopi, dll",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -219,6 +291,40 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
+                // Checklist hari operasional
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: operationalDays.map((day) {
+                    return FilterChip(
+                      label: Text(day,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.textColor,
+                        ),
+                      ),
+                      selected: selectedDays[day]!,
+                      backgroundColor: Colors.white,
+                      selectedColor: AppTheme.primaryColor.withOpacity(0.2),
+                      checkmarkColor: AppTheme.primaryColor,
+                      onSelected: (bool value) {
+                        setState(() {
+                          selectedDays[day] = value;
+                        });
+                      },
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(
+                          color: selectedDays[day]!
+                              ? AppTheme.primaryColor
+                              : Colors.grey[300]!,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -248,26 +354,73 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                 ),
 
                 SizedBox(height: 30),
-                // Tombol Simpan dan Lanjutkan
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: CustomButtonKotak(
-                      text: "Simpan dan lanjutkan",
-                      onPressed: () async {
-                        // Set card 2 selesai
-                        await OnboardingChecklistStorage.setStatus(1, true);
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/onboarding_checklist',
-                          (route) => false,
-                        );
-                      },
-                    ),
-                  ),
-                ),
               ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: CustomButtonKotak(
+              text: "Kirim",
+              onPressed: () async {
+                // Validasi
+                if (!_validateFields()) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Semua field wajib diisi!')),
+                  );
+                  return;
+                }
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(child: CircularProgressIndicator()),
+                );
+                try {
+                  final userId = await _getUserId();
+                  // Salin gambar ke local storage
+                  final bannerPath = await _saveImageLocally(_bannerImage, 'banner.jpg');
+                  final listingPath = await _saveImageLocally(_listingImage, 'listing.jpg');
+                  // Siapkan data
+                  final selected = selectedDays.entries.where((e) => e.value).map((e) => e.key).toList();
+                  final data = {
+                    'userId': userId,
+                    'bannerImagePath': bannerPath,
+                    'listingImagePath': listingPath,
+                    'menu': menuController.text.trim(),
+                    'operationalDays': selected,
+                    'openTime': selectedTimeStart.format(context),
+                    'closeTime': selectedTimeEnd.format(context),
+                    'onboardingStep1': true,
+                    'createdAt': FieldValue.serverTimestamp(),
+                  };
+                  await FirebaseFirestore.instance.collection('stores_detail').add(data);
+                  // Update onboardingSteps di users
+                  final userDoc = FirebaseFirestore.instance.collection('users').doc(userId);
+                  final doc = await userDoc.get();
+                  List<bool> steps = List<bool>.from(doc.data()?['onboardingSteps'] ?? [false, false, false]);
+                  steps[1] = true;
+                  bool completed = steps.every((e) => e);
+                  await userDoc.update({
+                    'onboardingSteps': steps,
+                    'onboardingCompleted': completed,
+                  });
+                  if (mounted) {
+                    Navigator.of(context).pop(); // tutup dialog
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/onboarding_checklist',
+                      (route) => false,
+                    );
+                  }
+                } catch (e) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Gagal menyimpan data: $e')),
+                  );
+                }
+              },
             ),
           ),
         ),

@@ -5,7 +5,8 @@ import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'informasi_rekening_page.dart';
 
 class HalalPage extends StatefulWidget {
-  const HalalPage({super.key});
+  final Map<String, dynamic> storeData;
+  const HalalPage({Key? key, required this.storeData}) : super(key: key);
 
   @override
   State<HalalPage> createState() => _HalalPageState();
@@ -13,6 +14,17 @@ class HalalPage extends StatefulWidget {
 
 class _HalalPageState extends State<HalalPage> {
   String? _selectedOption;
+
+  @override
+  void initState() {
+    super.initState();
+    // Set default or restore value if exists
+    if (widget.storeData['halal'] == null) {
+      _selectedOption = '1';
+    } else {
+      _selectedOption = widget.storeData['halal'];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +36,10 @@ class _HalalPageState extends State<HalalPage> {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              // Kembalikan data ke page sebelumnya
+              Navigator.pop(context, widget.storeData);
+            },
           ),
         ),
         body: SafeArea(
@@ -63,12 +78,13 @@ class _HalalPageState extends State<HalalPage> {
                 const SizedBox(height: 12),
                 RadioListTile<String>(
                   title: const Text("Ya, kami memiliki sertifikat halal"),
-                  value: 'ya',
+                  value: '1',
                   groupValue: _selectedOption,
                   activeColor: AppTheme.primaryColor,
                   onChanged: (value) {
                     setState(() {
                       _selectedOption = value;
+                      widget.storeData['halal'] = value;
                     });
                   },
                 ),
@@ -76,12 +92,13 @@ class _HalalPageState extends State<HalalPage> {
                   title: const Text(
                     "Tidak, kami tidak memiliki sertifikat halal",
                   ),
-                  value: 'tidak',
+                  value: '0',
                   groupValue: _selectedOption,
                   activeColor: AppTheme.primaryColor,
                   onChanged: (value) {
                     setState(() {
                       _selectedOption = value;
+                      widget.storeData['halal'] = value;
                     });
                   },
                 ),
@@ -91,14 +108,18 @@ class _HalalPageState extends State<HalalPage> {
                   child: SizedBox(
                     width: double.infinity,
                     child: CustomButtonKotak(
-                    text: "Simpan dan lanjutkan",
-                    onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const InformasiRekeningPage()),
-                    );
-                    },
-                  ),
+                      text: "Simpan dan lanjutkan",
+                      onPressed: () {
+                        // Simpan hanya field halal sebagai string '1'/'0'
+                        widget.storeData['halal'] = _selectedOption;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => InformasiRekeningPage(storeData: widget.storeData),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
