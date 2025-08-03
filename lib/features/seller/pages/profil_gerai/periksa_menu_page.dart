@@ -41,14 +41,14 @@ class PeriksaMenuPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Gambar Menu
-                menuData['imagePath'] != null
+                menuData['imageUrl'] != null && menuData['imageUrl'] != ''
                     ? Container(
                         width: double.infinity,
                         height: 220,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           image: DecorationImage(
-                            image: FileImage(File(menuData['imagePath'])),
+                            image: NetworkImage(menuData['imageUrl']),
                             fit: BoxFit.cover,
                           ),
                           boxShadow: [

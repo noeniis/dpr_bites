@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,11 +22,12 @@ class _EditMenuPageState extends State<EditMenuPage> {
   late TextEditingController _descController;
   late TextEditingController _priceController;
   int _stock = 1;
+  late TextEditingController _stockController;
   String _category = 'Makanan';
   bool _delivery = true;
   bool _pickup = true;
   bool _available = true;
-  String _imagePath = '';
+  String _imageUrl = '';
 
   @override
   void initState() {
@@ -33,11 +36,12 @@ class _EditMenuPageState extends State<EditMenuPage> {
     _descController = TextEditingController(text: widget.menu['description'] ?? '');
     _priceController = TextEditingController(text: widget.menu['price']?.toString() ?? '');
     _stock = widget.menu['stock'] ?? 1;
+    _stockController = TextEditingController(text: _stock.toString());
     _category = widget.menu['category'] ?? 'Makanan';
     _delivery = true;
     _pickup = true;
     _available = (widget.menu['stock'] ?? 1) > 0;
-    _imagePath = widget.menu['menuImageUrl'] ?? '';
+    _imageUrl = widget.menu['imageUrl'] ?? '';
   }
 
   @override
@@ -45,6 +49,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
     _nameController.dispose();
     _descController.dispose();
     _priceController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
@@ -52,10 +57,10 @@ class _EditMenuPageState extends State<EditMenuPage> {
     final updatedMenu = {
       ...widget.menu,
       'name': _nameController.text,
-      'desc': _descController.text,
+      'description': _descController.text,
       'price': int.tryParse(_priceController.text) ?? 0,
       'stock': _stock,
-      'menuImageUrl': _imagePath,
+      'imageUrl': _imageUrl,
       'category': _category,
       'available': _available,
     };
@@ -139,12 +144,18 @@ class _EditMenuPageState extends State<EditMenuPage> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: _imagePath.isNotEmpty
-                            ? Image.file(
-                                File(_imagePath),
+                        child: _imageUrl.isNotEmpty
+                            ? Image.network(
+                                _imageUrl,
                                 width: 120,
                                 height: 120,
                                 fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  width: 120,
+                                  height: 120,
+                                  color: Colors.grey[200],
+                                  child: const Center(child: Text('Gagal load gambar')),
+                                ),
                               )
                             : Container(
                                 width: 120,
@@ -160,9 +171,27 @@ class _EditMenuPageState extends State<EditMenuPage> {
                           final picker = ImagePicker();
                           final picked = await picker.pickImage(source: ImageSource.gallery);
                           if (picked != null) {
-                            setState(() {
-                              _imagePath = picked.path;
-                            });
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (_) => const Center(child: CircularProgressIndicator()),
+                            );
+                            // Upload ke Cloudinary
+                            final uri = Uri.parse('https://api.cloudinary.com/v1_1/dip8i3f6x/image/upload');
+                            final request = http.MultipartRequest('POST', uri)
+                              ..fields['upload_preset'] = 'dpr_bites'
+                              ..files.add(await http.MultipartFile.fromPath('file', picked.path));
+                            final response = await request.send();
+                            Navigator.of(context).pop();
+                            if (response.statusCode == 200) {
+                              final responseBody = await response.stream.bytesToString();
+                              final data = json.decode(responseBody);
+                              if (mounted) {
+                                setState(() {
+                                  _imageUrl = data['secure_url'] ?? '';
+                                });
+                              }
+                            }
                           }
                         },
                       ),
@@ -239,7 +268,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
                   const Text('Jumlah stok', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   TextField(
-                    controller: TextEditingController(text: _stock.toString()),
+                    controller: _stockController,
                     keyboardType: TextInputType.number,
                     onChanged: (val) {
                       setState(() {

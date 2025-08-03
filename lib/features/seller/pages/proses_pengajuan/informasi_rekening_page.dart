@@ -1,13 +1,13 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'pengajuan_selesai_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:path_provider/path_provider.dart';
 
 class InformasiRekeningPage extends StatefulWidget {
   final Map<String, dynamic> storeData;
@@ -20,6 +20,9 @@ class InformasiRekeningPage extends StatefulWidget {
 class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
   XFile? qrisImage;
   String? qrisError;
+
+  final String cloudName = 'dip8i3f6x';
+  final String uploadPreset = 'dpr_bites';
 
   @override
   void initState() {
@@ -112,9 +115,6 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
         qrisImage = image;
         qrisError = null;
       });
-      widget.storeData['qrisImagePath'] = image.path;
-      // Update storeData agar path QRIS tetap tersimpan
-      widget.storeData['qrisImagePath'] = image.path;
     }
   }
 
@@ -131,7 +131,9 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
     final data = Map<String, dynamic>.from(widget.storeData);
     data['createdAt'] = DateTime.now();
 
-    // Simpan path lokal QRIS ke Firestore, mirip profile_page
+    final userId = widget.storeData['userId'] ?? 'unknown_user';
+
+    // Upload gambar ke Cloudinary
     if (qrisImage != null) {
       final file = File(qrisImage!.path);
       if (!file.existsSync()) {
@@ -140,18 +142,35 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
         );
         return;
       }
-      final userId = widget.storeData['userId'] ?? 'unknown';
-      final appDir = await getApplicationDocumentsDirectory();
-      final qrisPath = '${appDir.path}/stores/seller/$userId/qris.jpg';
-      // Pastikan folder ada
-      await Directory('${appDir.path}/stores/seller/$userId').create(recursive: true);
-      await file.copy(qrisPath);
-      data['qrisUrl'] = qrisPath;
+
+      final uri = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
+      final request = http.MultipartRequest('POST', uri)
+        ..fields['upload_preset'] = uploadPreset
+        ..fields['public_id'] = 'stores/$userId/qris' // path rapi
+        ..files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final resStr = await response.stream.bytesToString();
+        final result = json.decode(resStr);
+        final imageUrl = result['secure_url'];
+        final cloudinaryId = result['public_id'];
+
+        data['qrisUrl'] = imageUrl;
+        data['cloudinaryId'] = cloudinaryId;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal upload gambar QRIS ke Cloudinary')),
+        );
+        return;
+      }
     }
 
-    // Simpan ke Firestore
+    // Simpan ke Firestore dengan path: stores/{userId}
     try {
-      await FirebaseFirestore.instance.collection('stores').add(data);
+      await FirebaseFirestore.instance.collection('stores').doc(userId).set(data);
+
       if (mounted) {
         Navigator.push(
           context,

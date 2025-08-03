@@ -5,7 +5,7 @@ import 'package:dpr_bites/features/seller/pages/pesanan/pesanan_page.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/profil_seller.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
-import 'package:dpr_bites/features/seller/pages/lainnya/kelola_uang.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/kelola_gerai.dart';
 import 'package:dpr_bites/features/auth/pages/login_page.dart';
 
 class SellerDashboardPage extends StatelessWidget {
@@ -265,12 +265,12 @@ class SellerDashboardPage extends StatelessWidget {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.monetization_on, color: Colors.black),
-                  title: const Text("Kelola keuangan"),
+                  leading: const Icon(Icons.store, color: Colors.black),
+                  title: const Text("Kelola Gerai"),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const KelolaUangPage()),
+                      MaterialPageRoute(builder: (_) => const KelolaProfilGeraiPage()),
                     );
                   },
                 ),
