@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,11 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:path_provider/path_provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:dpr_bites/features/auth/pages/logout.dart';
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
-
 import 'package:dpr_bites/features/user/pages/history/history_page.dart';
 
 Future<bool> checkUserData() async {
@@ -56,6 +55,7 @@ class _ProfilePageState extends State<ProfilePage> {
       editingField = '';
     });
     _saveUserDataToFirestore().then((_) => _loadUserData());
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
@@ -67,6 +67,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   String? photoPath;
+  String? photoPublicId;
   Uint8List? photoBytes;
 
   @override
@@ -96,7 +97,8 @@ class _ProfilePageState extends State<ProfilePage> {
         phoneController.text = user['phone'] ?? '';
         emailController.text = user['email'] ?? '';
         passwordController.text = user['password'] ?? '';
-        photoPath = user['photoPath'];
+        photoPath = user['photoPath'] ?? photoPath;
+        photoPublicId = user['photoPublicId'] ?? photoPublicId;
         photoBytes = null;
       });
     } else {
@@ -109,6 +111,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _autoSaveUserData() async {
     await _saveUserDataToFirestore();
     await _loadUserData();
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
@@ -125,12 +128,28 @@ class _ProfilePageState extends State<ProfilePage> {
       'email': emailController.text,
       'password': passwordController.text,
       'photoPath': photoPath,
+      'photoPublicId': photoPublicId,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .update(dataToUpdate);
+  }
+
+  String? extractPublicIdFromUrl(String url) {
+    // Contoh: https://res.cloudinary.com/dip8i3f6x/image/upload/v1754225276/y19zyp3ilczmezn3us93.jpg
+    final uri = Uri.parse(url);
+    final segments = uri.pathSegments;
+    if (segments.isNotEmpty) {
+      final last = segments.last;
+      final dotIdx = last.lastIndexOf('.');
+      if (dotIdx > 0) {
+        return last.substring(0, dotIdx);
+      }
+      return last;
+    }
+    return null;
   }
 
   Future<void> _pickProfilePhoto() async {
@@ -145,28 +164,44 @@ class _ProfilePageState extends State<ProfilePage> {
       final file = File(picked.path);
       final bytes = await file.length();
       if (bytes > 2 * 1024 * 1024) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ukuran foto maksimal 2MB')),
         );
         return;
       }
-      // Simpan ke folder dokumen aplikasi
-      final appDir = await getApplicationDocumentsDirectory();
-      final userFolder = usernameController.text;
-      final userDir = Directory('${appDir.path}/users/$userFolder');
-      if (!await userDir.exists()) await userDir.create(recursive: true);
-      final ext = picked.path.split('.').last;
-      final fileName = '$userFolder.$ext';
-      final newPath = '${userDir.path}/$fileName';
-      final copied = await file.copy(newPath);
-      final bytesData = await copied.readAsBytes();
-      setState(() {
-        photoPath = newPath;
-        user['photoPath'] = newPath;
-        photoBytes = bytesData;
-      });
-      // Simpan ke Firestore, tapi tidak perlu reload data agar UI langsung update
-      await _saveUserDataToFirestore();
+      // Upload ke Cloudinary menggunakan http (unsigned preset)
+      try {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('https://api.cloudinary.com/v1_1/dip8i3f6x/image/upload'),
+        );
+        request.fields['upload_preset'] = 'dpr_bites';
+        request.files.add(await http.MultipartFile.fromPath('file', file.path));
+        var response = await request.send();
+        if (response.statusCode == 200) {
+          final resStr = await response.stream.bytesToString();
+          final resJson = jsonDecode(resStr);
+          final imageUrl = resJson['secure_url'];
+          final publicId = resJson['public_id'];
+          setState(() {
+            photoPath = imageUrl;
+            photoPublicId = publicId;
+            photoBytes = null;
+          });
+          await _saveUserDataToFirestore();
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal upload foto ke Cloudinary')),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal upload foto ke Cloudinary: $e')),
+        );
+      }
     }
   }
 
@@ -251,29 +286,27 @@ class _ProfilePageState extends State<ProfilePage> {
                             ],
                           ),
                           child: ClipOval(
-                            child: photoBytes != null
-                                ? Image.memory(
-                                    photoBytes!,
+                            child: photoPath != null && photoPath!.isNotEmpty
+                                ? Image.network(
+                                    photoPath!,
                                     width: 90,
                                     height: 90,
                                     fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Image.asset(
+                                              'lib/assets/images/iconUser.png',
+                                              width: 90,
+                                              height: 90,
+                                              fit: BoxFit.cover,
+                                            ),
                                   )
-                                : (photoPath != null &&
-                                          photoPath!.isNotEmpty &&
-                                          File(photoPath!).existsSync()
-                                      ? Image.file(
-                                          File(photoPath!),
-                                          key: ValueKey(photoPath),
-                                          width: 90,
-                                          height: 90,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Image.asset(
-                                          'lib/assets/images/iconUser.png',
-                                          width: 90,
-                                          height: 90,
-                                          fit: BoxFit.cover,
-                                        )),
+                                : Image.asset(
+                                    'lib/assets/images/iconUser.png',
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  ),
                           ),
                         ),
                         Positioned(

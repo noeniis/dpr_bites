@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
@@ -14,11 +16,95 @@ class MenuDetailPage extends StatefulWidget {
 class _MenuDetailPageState extends State<MenuDetailPage> {
   late int qty;
   final TextEditingController noteController = TextEditingController();
+  bool isFavorite = false;
+  String? favoriteDocId;
 
   @override
   void initState() {
     super.initState();
     qty = widget.initialQty > 0 ? widget.initialQty : 1;
+    checkFavorite();
+  }
+
+  Future<String> getCurrentUserId() async {
+    // Use SharedPreferences to get userId from session
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId') ?? '';
+  }
+
+  Future<void> checkFavorite() async {
+    final userId = await getCurrentUserId();
+    final menuId = widget.menu['id']?.toString() ?? '';
+    final snap = await FirebaseFirestore.instance
+        .collection('favorites')
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    if (snap.docs.isNotEmpty) {
+      final doc = snap.docs.first;
+      final menuIds = List<String>.from(doc['menuIds'] ?? []);
+      setState(() {
+        isFavorite = menuIds.contains(menuId);
+        favoriteDocId = doc.id;
+      });
+    } else {
+      setState(() {
+        isFavorite = false;
+        favoriteDocId = null;
+      });
+    }
+  }
+
+  Future<void> toggleFavorite() async {
+    final userId = await getCurrentUserId();
+    final menuId = widget.menu['id']?.toString() ?? '';
+    final now = Timestamp.now();
+    final snap = await FirebaseFirestore.instance
+        .collection('favorites')
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+    DocumentReference? docRef;
+    List<String> menuIds = [];
+    if (snap.docs.isNotEmpty) {
+      docRef = snap.docs.first.reference;
+      menuIds = List<String>.from(snap.docs.first['menuIds'] ?? []);
+    }
+    if (!isFavorite) {
+      // Add to favorites
+      if (docRef != null) {
+        await docRef.update({
+          'menuIds': FieldValue.arrayUnion([menuId]),
+          'updatedAt': now,
+        });
+      } else {
+        await FirebaseFirestore.instance.collection('favorites').add({
+          'userId': userId,
+          'menuIds': [menuId],
+          'createdAt': now,
+          'updatedAt': now,
+        });
+      }
+      setState(() {
+        isFavorite = true;
+      });
+    } else {
+      // Remove from favorites
+      if (docRef != null) {
+        await docRef.update({
+          'menuIds': FieldValue.arrayRemove([menuId]),
+          'updatedAt': now,
+        });
+        final updatedDoc = await docRef.get();
+        final updatedMenuIds = List<String>.from(updatedDoc['menuIds'] ?? []);
+        if (updatedMenuIds.isEmpty) {
+          await docRef.delete();
+        }
+      }
+      setState(() {
+        isFavorite = false;
+      });
+    }
   }
 
   @override
@@ -34,9 +120,14 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
             onTap: () {},
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
                   elevation: 4,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
@@ -49,10 +140,24 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                             borderRadius: BorderRadius.circular(16),
                             child: AspectRatio(
                               aspectRatio: 1,
-                              child: Image.asset(
-                                menu['image'],
-                                fit: BoxFit.cover,
-                              ),
+                              child:
+                                  menu['imageUrl'] != null &&
+                                      menu['imageUrl'].toString().isNotEmpty
+                                  ? Image.network(
+                                      menu['imageUrl'],
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => Container(
+                                        color: Colors.grey[300],
+                                        child: const Icon(
+                                          Icons.image,
+                                          size: 48,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.image, size: 48),
+                                    ),
                             ),
                           ),
                         ),
@@ -64,41 +169,73 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(menu['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    menu['name'] ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.favorite_border, color: Colors.pink, size: 30),
-                              onPressed: () {},
+                              icon: Icon(
+                                isFavorite
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isFavorite ? Colors.red : Colors.pink,
+                                size: 30,
+                              ),
+                              onPressed: () async {
+                                await toggleFavorite();
+                              },
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          menu['desc'],
-                          style: const TextStyle(fontSize: 15, color: Color(0xFFB0B0B0), fontWeight: FontWeight.w400),
+                          menu['description'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFFB0B0B0),
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          "${menu['price'].toString().replaceAll(RegExp(r'\\B(?=(\\d{3})+(?!\\d))'), '.')}".replaceAll('.', '.'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                          "Rp ${menu['price'] != null ? menu['price'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.') : ''}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         TextField(
                           controller: noteController,
                           decoration: InputDecoration(
-                            hintText: "Tuliskan catatan untuk restoran jika ada",
-                            hintStyle: const TextStyle(color: Color(0xFFB0B0B0)),
+                            hintText:
+                                "Tuliskan catatan untuk restoran jika ada",
+                            hintStyle: const TextStyle(
+                              color: Color(0xFFB0B0B0),
+                            ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFD53D3D)),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD53D3D),
+                              ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 2),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD53D3D),
+                                width: 2,
+                              ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                           ),
                           minLines: 1,
                           maxLines: 2,
@@ -108,14 +245,30 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFD53D3D), size: 32),
-                              onPressed: qty > 1 ? () => setState(() => qty--) : null,
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: Color(0xFFD53D3D),
+                                size: 32,
+                              ),
+                              onPressed: qty > 1
+                                  ? () => setState(() => qty--)
+                                  : null,
                             ),
                             const SizedBox(width: 8),
-                            Text('$qty', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                            Text(
+                              '$qty',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                             const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFD53D3D), size: 32),
+                              icon: const Icon(
+                                Icons.add_circle_outline,
+                                color: Color(0xFFD53D3D),
+                                size: 32,
+                              ),
                               onPressed: () => setState(() => qty++),
                             ),
                           ],
@@ -127,7 +280,9 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                             Navigator.pop(context, qty);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text("${menu['name']} ditambahkan ke keranjang"),
+                                content: Text(
+                                  "${menu['name']} ditambahkan ke keranjang",
+                                ),
                                 duration: const Duration(seconds: 2),
                               ),
                             );
@@ -145,7 +300,6 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
     );
   }
 }
-
 
 class MenuDetailBottomSheet extends StatefulWidget {
   final Map<String, dynamic> menu;
@@ -174,17 +328,30 @@ class _MenuDetailBottomSheetState extends State<MenuDetailBottomSheet> {
                 Center(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(menu['image'], height: 180, fit: BoxFit.cover),
+                    child: Image.asset(
+                      menu['image'],
+                      height: 180,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: Text(menu['name'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        menu['name'],
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.favorite_border, color: Colors.pink),
+                      icon: const Icon(
+                        Icons.favorite_border,
+                        color: Colors.pink,
+                      ),
                       onPressed: () {},
                     ),
                   ],
@@ -192,14 +359,23 @@ class _MenuDetailBottomSheetState extends State<MenuDetailBottomSheet> {
                 const SizedBox(height: 8),
                 Text(menu['desc'], style: const TextStyle(fontSize: 16)),
                 const SizedBox(height: 12),
-                Text("Rp ${menu['price']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text(
+                  "Rp ${menu['price']}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: noteController,
                   decoration: const InputDecoration(
                     hintText: "Tuliskan catatan untuk restoran jika ada",
                     border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                   minLines: 1,
                   maxLines: 2,
@@ -211,7 +387,13 @@ class _MenuDetailBottomSheetState extends State<MenuDetailBottomSheet> {
                       icon: const Icon(Icons.remove_circle_outline),
                       onPressed: qty > 1 ? () => setState(() => qty--) : null,
                     ),
-                    Text('$qty', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      '$qty',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: () => setState(() => qty++),
@@ -223,7 +405,9 @@ class _MenuDetailBottomSheetState extends State<MenuDetailBottomSheet> {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text("✅ ${menu['name']} ditambahkan ke keranjang"),
+                            content: Text(
+                              "✅ ${menu['name']} ditambahkan ke keranjang",
+                            ),
                             duration: const Duration(seconds: 2),
                           ),
                         );

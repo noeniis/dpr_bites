@@ -5,7 +5,6 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
-import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_favorites.dart';
 import '../../../../common/data/dummy_menus.dart';
 import '../../../../common/data/dummy_restaurants.dart';
@@ -360,9 +359,18 @@ class _FavoritPageState extends State<FavoritPage> {
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-            BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Favorit"),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profil"),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.history),
+              label: "History",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.favorite),
+              label: "Favorit",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              label: "Profil",
+            ),
           ],
         ),
       ),

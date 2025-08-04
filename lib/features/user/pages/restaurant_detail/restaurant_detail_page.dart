@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:dpr_bites/common/data/dummy_restaurants.dart';
-import 'package:dpr_bites/common/data/dummy_menus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'rating_page.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
-
 import 'menu_detail_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/checkout_page.dart';
 
@@ -19,19 +17,81 @@ class RestaurantDetailPage extends StatefulWidget {
 
 class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
   final ValueNotifier<Map<String, int>> selectedMenus = ValueNotifier({});
+  Map<String, dynamic>? resto;
+  List<Map<String, dynamic>> menus = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchRestoData();
+  }
+
+  Future<void> fetchRestoData() async {
+    setState(() {
+      isLoading = true;
+    });
+    final storesSnap = await FirebaseFirestore.instance
+        .collection('stores')
+        .where('userId', isEqualTo: widget.restaurantId)
+        .get();
+    final storesDetailSnap = await FirebaseFirestore.instance
+        .collection('stores_detail')
+        .where('userId', isEqualTo: widget.restaurantId)
+        .get();
+    final menusSnap = await FirebaseFirestore.instance
+        .collection('menus')
+        .where('userId', isEqualTo: widget.restaurantId)
+        .get();
+
+    final store = storesSnap.docs.isNotEmpty
+        ? storesSnap.docs.first.data()
+        : {};
+    final detail = storesDetailSnap.docs.isNotEmpty
+        ? storesDetailSnap.docs.first.data()
+        : {};
+    menus = menusSnap.docs
+        .map((d) => d.data() as Map<String, dynamic>)
+        .toList();
+
+    int minPrice = 0, maxPrice = 0;
+    if (menus.isNotEmpty) {
+      minPrice = menus
+          .map((m) => m['price'] as int)
+          .reduce((a, b) => a < b ? a : b);
+      maxPrice = menus
+          .map((m) => m['price'] as int)
+          .reduce((a, b) => a > b ? a : b);
+    }
+    resto = {
+      'name': store['storeName'] ?? '',
+      'bannerUrl': detail['bannerUrl'] ?? '',
+      'minPrice': minPrice,
+      'maxPrice': maxPrice,
+      'operationalDays': detail['operationalDays'] ?? [],
+      'openTime': detail['openTime'] ?? '',
+      'closeTime': detail['closeTime'] ?? '',
+      'rating': 0,
+      'ratingCount': 0,
+    };
+    setState(() {
+      isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final resto = dummyRestaurants.firstWhere(
-      (r) => r['id'] == widget.restaurantId,
-    );
-    final menus = dummyMenus
-        .where((m) => m['restaurantId'] == widget.restaurantId)
-        .toList();
-    final recommendedMenus = menus
-        .where((m) => m['recommended'] == true)
-        .toList();
-
+    final openTime = resto?['openTime']?.toString() ?? '';
+    final closeTime = resto?['closeTime']?.toString() ?? '';
+    final operationalHourText = (openTime.isNotEmpty && closeTime.isNotEmpty)
+        ? 'Jam Operasional: $openTime - $closeTime'
+        : '';
+    if (isLoading || resto == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 255, 255, 255),
@@ -78,12 +138,28 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.asset(
-                              resto['profilePic'].toString(),
-                              width: double.infinity,
-                              height: 100,
-                              fit: BoxFit.cover,
-                            ),
+                            child:
+                                (resto != null &&
+                                    resto!['bannerUrl'] != null &&
+                                    resto!['bannerUrl'].toString().isNotEmpty)
+                                ? Image.network(
+                                    resto!['bannerUrl'],
+                                    width: double.infinity,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c, e, s) => Container(
+                                      width: double.infinity,
+                                      height: 100,
+                                      color: Colors.grey[300],
+                                      child: const Icon(Icons.image, size: 32),
+                                    ),
+                                  )
+                                : Container(
+                                    width: double.infinity,
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.image, size: 32),
+                                  ),
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -94,7 +170,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      resto['name'].toString(),
+                                      resto?['name']?.toString() ?? '',
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -102,11 +178,25 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      "Rp15.000 - Rp35.000",
+                                      resto?['minPrice'] != null &&
+                                              resto?['maxPrice'] != null &&
+                                              resto?['minPrice'] > 0 &&
+                                              resto?['maxPrice'] > 0
+                                          ? "Rp${resto?['minPrice']} - Rp${resto?['maxPrice']}"
+                                          : '',
                                       style: const TextStyle(
                                         color: Colors.grey,
                                       ),
                                     ),
+                                    operationalHourText.isNotEmpty
+                                        ? Text(
+                                            operationalHourText,
+                                            style: const TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 13,
+                                            ),
+                                          )
+                                        : const SizedBox.shrink(),
                                   ],
                                 ),
                               ),
@@ -135,14 +225,14 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                     ),
                                     const SizedBox(width: 2),
                                     Text(
-                                      "${resto['rating']}",
+                                      "${resto?['rating'] ?? 0}",
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     const SizedBox(width: 2),
                                     Text(
-                                      "(${resto['ratingCount']})",
+                                      "(${resto?['ratingCount'] ?? 0})",
                                       style: const TextStyle(
                                         color: Colors.grey,
                                         fontSize: 12,
@@ -191,11 +281,11 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: recommendedMenus.length,
+                    itemCount: menus.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, i) {
-                      final m = recommendedMenus[i] as Map<String, dynamic>;
-                      final menuId = m['id'].toString();
+                      final m = menus[i];
+                      final menuId = m['id']?.toString() ?? '';
                       final qty = selected[menuId] ?? 0;
                       return SizedBox(
                         width: 140,
@@ -228,12 +318,34 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: Image.asset(
-                                      m['image'],
-                                      width: 124,
-                                      height: 80,
-                                      fit: BoxFit.cover,
-                                    ),
+                                    child:
+                                        m['imageUrl'] != null &&
+                                            m['imageUrl'].toString().isNotEmpty
+                                        ? Image.network(
+                                            m['imageUrl'],
+                                            width: 124,
+                                            height: 80,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (c, e, s) =>
+                                                Container(
+                                                  width: 124,
+                                                  height: 80,
+                                                  color: Colors.grey[300],
+                                                  child: const Icon(
+                                                    Icons.image,
+                                                    size: 32,
+                                                  ),
+                                                ),
+                                          )
+                                        : Container(
+                                            width: 124,
+                                            height: 80,
+                                            color: Colors.grey[300],
+                                            child: const Icon(
+                                              Icons.image,
+                                              size: 32,
+                                            ),
+                                          ),
                                   ),
                                   const SizedBox(height: 8),
                                   Row(
@@ -342,9 +454,8 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ...menus.map((menu) {
-                  final m = menu as Map<String, dynamic>;
-                  final menuId = m['id'].toString();
+                ...menus.map((m) {
+                  final menuId = m['id']?.toString() ?? '';
                   final qty = selected[menuId] ?? 0;
                   return Padding(
                     padding: const EdgeInsets.symmetric(
@@ -359,12 +470,27 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                         ),
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.asset(
-                            m['image'],
-                            width: 48,
-                            height: 48,
-                            fit: BoxFit.cover,
-                          ),
+                          child:
+                              m['imageUrl'] != null &&
+                                  m['imageUrl'].toString().isNotEmpty
+                              ? Image.network(
+                                  m['imageUrl'],
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, e, s) => Container(
+                                    width: 48,
+                                    height: 48,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.image, size: 24),
+                                  ),
+                                )
+                              : Container(
+                                  width: 48,
+                                  height: 48,
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.image, size: 24),
+                                ),
                         ),
                         title: Text(
                           m['name'],
@@ -444,13 +570,11 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
           final totalQty = selected.values.fold<int>(0, (a, b) => a + b);
           final totalPrice = selected.entries.fold<int>(0, (a, e) {
             final menu = menus
-                .where((m) => m['id'].toString() == e.key)
-                .cast<Map<String, dynamic>?>()
+                .where((m) => m['id']?.toString() == e.key)
                 .toList();
             if (menu.isEmpty) return a;
             return a +
-                (int.tryParse(menu.first?['price'].toString() ?? '0') ?? 0) *
-                    e.value;
+                (int.tryParse(menu.first['price'].toString()) ?? 0) * e.value;
           });
           if (totalQty == 0) return const SizedBox.shrink();
           return FloatingActionButton.extended(
@@ -458,9 +582,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => CheckoutPage(),
-                ),
+                MaterialPageRoute(builder: (_) => CheckoutPage()),
               );
             },
             shape: RoundedRectangleBorder(
