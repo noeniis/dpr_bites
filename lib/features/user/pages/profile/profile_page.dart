@@ -89,7 +89,6 @@ class _ProfilePageState extends State<ProfilePage> {
         .doc(userId)
         .get();
     if (doc.exists) {
-      print('Data user ditemukan: ' + doc.data().toString());
       setState(() {
         user = doc.data() ?? {};
         nameController.text = user['name'] ?? '';
