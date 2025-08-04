@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/tambah_menu_page.dart';
 import 'package:flutter/material.dart';
 import '../../../../../app/gradient_background.dart';
@@ -112,22 +111,28 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: menu['menuImageUrl'] != null
-                                      ? Image.file(
-                                          File(menu['menuImageUrl']),
-                                          width: 60,
-                                          height: 60,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Container(
-                                          width: 60,
-                                          height: 60,
-                                          color: Colors.grey[200],
-                                          child: const Icon(Icons.image, color: Colors.grey),
-                                        ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: menu['imageUrl'] != null && menu['imageUrl'] != ''
+                              ? Image.network(
+                                  menu['imageUrl'],
+                                  width: 60,
+                                  height: 60,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: 60,
+                                    height: 60,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  ),
+                                )
+                              : Container(
+                                  width: 60,
+                                  height: 60,
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.image, color: Colors.grey),
                                 ),
+                        ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
