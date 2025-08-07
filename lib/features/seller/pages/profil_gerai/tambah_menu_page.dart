@@ -1,11 +1,11 @@
 import 'package:dpr_bites/features/seller/pages/profil_gerai/periksa_menu_page.dart';
 import 'package:flutter/material.dart';
-import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'periksa_menu_page.dart';
+import '../lainnya/menu/pilih_etalase_page.dart';
+import '../lainnya/menu/add_on_list_page.dart';
 
 class TambahMenuPage extends StatefulWidget {
   const TambahMenuPage({super.key});
@@ -15,6 +15,9 @@ class TambahMenuPage extends StatefulWidget {
 }
 
 class TambahMenuPageState extends State<TambahMenuPage> {
+  List<Map<String, String>> _selectedAddOns = [];
+  List<String> _etalaseList = ['Nasi Goreng', 'Soto', 'Bakso', 'Minuman'];
+  List<String> _selectedEtalase = [];
   XFile? _menuImage;
 
   Future<void> _pickMenuImage() async {
@@ -32,9 +35,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
   final TextEditingController _jumlahStokController =
       TextEditingController(); // Controller untuk jumlah stok
 
-  // Pilihan checkbox
-  bool _isPengantaran = false;
-  bool _isAmbilTempat = false;
   bool _isTersedia = false;
 
   @override
@@ -200,54 +200,49 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Jenis Layanan
+                // Etalase/Kategori Lain
                 const Text(
-                  "Jenis layanan",
+                  "Kategori/Etalase Lain",
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Inter',
                     color: Color(0xFF333333),
                   ),
                 ),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _isPengantaran,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          _isPengantaran = value ?? false;
-                        });
-                      },
-                    ),
-                    const Text(
-                      "Pengantaran",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontFamily: 'Inter',
-                        color: Colors.black87,
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: _selectedEtalase.isEmpty
+                      ? [const Text('Belum ada etalase dipilih', style: TextStyle(color: Colors.black54))]
+                      : _selectedEtalase.map((e) => Chip(label: Text(e))).toList(),
+                ),
+                const SizedBox(height: 8),
+                CustomButtonKotak(
+                  text: "Tambah/Pilih Etalase",
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PilihEtalasePage(
+                          etalaseList: _etalaseList,
+                          selectedEtalase: _selectedEtalase,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Checkbox(
-                      value: _isAmbilTempat,
-                      onChanged: (bool? value) {
-                        setState(() {
-                          _isAmbilTempat = value ?? false;
-                        });
-                      },
-                    ),
-                    const Text(
-                      "Ambil di tempat",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontFamily: 'Inter',
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
+                    );
+                    if (result != null && result is List<String>) {
+                      setState(() {
+                        _selectedEtalase = result;
+                        for (final e in result) {
+                          if (!_etalaseList.contains(e)) _etalaseList.add(e);
+                        }
+                      });
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
+                const SizedBox(height: 12),
+
+                // ...section jenis layanan dihapus...
 
                 // Harga
                 const Text(
@@ -304,6 +299,41 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                       borderSide: BorderSide.none,
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+
+                // Add On Menu Section
+                const Text(
+                  "Add On Menu",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Inter',
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: _selectedAddOns.isEmpty
+                      ? [const Text('Belum ada add on', style: TextStyle(color: Colors.black54))]
+                      : _selectedAddOns.map((e) => Chip(label: Text(e['nama'] ?? '-'))).toList(),
+                ),
+                const SizedBox(height: 8),
+                CustomButtonKotak(
+                  text: "Tambah/Pilih Add On",
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AddOnListPage(),
+                      ),
+                    );
+                    if (result != null && result is List<Map<String, String>>) {
+                      setState(() {
+                        _selectedAddOns = result;
+                      });
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
 
