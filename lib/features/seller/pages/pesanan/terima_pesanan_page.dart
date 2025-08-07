@@ -17,10 +17,12 @@ class TerimaPesananPage extends StatelessWidget {
       DetailOrderModel(namaMenu: 'Paket Ayam Bakar', jumlah: 2, harga: 25000),
     ];
 
-    int totalHarga = detailItems.fold(
+    int ongkir = 5000;
+    int subtotal = detailItems.fold(
       0,
       (sum, item) => sum + (item.jumlah * item.harga),
     );
+    int totalHarga = subtotal + ongkir;
 
     return GradientBackground(
       child: Scaffold(
@@ -97,24 +99,49 @@ class TerimaPesananPage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        // Header row detail
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Expanded(child: Text('Menu', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                              SizedBox(width: 12),
+                              Text('Harga', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              SizedBox(width: 12),
+                              Text('Subtotal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 18),
                         ...detailItems.map(
                           (item) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 7),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Text(
-                                  ' ${item.jumlah} ×  ${item.namaMenu}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xFF602829),
+                                Expanded(
+                                  child: Text(
+                                    '${item.jumlah} × ${item.namaMenu}',
+                                    style: const TextStyle(fontSize: 16, color: Color(0xFF602829)),
                                   ),
                                 ),
-                                Text(
-                                  'Rp ${(item.harga * item.jumlah).toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xB51E1E1E),
+                                SizedBox(width: 12),
+                                SizedBox(
+                                  width: 80,
+                                  child: Text(
+                                    'Rp ${item.harga}',
+                                    style: const TextStyle(fontSize: 16, color: Color(0xB51E1E1E)),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                SizedBox(
+                                  width: 90,
+                                  child: Text(
+                                    'Rp ${(item.harga * item.jumlah)}',
+                                    style: const TextStyle(fontSize: 16, color: Color(0xB51E1E1E)),
+                                    textAlign: TextAlign.right,
                                   ),
                                 ),
                               ],
@@ -122,6 +149,14 @@ class TerimaPesananPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        // Ongkir row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            Text('Ongkir', style: TextStyle(fontSize: 15, color: Color(0xFF602829))),
+                            Text('Rp 5000', style: TextStyle(fontSize: 15, color: Color(0xFF602829))),
+                          ],
+                        ),
                         const Divider(),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -164,8 +199,65 @@ class TerimaPesananPage extends StatelessWidget {
                         child: CustomButtonKotak(
                           text: 'Batalkan Pesanan',
                           backgroundColor: const Color(0xFF9E9595),
-                          onPressed: () {
-                            Navigator.pop(context, 'canceled');
+                          onPressed: () async {
+                            String? alasan = await showDialog<String>(
+                              context: context,
+                              builder: (context) {
+                                String? selectedReason;
+                                TextEditingController alasanController = TextEditingController();
+                                return AlertDialog(
+                                  title: const Text('Alasan Pembatalan'),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      DropdownButtonFormField<String>(
+                                        value: selectedReason,
+                                        hint: const Text('Pilih alasan'),
+                                        items: const [
+                                          DropdownMenuItem(value: 'Stok kosong', child: Text('Stok kosong')),
+                                          DropdownMenuItem(value: 'Menu habis', child: Text('Menu habis')),
+                                          DropdownMenuItem(value: 'Toko tutup', child: Text('Toko tutup')),
+                                          DropdownMenuItem(value: 'Lainnya', child: Text('Lainnya')),
+                                        ],
+                                        onChanged: (val) {
+                                          selectedReason = val;
+                                          if (val != 'Lainnya') {
+                                            alasanController.text = val ?? '';
+                                          } else {
+                                            alasanController.text = '';
+                                          }
+                                        },
+                                      ),
+                                      const SizedBox(height: 10),
+                                      TextField(
+                                        controller: alasanController,
+                                        enabled: selectedReason == 'Lainnya',
+                                        decoration: const InputDecoration(
+                                          hintText: 'Isi alasan lain (opsional)',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Batal'),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        if ((selectedReason != null && selectedReason!.isNotEmpty) || alasanController.text.isNotEmpty) {
+                                          Navigator.pop(context, alasanController.text.isNotEmpty ? alasanController.text : selectedReason);
+                                        }
+                                      },
+                                      child: const Text('Kirim'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            if (alasan != null && alasan.isNotEmpty) {
+                              Navigator.pop(context, {'status': 'canceled', 'alasan': alasan});
+                            }
                           },
                         ),
                       ),

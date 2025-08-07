@@ -360,6 +360,7 @@ class CustomButtonKotak extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           text,
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: fgColor,
             fontSize: 18,

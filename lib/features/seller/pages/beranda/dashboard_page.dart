@@ -5,7 +5,7 @@ import 'package:dpr_bites/features/seller/pages/pesanan/pesanan_page.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/profil_seller.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
-import 'package:dpr_bites/features/seller/pages/lainnya/kelola_uang.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/kelola_gerai.dart';
 import 'package:dpr_bites/features/auth/pages/login_page.dart';
 
 class SellerDashboardPage extends StatelessWidget {
@@ -15,12 +15,11 @@ class SellerDashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     // Dummy data, bisa diganti provider
     final saldo = 50000;
-    final rating = 4.8;
-    final ratingCount = 10;
     final pesananBaru = 2;
     final sedangDisiapkan = 1;
     final selfPickup = 0;
     final pesananAntar = 1;
+    DateTime? selectedDate;
 
     return GradientBackground(
       child: Scaffold(
@@ -52,94 +51,89 @@ class SellerDashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TOP ROW: Saldo & Rating
-                Row(
-                  children: [
-                    Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(right: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: const [
-                                  Icon(Icons.attach_money, color: Colors.green, size: 22),
-                                  SizedBox(width: 6),
-                                  Text("Saldo", style: TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "Rp $saldo",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
+                // FILTER & RINGKASAN
+                CustomEmptyCard(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Filter Isi Saldo & Ringkasan Pesanan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  // Fungsi pilih tanggal tidak perlu jalan, hanya UI
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: Colors.grey.shade100,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text("Pilih Tanggal", style: TextStyle(fontSize: 14, color: Colors.black54)),
+                                      Icon(Icons.calendar_today, size: 18, color: Colors.grey.shade600),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Ringkasan dummy
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            Text("Total Saldo Masuk:", style: TextStyle(fontSize: 14)),
+                            Text("Rp 50.000", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          ],
+                        ),
+                        SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            Text("Total Pesanan:", style: TextStyle(fontSize: 14)),
+                            Text("4", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // TOP ROW: Saldo (full width)
+                CustomEmptyCard(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.currency_exchange, color: Colors.green, size: 22),
+                            SizedBox(width: 6),
+                            Text("Saldo", style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Rp $saldo",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                    Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(left: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: const [
-                                  Icon(Icons.star, color: Colors.amber, size: 22),
-                                  SizedBox(width: 6),
-                                  Text("Rating Toko", style: TextStyle(fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Fix: Bungkus rating Row dengan SingleChildScrollView horizontal
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      "$rating / 5",
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      "($ratingCount)",
-                                      style: const TextStyle(fontSize: 13, color: Colors.black54),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    // Bintang rating
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: List.generate(
-                                        5,
-                                        (i) => Icon(
-                                          Icons.star,
-                                          size: 16,
-                                          color: i < rating.round()
-                                              ? Colors.amber
-                                              : Colors.grey[300],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
 
                 // ROW: Pesanan
@@ -266,11 +260,11 @@ class SellerDashboardPage extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.monetization_on, color: Colors.black),
-                  title: const Text("Kelola keuangan"),
+                  title: const Text("Kelola Gerai"),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const KelolaUangPage()),
+                      MaterialPageRoute(builder: (_) => const KelolaProfilGeraiPage()),
                     );
                   },
                 ),

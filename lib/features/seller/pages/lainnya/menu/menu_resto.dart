@@ -18,7 +18,7 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
   final TextEditingController _searchController = TextEditingController();
   String _search = '';
   int _selectedFilter = 0;
-  final List<String> _filters = ['Semua', 'Ketersediaan', 'Layanan'];
+  final List<String> _filters = ['Semua', 'Menu Utama', 'Add On', 'Tersedia'];
 
   @override
   void dispose() {
@@ -26,7 +26,19 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> _menus = List<Map<String, dynamic>>.from(dummyMenus);
+  List<Map<String, dynamic>> _menus = [
+    ...List<Map<String, dynamic>>.from(dummyMenus),
+    {
+      'id': 'addon-1',
+      'name': 'Telur Ceplok',
+      'desc': 'Add on telur ceplok',
+      'price': 4000,
+      'stock': 50,
+      'image': 'lib/assets/images/pecel.jpeg',
+      'isAddOn': true,
+      'tersedia': true,
+    },
+  ];
 
   List<Map<String, dynamic>> get _filteredMenus {
     List<Map<String, dynamic>> menus = List<Map<String, dynamic>>.from(_menus);
@@ -34,7 +46,14 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
       menus = menus.where((m) => m['name'].toLowerCase().contains(_search.toLowerCase())).toList();
     }
     if (_selectedFilter == 1) {
-      menus = menus.where((m) => m['stock'] > 0).toList();
+      // Menu Utama
+      menus = menus.where((m) => m['isAddOn'] != true).toList();
+    } else if (_selectedFilter == 2) {
+      // Add On
+      menus = menus.where((m) => m['isAddOn'] == true).toList();
+    } else if (_selectedFilter == 3) {
+      // Tersedia
+      menus = menus.where((m) => (m['tersedia'] == true || (m['stock'] ?? 0) > 0)).toList();
     }
     return menus;
   }
@@ -107,7 +126,7 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
                         label: _filters[i],
                         selected: _selectedFilter == i,
                         onTap: () => setState(() => _selectedFilter = i),
-                        icon: i == 0 ? const Icon(Icons.cake_outlined, size: 18) : null,
+                        // icon: i == 0 ? const Icon(Icons.cake_outlined, size: 18) : null,
                       ),
                     )),
                   ],
@@ -155,13 +174,24 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
                                   onPressed: () => _editMenu(menu),
                                 ),
                                 const SizedBox(height: 4),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.green[100],
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  padding: const EdgeInsets.all(3),
-                                  child: const Icon(Icons.check, color: Colors.green, size: 18),
+                                Checkbox(
+                                  value: menu['tersedia'] == true,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        menu['tersedia'] = true;
+                                        if (menu['stock'] != null && menu['stock'] is int && menu['stock'] <= 0) {
+                                          menu['stock'] = 1;
+                                        }
+                                      } else {
+                                        menu['tersedia'] = false;
+                                        // Optional: set stock to 0 if unchecked
+                                        // menu['stock'] = 0;
+                                      }
+                                    });
+                                  },
+                                  activeColor: Colors.green,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                               ],
                             ),
