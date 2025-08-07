@@ -1,3 +1,4 @@
+
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
@@ -8,6 +9,7 @@ import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_pag
 import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
+import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -33,6 +35,13 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text.trim();
 
     // Username khusus
+    if (username == 'koperasi' && password == 'koperasi') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
+      );
+      return;
+    }
     if (username == 'seller2') {
       Navigator.pushReplacement(
         context,
