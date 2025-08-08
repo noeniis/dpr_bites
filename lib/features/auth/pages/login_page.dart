@@ -1,11 +1,10 @@
-
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'forgot_password.dart';
 import 'register_page.dart';
-import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart'; 
+import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
@@ -19,6 +18,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  bool _showPassword = false;
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   String? errorMessage;
@@ -59,7 +59,6 @@ class _LoginPageState extends State<LoginPage> {
       });
       return;
     }
-    
 
     final account = dummyAccounts.firstWhere(
       (acc) => acc['username'] == username && acc['password'] == password,
@@ -129,7 +128,11 @@ class _LoginPageState extends State<LoginPage> {
                               color: const Color(0xFFFFE5EC),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.login, color: Color(0xFFD53D3D), size: 28),
+                            child: const Icon(
+                              Icons.login,
+                              color: Color(0xFFD53D3D),
+                              size: 28,
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Column(
@@ -138,7 +141,9 @@ class _LoginPageState extends State<LoginPage> {
                               Text(
                                 'Akses Masuk',
                                 style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
                                 ),
                               ),
                               SizedBox(height: 2),
@@ -169,7 +174,11 @@ class _LoginPageState extends State<LoginPage> {
                       CustomInputField(
                         hintText: "Masukkan username",
                         controller: usernameController,
-                        prefixIcon: const Icon(Icons.person, color: Color(0xFFD53D3D)),
+                        prefixIcon: const Icon(
+                          Icons.person,
+                          color: Color(0xFFD53D3D),
+                        ),
+                        obscureText: false,
                       ),
                       const SizedBox(height: 18),
 
@@ -186,7 +195,25 @@ class _LoginPageState extends State<LoginPage> {
                       CustomInputField(
                         hintText: "Masukkan password",
                         controller: passwordController,
-                        prefixIcon: const Icon(Icons.lock, color: Color(0xFFD53D3D)),
+                        prefixIcon: const Icon(
+                          Icons.lock,
+                          color: Color(0xFFD53D3D),
+                        ),
+                        obscureText: !_showPassword,
+                        obscuringCharacter: '*',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Color(0xFFD53D3D),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showPassword = !_showPassword;
+                            });
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -218,7 +245,9 @@ class _LoginPageState extends State<LoginPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const ForgotPasswordPage()),
+                                builder: (context) =>
+                                    const ForgotPasswordPage(),
+                              ),
                             );
                           },
                           style: TextButton.styleFrom(
@@ -246,7 +275,13 @@ class _LoginPageState extends State<LoginPage> {
                   children: const [
                     Expanded(child: Divider(thickness: 1.2)),
                     SizedBox(width: 10),
-                    Text("or", style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+                    Text(
+                      "or",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     SizedBox(width: 10),
                     Expanded(child: Divider(thickness: 1.2)),
                   ],
@@ -258,10 +293,11 @@ class _LoginPageState extends State<LoginPage> {
                   text: " Registrasi Akun",
                   onPressed: () {
                     Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const RegisterPage()),
-                            );
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const RegisterPage(),
+                      ),
+                    );
                   },
                 ),
 
@@ -284,7 +320,11 @@ class _LoginPageState extends State<LoginPage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.help_outline, color: Color(0xFFD53D3D), size: 28),
+                        child: const Icon(
+                          Icons.help_outline,
+                          color: Color(0xFFD53D3D),
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
