@@ -175,6 +175,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
       obscuringCharacter: widget.obscuringCharacter ?? '•',
       decoration: InputDecoration(
         hintText: widget.hintText,
+        hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
         prefixIcon: widget.prefixIcon,
         suffixIcon: widget.suffixIcon,
         filled: true,

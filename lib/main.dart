@@ -3,6 +3,8 @@ import 'features/seller/pages/beranda/dashboard_page.dart';
 import 'app/app_theme.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/user/pages/home/home_page.dart';
+import 'features/user/pages/address/address_page.dart';
+import 'features/user/pages/address/address_add_page.dart';
 import 'features/user/pages/favorit/favorit.dart';
 import 'features/user/pages/history/history_page.dart';
 import 'features/user/pages/profile/profile_page.dart';
@@ -25,6 +27,8 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
+        '/address': (context) => const AddressPage(),
+        '/address_add': (context) => const AddressAddPage(),
         '/favorit': (context) => const FavoritPage(),
         '/history': (context) => const HistoryPage(),
         '/profile': (context) => const ProfilePage(),
