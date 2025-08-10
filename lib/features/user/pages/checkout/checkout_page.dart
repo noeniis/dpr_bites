@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_checkout.dart';
 import 'package:dpr_bites/common/data/dummy_address.dart';
+import 'package:dpr_bites/common/data/address_store.dart';
+import 'package:dpr_bites/features/user/pages/address/address_page.dart';
 import 'package:dpr_bites/common/data/dummy_carts.dart';
 import 'pembayaran_qris_dialog.dart';
 import '../history/history_page.dart';
@@ -47,6 +49,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   int? editingQtyIndex;
   String selectedPayment = 'qris';
   DummyAddress? selectedAddress;
+  late final AddressStore _addressStore;
 
   @override
   void initState() {
@@ -74,13 +77,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
     payment = Map<String, dynamic>.from(checkout['payment'] as Map);
 
     // Set default delivery address from dummy addresses
-    try {
-      selectedAddress = dummyAddresses.firstWhere((a) => a.isDefault);
-    } catch (_) {
-      if (dummyAddresses.isNotEmpty) {
-        selectedAddress = dummyAddresses.first;
-      }
-    }
+    _addressStore = AddressStore.instance;
+    selectedAddress = _addressStore.selected;
+    _addressStore.addListener(_onAddressChanged);
 
     // No inline note editors on checkout; editing via modal sheet like Cart
   }
@@ -723,138 +722,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
               InkWell(
                 onTap: () async {
                   if (!isDelivery) return;
-                  await showModalBottomSheet(
-                    context: context,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(24),
-                      ),
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AddressPage(popOnPick: true),
                     ),
-                    builder: (ctx) {
-                      return SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Center(
-                                child: SizedBox(
-                                  width: 40,
-                                  child: Divider(thickness: 3),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Pilih Alamat Pengantaran',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Flexible(
-                                child: ListView.separated(
-                                  shrinkWrap: true,
-                                  itemCount: dummyAddresses.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 10),
-                                  itemBuilder: (ctx, i) {
-                                    final a = dummyAddresses[i];
-                                    final bool isSelected =
-                                        selectedAddress?.namaGedung ==
-                                            a.namaGedung &&
-                                        selectedAddress?.namaPenerima ==
-                                            a.namaPenerima &&
-                                        selectedAddress?.noHp == a.noHp;
-                                    return InkWell(
-                                      onTap: () {
-                                        setState(() => selectedAddress = a);
-                                        Navigator.of(ctx).pop();
-                                      },
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? const Color(0xFFD53D3D)
-                                                : const Color(0xFFB0B0B0),
-                                            width: isSelected ? 1.8 : 1.0,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            const Icon(
-                                              Icons.location_on_outlined,
-                                              color: Color(0xFFD53D3D),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    a.namaGedung,
-                                                    style: const TextStyle(
-                                                      fontSize: 15,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    '${a.namaPenerima} - ${a.noHp}',
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    a.detailPengantaran,
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (isSelected)
-                                              const Padding(
-                                                padding: EdgeInsets.only(
-                                                  left: 8,
-                                                ),
-                                                child: Icon(
-                                                  Icons.check_circle,
-                                                  color: Colors.green,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
                   );
+                  if (result is DummyAddress) {
+                    _addressStore.select(result);
+                  }
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -1347,5 +1223,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
       ),
     );
+  }
+
+  void _onAddressChanged() {
+    if (!mounted) return;
+    setState(() {
+      selectedAddress = _addressStore.selected;
+    });
+  }
+
+  @override
+  void dispose() {
+    _addressStore.removeListener(_onAddressChanged);
+    super.dispose();
   }
 }
