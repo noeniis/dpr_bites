@@ -38,31 +38,23 @@ class _SearchPageState extends State<SearchPage> {
       final name = (r['name'] as String).toLowerCase();
       final desc = (r['desc'] as String?)?.toLowerCase() ?? '';
       // Muncul kalau nama/desc Resto mengandung search, atau ada menu yg cocok
-      final hasMenu = dummyMenus.any(
-        (m) =>
-            m['restaurantId'] == r['id'] &&
-            (m['name'] as String).toLowerCase().contains(
-              searchQuery!.toLowerCase(),
-            ),
+      final hasMenu = dummyMenus.any((m) =>
+        m['restaurantId'] == r['id'] &&
+        (m['name'] as String).toLowerCase().contains(searchQuery!.toLowerCase())
       );
-      return name.contains(searchQuery!.toLowerCase()) ||
-          desc.contains(searchQuery!.toLowerCase()) ||
-          hasMenu;
+      return name.contains(searchQuery!.toLowerCase())
+          || desc.contains(searchQuery!.toLowerCase())
+          || hasMenu;
     }).toList();
   }
 
   // Ambil menu yg cocok di suatu resto
   List<Map<String, dynamic>> menusForResto(String restoId) {
     if (searchQuery == null || searchQuery!.isEmpty) return [];
-    return dummyMenus
-        .where(
-          (m) =>
-              m['restaurantId'] == restoId &&
-              (m['name'] as String).toLowerCase().contains(
-                searchQuery!.toLowerCase(),
-              ),
-        )
-        .toList();
+    return dummyMenus.where((m) =>
+      m['restaurantId'] == restoId &&
+      (m['name'] as String).toLowerCase().contains(searchQuery!.toLowerCase())
+    ).toList();
   }
 
   @override
@@ -82,24 +74,12 @@ class _SearchPageState extends State<SearchPage> {
             Padding(
               padding: const EdgeInsets.only(right: 16, top: 12),
               child: ElevatedButton.icon(
-                icon: const Icon(
-                  Icons.shopping_cart_outlined,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                label: const Text(
-                  "Keranjang",
-                  style: TextStyle(color: Colors.white),
-                ),
+                icon: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
+                label: const Text("Keranjang", style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFD53D3D),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 ),
                 onPressed: () {},
               ),
@@ -115,10 +95,7 @@ class _SearchPageState extends State<SearchPage> {
                 CustomInputField(
                   hintText: "Cari menu atau resto...",
                   controller: searchController,
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: Color(0xFFD53D3D),
-                  ),
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFFD53D3D)),
                   onSubmitted: doSearch,
                 ),
                 const SizedBox(height: 14),
@@ -129,10 +106,7 @@ class _SearchPageState extends State<SearchPage> {
                         ? Center(
                             child: Text(
                               'Tidak ditemukan hasil untuk "$searchQuery"',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey,
-                              ),
+                              style: const TextStyle(fontSize: 16, color: Colors.grey),
                             ),
                           )
                         : ListView.builder(
@@ -140,102 +114,63 @@ class _SearchPageState extends State<SearchPage> {
                             itemBuilder: (context, idx) {
                               final resto = filteredRestaurants[idx];
                               final menus = menusForResto(resto['id']);
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CustomEmptyCard(
-                                    width: double.infinity,
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Row(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CustomEmptyCard(
+                                      width: double.infinity,
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Row(
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(10),
+                                              child: Image.asset(
+                                                resto['profilePic'],
+                                                width: 65,
+                                                height: 65,
+                                                fit: BoxFit.cover,
+                                              ),
                                             ),
-                                            child: Image.asset(
-                                              resto['profilePic'],
-                                              width: 65,
-                                              height: 65,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  resto['name'],
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 18,
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(resto['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                                  Row(
+                                                    children: [
+                                                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                                                      Text(" ${resto['rating']} (${resto['ratingCount']})", style: const TextStyle(fontSize: 14)),
+                                                      const SizedBox(width: 8),
+                                                      const Icon(Icons.monetization_on, color: Colors.grey, size: 14),
+                                                      Text(" Rp15.000 - Rp35.000", style: const TextStyle(fontSize: 13)),
+                                                    ],
                                                   ),
-                                                ),
-                                                Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.star,
-                                                      color: Colors.amber,
-                                                      size: 16,
-                                                    ),
-                                                    Text(
-                                                      " ${resto['rating']} (${resto['ratingCount']})",
-                                                      style: const TextStyle(
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    const Icon(
-                                                      Icons.monetization_on,
-                                                      color: Colors.grey,
-                                                      size: 14,
-                                                    ),
-                                                    Text(
-                                                      " Rp15.000 - Rp35.000",
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                Text(
-                                                  resto['desc'] ?? '',
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                              ],
+                                                  Text(resto['desc'] ?? '', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  if (menus.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        left: 8,
-                                        bottom: 16,
-                                      ),
-                                      child: SizedBox(
-                                        height:
-                                            180, // Atur sesuai tinggi kartu menu kamu
-                                        child: ListView.separated(
-                                          scrollDirection: Axis.horizontal,
-                                          itemCount: menus.length,
-                                          separatorBuilder: (_, _) =>
-                                              const SizedBox(width: 12),
-                                          itemBuilder: (context, i) =>
-                                              _MenuGridCard(menu: menus[i]),
+                                          ],
                                         ),
                                       ),
                                     ),
-                                ],
-                              );
+                                    if (menus.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 8, bottom: 16),
+                                        child: SizedBox(
+                                          height: 180, // Atur sesuai tinggi kartu menu kamu
+                                          child: ListView.separated(
+                                            scrollDirection: Axis.horizontal,
+                                            itemCount: menus.length,
+                                            separatorBuilder: (_, __) => const SizedBox(width: 12),
+                                            itemBuilder: (context, i) => _MenuGridCard(menu: menus[i]),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
                             },
                           ),
                   ),
@@ -275,10 +210,7 @@ class _MenuGridCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  menu['name'],
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                Text(menu['name'], style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text("${menu['price']}", style: const TextStyle(fontSize: 13)),
                 Align(
                   alignment: Alignment.bottomRight,
@@ -289,21 +221,16 @@ class _MenuGridCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(99),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(99),
-                        onTap: () {},
+                        onTap: () {
+                          // TODO: add to cart
+                        },
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Color(0xFFD53D3D),
-                              width: 1.6,
-                            ),
+                            border: Border.all(color: Color(0xFFD53D3D), width: 1.6),
                             borderRadius: BorderRadius.circular(99),
                           ),
-                          child: const Icon(
-                            Icons.add,
-                            size: 18,
-                            color: Color(0xFFD53D3D),
-                          ),
+                          child: const Icon(Icons.add, size: 18, color: Color(0xFFD53D3D)),
                         ),
                       ),
                     ),
