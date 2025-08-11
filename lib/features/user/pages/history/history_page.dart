@@ -8,6 +8,7 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 
+
 class HistoryPage extends StatefulWidget {
   final String? initialFilter;
   const HistoryPage({super.key, this.initialFilter});
@@ -114,7 +115,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Color.fromRGBO(0, 0, 0, 0.08),
+                                      color: Colors.black.withOpacity(0.08),
                                       offset: const Offset(2, 2),
                                       blurRadius: 4,
                                     ),
@@ -217,7 +218,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
         bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Color.fromRGBO(249, 211, 211, 0.85),
+          backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
           selectedItemColor: AppTheme.primaryColor,
           unselectedItemColor: Colors.black54,
           currentIndex: 1,

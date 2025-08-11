@@ -503,7 +503,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Color.fromRGBO(244, 67, 54, 0.07),
+                        color: Colors.redAccent.withOpacity(0.07),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -643,12 +643,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.redAccent.withValues(
-                          red: 0.07,
-                          green: 0.07,
-                          blue: 0.07,
-                          alpha: 1,
-                        ),
+                        color: Colors.redAccent.withOpacity(0.07),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -793,17 +788,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 24),
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                     children: [
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.grey[300],
                                           foregroundColor: Colors.black,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
+                                            borderRadius: BorderRadius.circular(20),
                                           ),
                                         ),
                                         onPressed: () {
@@ -813,22 +805,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFFD53D3D,
-                                          ),
+                                          backgroundColor: const Color(0xFFD53D3D),
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
+                                            borderRadius: BorderRadius.circular(20),
                                           ),
                                         ),
                                         onPressed: () {
                                           Navigator.of(ctx).pop();
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  CheckoutProcessPage(),
+                                              builder: (_) => CheckoutProcessPage(),
                                             ),
                                           );
                                         },
@@ -879,17 +866,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 24),
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                     children: [
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.grey[300],
                                           foregroundColor: Colors.black,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
+                                            borderRadius: BorderRadius.circular(20),
                                           ),
                                         ),
                                         onPressed: () {
@@ -899,22 +883,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFFD53D3D,
-                                          ),
+                                          backgroundColor: const Color(0xFFD53D3D),
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
+                                            borderRadius: BorderRadius.circular(20),
                                           ),
                                         ),
                                         onPressed: () {
                                           Navigator.of(ctx).pop();
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  CheckoutProcessPage(),
+                                              builder: (_) => CheckoutProcessPage(),
                                             ),
                                           );
                                         },

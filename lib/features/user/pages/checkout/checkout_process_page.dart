@@ -236,12 +236,7 @@ class CheckoutProcessPage extends StatelessWidget {
                                 );
                               },
                               backgroundColor: null, // pakai gradient default
-                              textColor: Colors.white.withValues(
-                                red: 1,
-                                green: 1,
-                                blue: 1,
-                                alpha: 0.55,
-                              ),
+                              textColor: Colors.white.withOpacity(0.55),
                               // Opacity gradient diatur di CustomButtonKotak
                             ),
                           ),
@@ -308,12 +303,7 @@ class CheckoutProcessPage extends StatelessWidget {
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(
-                                          red: 0,
-                                          green: 0,
-                                          blue: 0,
-                                          alpha: 0.08,
-                                        ),
+                                        color: Colors.black.withOpacity(0.08),
                                         offset: const Offset(2, 2),
                                         blurRadius: 4,
                                       ),
@@ -365,13 +355,7 @@ class CheckoutProcessPage extends StatelessWidget {
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(
-                                          red: 0.08,
-                                          green: 0.08,
-                                          blue: 0.08,
-                                          alpha: 1,
-                                        ),
-
+                                        color: Colors.black.withOpacity(0.08),
                                         offset: const Offset(2, 2),
                                         blurRadius: 4,
                                       ),
@@ -592,12 +576,7 @@ class _ProcessIcon extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(
-              red: 0.0,
-              green: 0.0,
-              blue: 0.0,
-              alpha: 0.08,
-            ),
+            color: Colors.black.withOpacity(0.08),
             offset: const Offset(2, 2),
             blurRadius: 4,
           ),

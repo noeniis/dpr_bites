@@ -9,9 +9,7 @@ class RestaurantRatingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resto =
-        dummyRestaurants.firstWhere((r) => r['id'] == restaurantId)
-            as Map<String, dynamic>;
+    final resto = dummyRestaurants.firstWhere((r) => r['id'] == restaurantId) as Map<String, dynamic>;
 
     // Dummy breakdown rating dan review
     final rating = double.tryParse(resto['rating'].toString()) ?? 0.0;
@@ -24,16 +22,34 @@ class RestaurantRatingPage extends StatelessWidget {
       {'star': 1, 'count': 0},
     ];
     final reviews = [
-      {'name': 'Ihsan a.', 'pesanan': 'Nasi Goreng', 'rating': 5},
-      {'name': 'Irma', 'pesanan': 'Nasi Pecel, Nasi Goreng', 'rating': 5},
-      {'name': 'Hasan M. I.', 'pesanan': 'Nasi Goreng', 'rating': 4},
-      {'name': 'Hanafi', 'pesanan': 'Nasi Goreng', 'rating': 3},
-      {'name': 'Ratnasari', 'pesanan': 'Nasi Ayam Katsu', 'rating': 5},
+      {
+        'name': 'Ihsan a.',
+        'pesanan': 'Nasi Goreng',
+        'rating': 5,
+      },
+      {
+        'name': 'Irma',
+        'pesanan': 'Nasi Pecel, Nasi Goreng',
+        'rating': 5,
+      },
+      {
+        'name': 'Hasan M. I.',
+        'pesanan': 'Nasi Goreng',
+        'rating': 4,
+      },
+      {
+        'name': 'Hanafi',
+        'pesanan': 'Nasi Goreng',
+        'rating': 3,
+      },
+      {
+        'name': 'Ratnasari',
+        'pesanan': 'Nasi Ayam Katsu',
+        'rating': 5,
+      },
     ];
 
-    int maxBar = ratingBreakdown
-        .map((e) => e['count'] as int)
-        .fold(0, (a, b) => a > b ? a : b);
+    int maxBar = ratingBreakdown.map((e) => e['count'] as int).fold(0, (a, b) => a > b ? a : b);
     maxBar = maxBar == 0 ? 1 : maxBar;
 
     return GradientBackground(
@@ -53,48 +69,31 @@ class RestaurantRatingPage extends StatelessWidget {
               // Header rating besar
               CustomEmptyCard(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 18,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                   child: Row(
                     children: [
                       // Bintang besar dan rating
                       Container(
                         decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Color(0xFFD53D3D),
-                            width: 2,
-                          ),
+                          border: Border.all(color: Color(0xFFD53D3D), width: 2),
                           borderRadius: BorderRadius.circular(16),
                           color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: Color.fromRGBO(255, 105, 180, 0.07),
+                              color: Colors.pink.withOpacity(0.07),
                               blurRadius: 6,
                               offset: Offset(0, 2),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 16,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                         child: Column(
                           children: [
-                            Icon(
-                              Icons.star,
-                              color: Color(0xFFD53D3D),
-                              size: 36,
-                            ),
+                            Icon(Icons.star, color: Color(0xFFD53D3D), size: 36),
                             const SizedBox(height: 4),
                             Text(
                               rating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFD53D3D),
-                              ),
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFFD53D3D)),
                             ),
                           ],
                         ),
@@ -109,55 +108,38 @@ class RestaurantRatingPage extends StatelessWidget {
                               final star = e['star'] as int;
                               final count = e['count'] as int;
                               return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 2,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 2),
                                 child: Row(
                                   children: [
-                                    Text(
-                                      star.toString(),
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
+                                    Text(star.toString(), style: const TextStyle(fontSize: 13)),
                                     const SizedBox(width: 2),
-                                    Icon(
-                                      Icons.star,
-                                      color: Colors.amber,
-                                      size: 14,
-                                    ),
+                                    Icon(Icons.star, color: Colors.amber, size: 14),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Container(
                                         height: 8,
                                         decoration: BoxDecoration(
                                           color: Color(0xFFF2F2F2),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: FractionallySizedBox(
                                           alignment: Alignment.centerLeft,
                                           widthFactor: count / maxBar,
                                           child: Container(
                                             decoration: BoxDecoration(
-                                              color: star >= 4
-                                                  ? Color(0xFFFFD600)
-                                                  : Color(0xFFD3D3D3),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                              color: star >= 4 ? Color(0xFFFFD600) : Color(0xFFD3D3D3),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
-                                      count.toString(),
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
+                                    Text(count.toString(), style: const TextStyle(fontSize: 13)),
                                   ],
                                 ),
                               );
-                            }),
+                            }).toList(),
                           ],
                         ),
                       ),
@@ -170,17 +152,13 @@ class RestaurantRatingPage extends StatelessWidget {
                 padding: const EdgeInsets.only(left: 12, top: 2, bottom: 8),
                 child: Text(
                   "$ratingCount Review",
-                  style: const TextStyle(
-                    color: Color(0xFFD53D3D),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                  ),
+                  style: const TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w500, fontSize: 15),
                 ),
               ),
               Expanded(
                 child: ListView.separated(
                   itemCount: reviews.length,
-                  separatorBuilder: (context, _) => const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
                     final r = reviews[i];
                     final name = r['name'] as String;
@@ -188,10 +166,7 @@ class RestaurantRatingPage extends StatelessWidget {
                     final rating = r['rating'] as int;
                     return CustomEmptyCard(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -200,23 +175,15 @@ class RestaurantRatingPage extends StatelessWidget {
                                 CircleAvatar(
                                   backgroundColor: const Color(0xFFE6F7EC),
                                   child: Text(
-                                    name.isNotEmpty
-                                        ? name[0].toUpperCase()
-                                        : '',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF3A3A3A),
-                                    ),
+                                    name.isNotEmpty ? name[0].toUpperCase() : '',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3A3A3A)),
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                                   ),
                                 ),
                               ],
@@ -224,25 +191,17 @@ class RestaurantRatingPage extends StatelessWidget {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                ...List.generate(
-                                  5,
-                                  (idx) => Icon(
-                                    idx < rating
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: Colors.amber,
-                                    size: 18,
-                                  ),
-                                ),
+                                ...List.generate(5, (idx) => Icon(
+                                  idx < rating ? Icons.star : Icons.star_border,
+                                  color: Colors.amber,
+                                  size: 18,
+                                )),
                               ],
                             ),
                             const SizedBox(height: 2),
                             Text(
                               "Pesanan: $pesanan",
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF3A3A3A),
-                              ),
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF3A3A3A)),
                             ),
                           ],
                         ),

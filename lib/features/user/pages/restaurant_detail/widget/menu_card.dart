@@ -11,19 +11,14 @@ class MenuCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 120, // <--- Set fixed width
-        height: 170, // <--- Set fixed height
+        width: 120,   // <--- Set fixed width
+        height: 170,  // <--- Set fixed height
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(
-                red: 0.07,
-                green: 0.07,
-                blue: 0.07,
-                alpha: 0.07,
-              ),
+              color: Colors.black.withOpacity(0.07),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -33,13 +28,11 @@ class MenuCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               child: Image.asset(
                 menu['image'],
-                width: 120, // <--- Match width
-                height: 70, // <--- Image height
+                width: 120,   // <--- Match width
+                height: 70,   // <--- Image height
                 fit: BoxFit.cover,
               ),
             ),
@@ -50,10 +43,7 @@ class MenuCard extends StatelessWidget {
                 children: [
                   Text(
                     menu['name'],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -64,11 +54,7 @@ class MenuCard extends StatelessWidget {
                   ),
                   Align(
                     alignment: Alignment.bottomRight,
-                    child: Icon(
-                      Icons.favorite_border,
-                      color: Color(0xFFD53D3D),
-                      size: 20,
-                    ),
+                    child: Icon(Icons.favorite_border, color: Color(0xFFD53D3D), size: 20),
                   ),
                 ],
               ),

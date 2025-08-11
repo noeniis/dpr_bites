@@ -59,8 +59,6 @@ class PengajuanSelesaiPage extends StatelessWidget {
                       text: "Lanjutkan ke beranda",
                       onPressed: () async {
                         await OnboardingChecklistStorage.setStatus(0, true);
-                        if (!context.mounted) return;
-
                         Navigator.pushNamedAndRemoveUntil(
                           context,
                           '/onboarding_checklist',

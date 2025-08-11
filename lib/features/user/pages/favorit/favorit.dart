@@ -5,6 +5,7 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
+import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_favorites.dart';
 import '../../../../common/data/dummy_menus.dart';
 import '../../../../common/data/dummy_restaurants.dart';
@@ -125,7 +126,7 @@ class _FavoritPageState extends State<FavoritPage> {
             itemBuilder: (context, idx) {
               final menu = favoriteMenus[idx];
               final resto = getRestaurant(menu['restaurantId']);
-              //final qty = qtyMap[menu['id']] ?? 0;
+              final qty = qtyMap[menu['id']] ?? 0;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -289,6 +290,7 @@ class _FavoritPageState extends State<FavoritPage> {
                                       ),
                                       onPressed: () {
                                         addQty(menu['id']);
+                                        // TODO: otomatis masuk keranjang
                                       },
                                       child: const Text(
                                         "Tambah",
@@ -329,7 +331,7 @@ class _FavoritPageState extends State<FavoritPage> {
           ),
         ),
         bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: Color.fromRGBO(249, 211, 211, 0.85),
+          backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
           selectedItemColor: AppTheme.primaryColor,
           unselectedItemColor: Colors.black54,
           currentIndex: 2,
@@ -358,18 +360,9 @@ class _FavoritPageState extends State<FavoritPage> {
           },
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: "History",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.favorite),
-              label: "Favorit",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: "Profil",
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+            BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Favorit"),
+            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profil"),
           ],
         ),
       ),

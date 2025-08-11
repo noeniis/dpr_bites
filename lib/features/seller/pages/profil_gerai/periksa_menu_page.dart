@@ -44,17 +44,14 @@ class PeriksaMenuPage extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     image: const DecorationImage(
-                      image: AssetImage('lib/assets/images/waroenk88.jpeg'),
+                      image: AssetImage(
+                        'lib/assets/images/waroenk88.jpeg',
+                      ),
                       fit: BoxFit.cover,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(
-                          red: 0.07,
-                          green: 0.07,
-                          blue: 0.07,
-                          alpha: 0.15,
-                        ),
+                        color: Colors.black.withOpacity(0.15),
                         offset: const Offset(0, 4),
                         blurRadius: 4,
                       ),
@@ -124,11 +121,9 @@ class PeriksaMenuPage extends StatelessWidget {
                       text: "Buat menu",
                       onPressed: () {
                         Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MenuRestoPage(),
-                          ),
-                        );
+                      context,
+                      MaterialPageRoute(builder: (_) => const MenuRestoPage()),
+      );
                       },
                     ),
                   ),

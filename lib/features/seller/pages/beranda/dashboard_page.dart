@@ -27,11 +27,7 @@ class SellerDashboardPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          leading: const Icon(
-            Icons.storefront,
-            color: Color(0xFFD53D3D),
-            size: 24,
-          ),
+          leading: const Icon(Icons.storefront, color: Color(0xFFD53D3D), size: 24),
           title: Text(
             "Waroeng Kenyank 88",
             style: const TextStyle(
@@ -59,20 +55,11 @@ class SellerDashboardPage extends StatelessWidget {
                 CustomEmptyCard(
                   margin: const EdgeInsets.only(bottom: 14),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          "Filter Isi Saldo & Ringkasan Pesanan",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
+                        const Text("Filter Isi Saldo & Ringkasan Pesanan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -82,33 +69,17 @@ class SellerDashboardPage extends StatelessWidget {
                                   // Fungsi pilih tanggal tidak perlu jalan, hanya UI
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                    horizontal: 12,
-                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                                   decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: Colors.grey.shade300,
-                                    ),
+                                    border: Border.all(color: Colors.grey.shade300),
                                     borderRadius: BorderRadius.circular(8),
                                     color: Colors.grey.shade100,
                                   ),
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Text(
-                                        "Pilih Tanggal",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.black54,
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.calendar_today,
-                                        size: 18,
-                                        color: Colors.grey.shade600,
-                                      ),
+                                      const Text("Pilih Tanggal", style: TextStyle(fontSize: 14, color: Colors.black54)),
+                                      Icon(Icons.calendar_today, size: 18, color: Colors.grey.shade600),
                                     ],
                                   ),
                                 ),
@@ -121,34 +92,16 @@ class SellerDashboardPage extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: const [
-                            Text(
-                              "Total Saldo Masuk:",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "Rp 50.000",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
+                            Text("Total Saldo Masuk:", style: TextStyle(fontSize: 14)),
+                            Text("Rp 50.000", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                           ],
                         ),
                         SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: const [
-                            Text(
-                              "Total Pesanan:",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            Text(
-                              "4",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
+                            Text("Total Pesanan:", style: TextStyle(fontSize: 14)),
+                            Text("4", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                           ],
                         ),
                       ],
@@ -159,25 +112,15 @@ class SellerDashboardPage extends StatelessWidget {
                 CustomEmptyCard(
                   margin: const EdgeInsets.only(bottom: 16),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: const [
-                            Icon(
-                              Icons.currency_exchange,
-                              color: Colors.green,
-                              size: 22,
-                            ),
+                            Icon(Icons.currency_exchange, color: Colors.green, size: 22),
                             SizedBox(width: 6),
-                            Text(
-                              "Saldo",
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            Text("Saldo", style: TextStyle(fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -200,10 +143,7 @@ class SellerDashboardPage extends StatelessWidget {
                       child: CustomEmptyCard(
                         margin: const EdgeInsets.only(right: 10, bottom: 16),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           child: Column(
                             children: [
                               const Text(
@@ -211,13 +151,7 @@ class SellerDashboardPage extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                "$pesananBaru",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                              Text("$pesananBaru", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ],
                           ),
                         ),
@@ -227,10 +161,7 @@ class SellerDashboardPage extends StatelessWidget {
                       child: CustomEmptyCard(
                         margin: const EdgeInsets.only(left: 10, bottom: 16),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           child: Column(
                             children: [
                               const Text(
@@ -238,13 +169,7 @@ class SellerDashboardPage extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                "$sedangDisiapkan",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                              Text("$sedangDisiapkan", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ],
                           ),
                         ),
@@ -260,10 +185,7 @@ class SellerDashboardPage extends StatelessWidget {
                       child: CustomEmptyCard(
                         margin: const EdgeInsets.only(right: 10, bottom: 16),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           child: Column(
                             children: [
                               const Text(
@@ -271,13 +193,7 @@ class SellerDashboardPage extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                "$selfPickup",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                              Text("$selfPickup", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ],
                           ),
                         ),
@@ -287,10 +203,7 @@ class SellerDashboardPage extends StatelessWidget {
                       child: CustomEmptyCard(
                         margin: const EdgeInsets.only(left: 10, bottom: 16),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
                           child: Column(
                             children: [
                               const Text(
@@ -298,13 +211,7 @@ class SellerDashboardPage extends StatelessWidget {
                                 style: TextStyle(fontWeight: FontWeight.w500),
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                "$pesananAntar",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
+                              Text("$pesananAntar", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             ],
                           ),
                         ),
@@ -316,23 +223,15 @@ class SellerDashboardPage extends StatelessWidget {
                 const SizedBox(height: 6),
 
                 // MENU
-                const Text(
-                  "Akun",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                const Text("Akun", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.person_outline,
-                    color: Colors.black,
-                  ),
+                  leading: const Icon(Icons.person_outline, color: Colors.black),
                   title: const Text("Profil penjual"),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfilSellerPage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const ProfilSellerPage()),
                     );
                   },
                 ),
@@ -360,17 +259,12 @@ class SellerDashboardPage extends StatelessWidget {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.monetization_on,
-                    color: Colors.black,
-                  ),
+                  leading: const Icon(Icons.monetization_on, color: Colors.black),
                   title: const Text("Kelola Gerai"),
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const KelolaProfilGeraiPage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const KelolaProfilGeraiPage()),
                     );
                   },
                 ),
@@ -379,10 +273,7 @@ class SellerDashboardPage extends StatelessWidget {
                   leading: const Icon(Icons.logout, color: Color(0xFFD53D3D)),
                   title: const Text(
                     "Keluar",
-                    style: TextStyle(
-                      color: Color(0xFFD53D3D),
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w600),
                   ),
                   onTap: () {
                     Navigator.pushAndRemoveUntil(
@@ -400,9 +291,7 @@ class SellerDashboardPage extends StatelessWidget {
         ),
         // BOTTOM NAV BAR
         bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: const Color(
-            0xFFF9D3D3,
-          ).withValues(red: 0.85, green: 0.85, blue: 0.85, alpha: 1),
+          backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
           selectedItemColor: const Color(0xFFD53D3D),
           unselectedItemColor: Colors.black54,
           currentIndex: 0, // branda (home)
@@ -410,13 +299,18 @@ class SellerDashboardPage extends StatelessWidget {
             if (i == 1) {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => PesananPage()),
+                MaterialPageRoute(
+                  builder: (_) => PesananPage(),
+                ),
               );
             }
             // Tab 0 (Beranda) does nothing since already here
           },
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home),
+              label: "Beranda",
+            ),
             BottomNavigationBarItem(
               icon: Icon(Icons.assignment),
               label: "Pesanan",

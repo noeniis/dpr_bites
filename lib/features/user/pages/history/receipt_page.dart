@@ -109,12 +109,7 @@ class ReceiptPage extends StatelessWidget {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(
-                              red: 0.08,
-                              green: 0.08,
-                              blue: 0.08,
-                              alpha: 1,
-                            ),
+                            color: Colors.black.withOpacity(0.08),
                             offset: const Offset(2, 2),
                             blurRadius: 4,
                           ),
