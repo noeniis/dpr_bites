@@ -3,7 +3,6 @@ import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_restaurants.dart';
 import '../../../../common/data/dummy_address.dart';
-import '../../../../common/data/address_store.dart';
 import 'filter_category_sheet.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
@@ -83,8 +82,11 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to AddressStore so AppBar updates when address changes
-    final store = AddressStore.instance;
+    // Pilih alamat utama sebagai default
+    final defaultAddress = (dummyAddresses.firstWhere(
+      (a) => a.isDefault,
+      orElse: () => dummyAddresses.first,
+    ));
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -97,76 +99,63 @@ class _HomePageState extends State<HomePage> {
             elevation: 0,
             automaticallyImplyLeading: false,
             toolbarHeight: 90, // Pastikan tinggi toolbar juga diubah
-            title: AnimatedBuilder(
-              animation: store,
-              builder: (context, _) {
-                final current = store.selected;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () async {
-                    // Open AddressPage to pick address; update store when returned
-                    final result = await Navigator.pushNamed(
-                      context,
-                      '/address',
-                    );
-                    if (result is DummyAddress) {
-                      store.select(result);
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 0, bottom: 0),
-                    child: Transform.translate(
-                      offset: const Offset(0, -21),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+            title: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                Navigator.pushNamed(context, '/address');
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(top: 0, bottom: 0),
+                child: Transform.translate(
+                  offset: const Offset(0, -21),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Alamat Pengantaran',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'Alamat Pengantaran',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  current.namaGedung,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF602829),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Icon(
-                                Icons.keyboard_arrow_down,
-                                size: 20,
+                          Flexible(
+                            child: Text(
+                              defaultAddress.namaGedung,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                                 color: Color(0xFF602829),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            current.detailPengantaran,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                              fontWeight: FontWeight.w400,
                             ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: Color(0xFF602829),
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 2),
+                      Text(
+                        defaultAddress.detailPengantaran,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black45,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
             actions: [
               Transform.translate(
