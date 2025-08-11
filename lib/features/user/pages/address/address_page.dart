@@ -2,12 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../common/data/dummy_address.dart';
-import '../../../../common/data/address_store.dart';
 import 'address_add_page.dart';
 
 class AddressPage extends StatefulWidget {
-  final bool popOnPick; // if true, pop with result on pick (used by Checkout)
-  const AddressPage({super.key, this.popOnPick = false});
+  const AddressPage({super.key});
 
   @override
   State<AddressPage> createState() => _AddressPageState();
@@ -20,27 +18,15 @@ class _AddressPageState extends State<AddressPage> {
   @override
   void initState() {
     super.initState();
-    // Make a mutable copy so we can re-order locally
+    // Make a mutable copy so we can re-order / toggle default locally
     _addresses = List<DummyAddress>.from(dummyAddresses);
-    _sortWithSelectedFirst();
+    _sortWithDefaultOnTop();
   }
 
-  bool _isSame(DummyAddress a, DummyAddress b) {
-    return a.namaGedung == b.namaGedung &&
-        a.namaPenerima == b.namaPenerima &&
-        a.noHp == b.noHp &&
-        a.detailPengantaran == b.detailPengantaran;
-  }
-
-  void _sortWithSelectedFirst() {
-    final selected = AddressStore.instance.selected;
+  void _sortWithDefaultOnTop() {
     _addresses.sort((a, b) {
-      final aSel = _isSame(a, selected);
-      final bSel = _isSame(b, selected);
-      if (aSel && !bSel) return -1;
-      if (!aSel && bSel) return 1;
-      if (a.isDefault != b.isDefault) return a.isDefault ? -1 : 1;
-      return 0;
+      if (a.isDefault == b.isDefault) return 0;
+      return a.isDefault ? -1 : 1;
     });
   }
 
@@ -57,7 +43,7 @@ class _AddressPageState extends State<AddressPage> {
           ),
         )
         .toList();
-    _sortWithSelectedFirst();
+    _sortWithDefaultOnTop();
     setState(() {});
     // After UI updates, scroll to top to highlight the new default card
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -73,7 +59,7 @@ class _AddressPageState extends State<AddressPage> {
 
   void _hapus(int index) {
     final removed = _addresses.removeAt(index);
-    _sortWithSelectedFirst();
+    _sortWithDefaultOnTop();
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -176,7 +162,7 @@ class _AddressPageState extends State<AddressPage> {
                                   )
                                   .toList();
                             }
-                            _sortWithSelectedFirst();
+                            _sortWithDefaultOnTop();
                           });
                         }
                       },
@@ -210,11 +196,7 @@ class _AddressPageState extends State<AddressPage> {
                           itemBuilder: (context, index) {
                             final a = _addresses[index];
                             final bool isDefault = a.isDefault;
-                            final bool isSelected = _isSame(
-                              a,
-                              AddressStore.instance.selected,
-                            );
-                            final borderColor = isSelected
+                            final borderColor = isDefault
                                 ? AppTheme.primaryColor
                                 : const Color(0xFF767070);
                             return Stack(
@@ -246,91 +228,73 @@ class _AddressPageState extends State<AddressPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        // Top content gets extra right padding when Pilih is visible
-                                        Padding(
-                                          padding: EdgeInsets.only(
-                                            right: isSelected ? 0 : 84,
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              // Top line: Nama Gedung + (Utama badge if default)
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.center,
-                                                children: [
-                                                  Flexible(
-                                                    child: Text(
-                                                      a.namaGedung,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color:
-                                                            AppTheme.textColor,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  if (isDefault)
-                                                    Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: AppTheme
-                                                            .primaryColor,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              6,
-                                                            ),
-                                                      ),
-                                                      child: const Text(
-                                                        'Utama',
-                                                        style: TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              // Penerima - No HP
-                                              Text(
-                                                '${a.namaPenerima} - ${a.noHp}',
+                                        // Top line: Nama Gedung + (Utama badge if default)
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                a.namaGedung,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
+                                                  fontSize: 16,
                                                   fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
                                                   color: AppTheme.textColor,
                                                 ),
                                               ),
-                                              const SizedBox(height: 6),
-                                              // Detail pengantaran
-                                              Text(
-                                                a.detailPengantaran,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.black
-                                                      .withOpacity(0.55),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            if (isDefault)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: AppTheme.primaryColor,
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: const Text(
+                                                  'Utama',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                                 ),
                                               ),
-                                              const SizedBox(height: 12),
-                                            ],
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        // Penerima - No HP
+                                        Text(
+                                          '${a.namaPenerima} - ${a.noHp}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: AppTheme.textColor,
                                           ),
                                         ),
+                                        const SizedBox(height: 6),
+                                        // Detail pengantaran
+                                        Text(
+                                          a.detailPengantaran,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black.withOpacity(
+                                              0.55,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
 
                                         // Actions
                                         if (isDefault)
                                           Align(
-                                            alignment: Alignment.center,
+                                            alignment: Alignment.centerLeft,
                                             child: TextButton(
                                               onPressed: () async {
                                                 final updated =
@@ -365,7 +329,7 @@ class _AddressPageState extends State<AddressPage> {
                                                           )
                                                           .toList();
                                                     }
-                                                    _sortWithSelectedFirst();
+                                                    _sortWithDefaultOnTop();
                                                   });
                                                 }
                                               },
@@ -374,83 +338,66 @@ class _AddressPageState extends State<AddressPage> {
                                           )
                                         else
                                           Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Expanded(
-                                                child: Align(
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  child: TextButton(
-                                                    onPressed: () =>
-                                                        _makeDefault(index),
-                                                    child: const Text(
-                                                      'Jadikan Alamat Utama',
-                                                      style: TextStyle(
-                                                        color: AppTheme
-                                                            .primaryColor,
-                                                      ),
-                                                    ),
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _makeDefault(index),
+                                                child: const Text(
+                                                  'Jadikan Alamat Utama',
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppTheme.primaryColor,
                                                   ),
                                                 ),
                                               ),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  if (!isSelected)
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          _confirmHapus(index),
-                                                      child: const Text(
-                                                        'Hapus',
-                                                      ),
-                                                    ),
-                                                  if (!isSelected)
-                                                    const SizedBox(width: 12),
-                                                  TextButton(
-                                                    onPressed: () async {
-                                                      final updated =
-                                                          await Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                              builder: (_) =>
-                                                                  AddressAddPage(
-                                                                    initial: a,
-                                                                  ),
-                                                            ),
-                                                          );
-                                                      if (updated
-                                                          is DummyAddress) {
-                                                        setState(() {
-                                                          _addresses[index] =
-                                                              updated;
-                                                          if (updated
-                                                              .isDefault) {
-                                                            _addresses = _addresses
-                                                                .map(
-                                                                  (
-                                                                    aa,
-                                                                  ) => DummyAddress(
-                                                                    namaPenerima:
-                                                                        aa.namaPenerima,
-                                                                    namaGedung:
-                                                                        aa.namaGedung,
-                                                                    detailPengantaran:
-                                                                        aa.detailPengantaran,
-                                                                    noHp:
-                                                                        aa.noHp,
-                                                                    isDefault:
-                                                                        aa ==
-                                                                        updated,
-                                                                  ),
-                                                                )
-                                                                .toList();
-                                                          }
-                                                          _sortWithSelectedFirst();
-                                                        });
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _confirmHapus(index),
+                                                child: const Text('Hapus'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () async {
+                                                  final updated =
+                                                      await Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              AddressAddPage(
+                                                                initial: a,
+                                                              ),
+                                                        ),
+                                                      );
+                                                  if (updated is DummyAddress) {
+                                                    setState(() {
+                                                      _addresses[index] =
+                                                          updated;
+                                                      if (updated.isDefault) {
+                                                        _addresses = _addresses
+                                                            .map(
+                                                              (
+                                                                aa,
+                                                              ) => DummyAddress(
+                                                                namaPenerima: aa
+                                                                    .namaPenerima,
+                                                                namaGedung: aa
+                                                                    .namaGedung,
+                                                                detailPengantaran:
+                                                                    aa.detailPengantaran,
+                                                                noHp: aa.noHp,
+                                                                isDefault:
+                                                                    aa ==
+                                                                    updated,
+                                                              ),
+                                                            )
+                                                            .toList();
                                                       }
-                                                    },
-                                                    child: const Text('Ubah'),
-                                                  ),
-                                                ],
+                                                      _sortWithDefaultOnTop();
+                                                    });
+                                                  }
+                                                },
+                                                child: const Text('Ubah'),
                                               ),
                                             ],
                                           ),
@@ -458,49 +405,8 @@ class _AddressPageState extends State<AddressPage> {
                                     ),
                                   ),
                                 ),
-                                // 'Pilih' button shows only on non-selected addresses
-                                if (!isSelected)
-                                  Positioned(
-                                    right: 16,
-                                    top: 40,
-                                    child: OutlinedButton(
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(
-                                          color: AppTheme.primaryColor,
-                                          width: 1.6,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 14,
-                                          vertical: 8,
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        // Update global selection
-                                        AddressStore.instance.select(a);
-                                        if (widget.popOnPick) {
-                                          Navigator.of(context).pop(a);
-                                        } else {
-                                          setState(() {
-                                            _sortWithSelectedFirst();
-                                          });
-                                        }
-                                      },
-                                      child: const Text(
-                                        'Pilih',
-                                        style: TextStyle(
-                                          color: AppTheme.primaryColor,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                // Ribbon top-right for selected address
-                                if (isSelected)
+                                // Ribbon top-right for default address
+                                if (isDefault)
                                   Positioned(
                                     right: 0,
                                     top: 0,

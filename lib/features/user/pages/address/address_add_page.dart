@@ -4,9 +4,6 @@ import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_address.dart';
-import 'address_maps_page.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 
 class AddressAddPage extends StatefulWidget {
   final DummyAddress? initial;
@@ -24,9 +21,6 @@ class _AddressAddPageState extends State<AddressAddPage> {
   final _noHpC = TextEditingController();
   bool _isDefault = false;
   bool _lokasiDipilih = false;
-  double? _lat;
-  double? _lon;
-  String? _alamatLengkapMaps;
 
   @override
   void initState() {
@@ -38,10 +32,7 @@ class _AddressAddPageState extends State<AddressAddPage> {
       _namaPenerimaC.text = init.namaPenerima;
       _noHpC.text = init.noHp;
       _isDefault = init.isDefault; // preserve on edit
-      _lat = init.latitude;
-      _lon = init.longitude;
-      _alamatLengkapMaps = init.alamatLengkapMaps;
-      _lokasiDipilih = (_lat != null && _lon != null);
+      _lokasiDipilih = true; // assume an existing address has location chosen
     }
   }
 
@@ -62,9 +53,6 @@ class _AddressAddPageState extends State<AddressAddPage> {
       detailPengantaran: _detailPengantaranC.text.trim(),
       noHp: _noHpC.text.trim(),
       isDefault: _isDefault,
-      latitude: _lat,
-      longitude: _lon,
-      alamatLengkapMaps: _alamatLengkapMaps,
     );
     Navigator.pop(context, newAddr);
   }
@@ -117,115 +105,42 @@ class _AddressAddPageState extends State<AddressAddPage> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        if (!_lokasiDipilih)
-                          Text(
-                            'Sebelum isi form, kamu harus pilih titik lokasi dulu',
-                            style: TextStyle(
-                              color: Colors.black.withOpacity(0.65),
-                            ),
+                        Text(
+                          _lokasiDipilih
+                              ? 'Lokasi sudah dipilih'
+                              : 'Sebelum isi form, kamu harus pilih titik lokasi dulu',
+                          style: TextStyle(
+                            color: Colors.black.withOpacity(0.65),
                           ),
-                        if (_lokasiDipilih) ...[
-                          // Map preview
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: SizedBox(
-                              height: 160,
-                              width: double.infinity,
-                              child: AbsorbPointer(
-                                child: FlutterMap(
-                                  options: MapOptions(
-                                    initialCenter: LatLng(_lat ?? 0, _lon ?? 0),
-                                    initialZoom: 16,
-                                  ),
-                                  children: [
-                                    TileLayer(
-                                      urlTemplate:
-                                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                      userAgentPackageName:
-                                          'com.example.dpr_bites',
-                                    ),
-                                    if (_lat != null && _lon != null)
-                                      MarkerLayer(
-                                        markers: [
-                                          Marker(
-                                            point: LatLng(_lat!, _lon!),
-                                            width: 40,
-                                            height: 40,
-                                            alignment: Alignment.topCenter,
-                                            child: const Icon(
-                                              Icons.location_on,
-                                              size: 40,
-                                              color: Color(0xFFD53D3D),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Alamat lengkap (Berdasarkan titik lokasi)',
-                            style: TextStyle(
-                              color: Colors.black.withOpacity(0.65),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _alamatLengkapMaps ?? '-',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ],
+                        ),
                         const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => AddressMapsPage(
-                                    initialLat: _lat,
-                                    initialLon: _lon,
-                                    initialAddress: _alamatLengkapMaps,
-                                  ),
-                                ),
-                              );
-                              if (result is Map) {
-                                setState(() {
-                                  _lat = (result['lat'] as num?)?.toDouble();
-                                  _lon = (result['lon'] as num?)?.toDouble();
-                                  _alamatLengkapMaps =
-                                      result['address'] as String?;
-                                  _lokasiDipilih = _lat != null && _lon != null;
-                                });
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppTheme.primaryColor,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 12,
-                              ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _lokasiDipilih = true);
+                          },
+                          icon: const Icon(
+                            Icons.place_outlined,
+                            color: AppTheme.primaryColor,
+                          ),
+                          label: Text(
+                            _lokasiDipilih
+                                ? 'Lokasi Dipilih'
+                                : 'Pilih Titik Lokasi',
+                            style: const TextStyle(
+                              color: AppTheme.primaryColor,
                             ),
-                            child: Text(
-                              _lokasiDipilih
-                                  ? 'Ubah Titik Lokasi'
-                                  : 'Pilih Titik Lokasi',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppTheme.primaryColor,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: AppTheme.primaryColor,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 12,
                             ),
                           ),
                         ),

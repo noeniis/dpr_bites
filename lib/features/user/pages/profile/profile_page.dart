@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_users.dart';
@@ -15,31 +16,24 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  late Map<String, Object>
-  user; // Menggunakan Map<String, Object> untuk konsistensi
+  late Map<String, String> user;
   bool isEditing = false;
   String editingField = '';
-
-  // Controllers untuk inputan
   final nameController = TextEditingController();
   final usernameController = TextEditingController();
   final phoneController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final nikController = TextEditingController();
-  final ttlController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    user = Map<String, Object>.from(dummyUser); // Menyesuaikan tipe data
-    nameController.text = user['name'] as String;
-    usernameController.text = user['username'] as String;
-    phoneController.text = (user['phone'] as List<String>).join(', ');
-    emailController.text = user['email'] as String;
-    passwordController.text = user['password'] as String;
-    nikController.text = user['nik'] as String;
-    ttlController.text = user['ttl'] as String;
+    user = Map<String, String>.from(dummyUser);
+    nameController.text = user['name'] ?? '';
+    usernameController.text = user['username'] ?? '';
+    phoneController.text = user['phone'] ?? '';
+    emailController.text = user['email'] ?? '';
+    passwordController.text = user['password'] ?? '';
   }
 
   void startEdit(String field) {
@@ -51,31 +45,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void saveEdit() {
     setState(() {
-      if (editingField == 'name') {
-        user['name'] = nameController.text;
-      }
-      if (editingField == 'username') {
+      if (editingField == 'name') user['name'] = nameController.text;
+      if (editingField == 'username')
         user['username'] = usernameController.text;
-      }
-      if (editingField == 'phone') {
-        user['phone'] = phoneController.text.split(', ');
-      }
-      if (editingField == 'email') {
-        user['email'] = emailController.text;
-      }
-      if (editingField == 'password') {
+      if (editingField == 'phone') user['phone'] = phoneController.text;
+      if (editingField == 'email') user['email'] = emailController.text;
+      if (editingField == 'password')
         user['password'] = passwordController.text;
-      }
-      if (editingField == 'nik') {
-        user['nik'] = nikController.text;
-      }
-      if (editingField == 'ttl') {
-        user['ttl'] = ttlController.text;
-      }
-
       isEditing = false;
       editingField = '';
-      // Update dummyUser dengan data yang sudah diedit
       dummyUser.clear();
       dummyUser.addAll(user);
     });
@@ -141,11 +119,30 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           child: ClipOval(
                             child: Image.asset(
-                              user['photo'] as String? ??
-                                  'lib/assets/images/iconUser.png',
+                              user['photo'] ?? 'lib/assets/images/iconUser.png',
                               width: 90,
                               height: 90,
                               fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 6,
+                          right: 6,
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: Center(
+                              child: Image.asset(
+                                'lib/assets/images/iconCamera.png',
+                                width: 18,
+                                height: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -153,86 +150,68 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  // Nama
                   GestureDetector(
                     onTap: () => startEdit('name'),
                     child: AbsorbPointer(
                       absorbing: !(isEditing && editingField == 'name'),
                       child: TextFieldLine(
                         label: 'Nama',
-                        value: user['name'] as String? ?? '',
+                        value: user['name'] ?? '',
                         controller: nameController,
                         editable: isEditing && editingField == 'name',
                         underlineColor: Colors.black,
                       ),
                     ),
                   ),
-                  // Username
                   GestureDetector(
                     onTap: () => startEdit('username'),
                     child: AbsorbPointer(
                       absorbing: !(isEditing && editingField == 'username'),
                       child: TextFieldLine(
                         label: 'Username',
-                        value: user['username'] as String? ?? '',
+                        value: user['username'] ?? '',
                         controller: usernameController,
                         editable: isEditing && editingField == 'username',
                         underlineColor: Colors.black,
                       ),
                     ),
                   ),
-                  // Phone (Multiple Numbers)
                   GestureDetector(
                     onTap: () => startEdit('phone'),
                     child: AbsorbPointer(
                       absorbing: !(isEditing && editingField == 'phone'),
                       child: TextFieldLine(
                         label: 'No HP',
-                        value: (user['phone'] as List<String>).join(', '),
+                        value: user['phone'] ?? '',
                         controller: phoneController,
                         editable: isEditing && editingField == 'phone',
                         underlineColor: Colors.black,
                       ),
                     ),
                   ),
-                  // Email
                   GestureDetector(
                     onTap: () => startEdit('email'),
                     child: AbsorbPointer(
                       absorbing: !(isEditing && editingField == 'email'),
                       child: TextFieldLine(
                         label: 'Email',
-                        value: user['email'] as String? ?? '',
+                        value: user['email'] ?? '',
                         controller: emailController,
                         editable: isEditing && editingField == 'email',
                         underlineColor: Colors.black,
                       ),
                     ),
                   ),
-                  // NIK
                   GestureDetector(
-                    onTap: () => startEdit('nik'),
+                    onTap: () => startEdit('password'),
                     child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'nik'),
+                      absorbing: !(isEditing && editingField == 'password'),
                       child: TextFieldLine(
-                        label: 'NIK',
-                        value: user['nik'] as String? ?? '',
-                        controller: nikController,
-                        editable: isEditing && editingField == 'nik',
-                        underlineColor: Colors.black,
-                      ),
-                    ),
-                  ),
-                  // TTL
-                  GestureDetector(
-                    onTap: () => startEdit('ttl'),
-                    child: AbsorbPointer(
-                      absorbing: !(isEditing && editingField == 'ttl'),
-                      child: TextFieldLine(
-                        label: 'Tanggal Lahir',
-                        value: user['ttl'] as String? ?? '',
-                        controller: ttlController,
-                        editable: isEditing && editingField == 'ttl',
+                        label: 'Password',
+                        value: user['password'] ?? '',
+                        controller: passwordController,
+                        editable: isEditing && editingField == 'password',
+                        obscure: true,
                         underlineColor: Colors.black,
                       ),
                     ),
