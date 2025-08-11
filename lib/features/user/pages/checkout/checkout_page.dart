@@ -2,7 +2,8 @@ import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dar
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_checkout.dart';
-import 'alamat_pengantaran_dialog.dart';
+import 'package:dpr_bites/common/data/dummy_address.dart';
+import 'package:dpr_bites/common/data/dummy_carts.dart';
 import 'pembayaran_qris_dialog.dart';
 import '../history/history_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
@@ -44,28 +45,86 @@ class _CheckoutPageState extends State<CheckoutPage> {
   late Map<String, dynamic> payment;
   bool isDelivery = true;
   int? editingQtyIndex;
-  int? editingNoteIndex;
-  final Map<int, TextEditingController> _noteControllers = {};
   String selectedPayment = 'qris';
+  DummyAddress? selectedAddress;
 
   @override
   void initState() {
     super.initState();
     final checkout = dummyCheckout;
-    items = List<Map<String, dynamic>>.from(checkout['items'] as List);
+    // Ambil 3 menu dari dummy_carts (lintas restoran jika perlu)
+    final List<Map<String, dynamic>> picked = [];
+    for (final cart in dummyCarts) {
+      final menus = cart['menus'] as List<dynamic>;
+      for (final m in menus) {
+        if (picked.length < 3) {
+          picked.add(Map<String, dynamic>.from(m as Map));
+        }
+      }
+      if (picked.length >= 3) break;
+    }
+    items = picked;
+    // Judul pakai restoran pertama (fallback ke dummyCheckout bila kosong)
+    restaurantName = (dummyCarts.isNotEmpty
+        ? dummyCarts.first['restaurantName'] as String
+        : checkout['restaurantName'] as String);
+    // Data lain tetap dari dummyCheckout agar alur lain tidak berubah
     deliveryFee = checkout['deliveryFee'] as int;
-    restaurantName = checkout['restaurantName'] as String;
     location = Map<String, dynamic>.from(checkout['location'] as Map);
     payment = Map<String, dynamic>.from(checkout['payment'] as Map);
 
-    // Init note controllers
-    for (int i = 0; i < items.length; i++) {
-      _noteControllers[i] = TextEditingController(text: items[i]['note'] ?? '');
+    // Set default delivery address from dummy addresses
+    try {
+      selectedAddress = dummyAddresses.firstWhere((a) => a.isDefault);
+    } catch (_) {
+      if (dummyAddresses.isNotEmpty) {
+        selectedAddress = dummyAddresses.first;
+      }
     }
+
+    // No inline note editors on checkout; editing via modal sheet like Cart
   }
 
-  int get subtotal =>
-      items.fold(0, (a, b) => a + (b['price'] as int) * (b['qty'] as int));
+  int get subtotal => items.fold(0, (a, b) {
+    final base = (b['price'] is num) ? (b['price'] as num).toInt() : 0;
+    final qty = (b['qty'] is num) ? (b['qty'] as num).toInt() : 1;
+    final add = _addonTotalFor(b);
+    return a + (base + add) * qty;
+  });
+
+  int _addonTotalFor(Map<String, dynamic> item) {
+    try {
+      final List addons = (item['addon'] as List?) ?? const [];
+      if (addons.isEmpty) {
+        return (item['addonPrice'] is num)
+            ? (item['addonPrice'] as num).toInt()
+            : 0;
+      }
+      final List<Map<String, dynamic>> options =
+          ((item['addonOptions'] as List?) ?? const [])
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+      int sum = 0;
+      for (final a in addons) {
+        final opt = options.firstWhere(
+          (o) => o['label'] == a,
+          orElse: () => const {},
+        );
+        final p = (opt['price'] is num) ? (opt['price'] as num).toInt() : 0;
+        sum += p;
+      }
+      if (sum == 0) {
+        return (item['addonPrice'] is num)
+            ? (item['addonPrice'] as num).toInt()
+            : 0;
+      }
+      return sum;
+    } catch (_) {
+      return (item['addonPrice'] is num)
+          ? (item['addonPrice'] as num).toInt()
+          : 0;
+    }
+  }
 
   Future<void> _showDeleteDialog(int i) async {
     final itemName = items[i]['name'] ?? 'menu ini';
@@ -93,6 +152,190 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   int get total => isDelivery ? subtotal + deliveryFee : subtotal;
 
+  Future<void> _showEditMenuSheet(int index) async {
+    final Map<String, dynamic> menu = items[index];
+    final TextEditingController noteController = TextEditingController(
+      text: menu['note'] ?? '',
+    );
+    List<String> selectedAddons = [];
+    if (menu['addon'] is String && (menu['addon'] as String).isNotEmpty) {
+      selectedAddons = [menu['addon'] as String];
+    } else if (menu['addon'] is List) {
+      selectedAddons = List<String>.from(menu['addon'] as List);
+    }
+    final List addonOptions = menu['addonOptions'] ?? [];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight * 0.95,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12.withOpacity(0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: StatefulBuilder(
+                builder: (context, setStateDialog) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.asset(
+                              menu['image'] ?? '',
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => Container(
+                                width: 100,
+                                height: 100,
+                                color: Colors.grey.shade200,
+                                child: const Icon(
+                                  Icons.image,
+                                  size: 40,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          menu['name'] ?? '',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                        if (menu['desc'] != null &&
+                            (menu['desc'] as String).isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              menu['desc'],
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        if (addonOptions.isNotEmpty) ...[
+                          const Text(
+                            'Pilih Addon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          ...addonOptions.map<Widget>((opt) {
+                            return CheckboxListTile(
+                              value: selectedAddons.contains(opt['label']),
+                              title: Text(
+                                '${opt['label']} ${opt['price'] > 0 ? '(+Rp${(opt['price'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})' : ''}',
+                              ),
+                              onChanged: (val) {
+                                setStateDialog(() {
+                                  if (val == true) {
+                                    selectedAddons.add(opt['label']);
+                                  } else {
+                                    selectedAddons.remove(opt['label']);
+                                  }
+                                });
+                              },
+                              controlAffinity: ListTileControlAffinity.leading,
+                            );
+                          }).toList(),
+                          const SizedBox(height: 12),
+                        ],
+                        const Text(
+                          'Catatan',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: noteController,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'Tulis catatan untuk menu ini',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD53D3D),
+                                width: 1.5,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD53D3D),
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD53D3D),
+                                width: 2,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: CustomButtonKotak(
+                            text: 'Simpan',
+                            onPressed: () {
+                              int totalAddonPrice = 0;
+                              for (var opt in addonOptions) {
+                                if (selectedAddons.contains(opt['label'])) {
+                                  totalAddonPrice += opt['price'] as int;
+                                }
+                              }
+                              setState(() {
+                                items[index]['note'] = noteController.text;
+                                items[index]['addon'] = selectedAddons;
+                                items[index]['addonPrice'] = totalAddonPrice;
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Untuk close qty editor jika tap di luar
@@ -104,13 +347,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           editingQtyIndex = null;
           needSet = true;
         }
-        if (editingNoteIndex != null) {
-          // Simpan catatan
-          items[editingNoteIndex!]['note'] =
-              _noteControllers[editingNoteIndex!]?.text ?? '';
-          editingNoteIndex = null;
-          needSet = true;
-        }
+        // No inline note editor here
         if (needSet) setState(() {});
       },
       child: GradientBackground(
@@ -160,7 +397,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
@@ -186,73 +423,137 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         ),
                                         const SizedBox(height: 2),
                                         GestureDetector(
-                                          onTap: () {
-                                            if (editingNoteIndex == i) {
-                                              // Simpan catatan dan keluar mode edit
-                                              setState(() {
-                                                items[i]['note'] =
-                                                    _noteControllers[i]?.text ??
-                                                    '';
-                                                editingNoteIndex = null;
-                                                editingQtyIndex = null;
-                                              });
-                                            } else {
-                                              setState(() {
-                                                editingNoteIndex = i;
-                                                editingQtyIndex = i;
-                                              });
-                                            }
-                                          },
-                                          child: Text(
-                                            editingNoteIndex == i
-                                                ? 'Simpan'
-                                                : 'Ubah',
-                                            style: const TextStyle(
+                                          onTap: () => _showEditMenuSheet(i),
+                                          child: const Text(
+                                            'Ubah',
+                                            style: TextStyle(
                                               color: Colors.blue,
                                               fontSize: 12,
                                               fontWeight: FontWeight.w400,
                                             ),
                                           ),
                                         ),
-                                        // Tampilkan catatan jika ada, kecuali sedang edit
-                                        if ((item['note'] ?? '')
-                                                .toString()
-                                                .isNotEmpty &&
-                                            editingNoteIndex != i)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                              right: 8,
-                                            ),
-                                            child: Text(
-                                              item['note'],
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFFB0B0B0),
+                                        // Addon kecil di bawah "Ubah" (dengan harga)
+                                        Builder(
+                                          builder: (context) {
+                                            final List addons =
+                                                (item['addon'] as List?) ??
+                                                const [];
+                                            if (addons.isEmpty)
+                                              return const SizedBox.shrink();
+                                            final List<Map<String, dynamic>>
+                                            options =
+                                                ((item['addonOptions']
+                                                            as List?) ??
+                                                        const [])
+                                                    .map(
+                                                      (e) =>
+                                                          Map<
+                                                            String,
+                                                            dynamic
+                                                          >.from(e as Map),
+                                                    )
+                                                    .toList();
+                                            String withPrice(dynamic label) {
+                                              final opt = options.firstWhere(
+                                                (o) => o['label'] == label,
+                                                orElse: () => const {},
+                                              );
+                                              final p = (opt['price'] is num)
+                                                  ? (opt['price'] as num)
+                                                        .toInt()
+                                                  : 0;
+                                              final pStr = p
+                                                  .toString()
+                                                  .replaceAllMapped(
+                                                    RegExp(
+                                                      r'(\d{1,3})(?=(\d{3})+(?!\d))',
+                                                    ),
+                                                    (m) => '${m[1]}.',
+                                                  );
+                                              return p >= 0
+                                                  ? '$label (+Rp$pStr)'
+                                                  : '$label';
+                                            }
+
+                                            final text = addons
+                                                .map(withPrice)
+                                                .join(', ');
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                                right: 8,
                                               ),
+                                              child: Text(
+                                                text,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Color(0xFF9E9E9E),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 3,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        // Baris catatan selalu tampil
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 4,
+                                            right: 8,
+                                          ),
+                                          child: Text(
+                                            'catatan: ' +
+                                                (((item['note'] ?? '')
+                                                            as String)
+                                                        .trim()
+                                                        .isEmpty
+                                                    ? '-'
+                                                    : (item['note'] as String)),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFFB0B0B0),
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
                                     children: [
-                                      Text(
-                                        item['price']
-                                            .toString()
-                                            .replaceAllMapped(
-                                              RegExp(
-                                                r'(\d{1,3})(?=(\d{3})+(?!\d))',
-                                              ),
-                                              (m) => '${m[1]}.',
+                                      Builder(
+                                        builder: (context) {
+                                          final base = (item['price'] is num)
+                                              ? (item['price'] as num).toInt()
+                                              : 0;
+                                          final addon = _addonTotalFor(item);
+                                          final qty = (item['qty'] is num)
+                                              ? (item['qty'] as num).toInt()
+                                              : 1;
+                                          final lineTotal =
+                                              (base + addon) * qty;
+                                          final formatted = lineTotal
+                                              .toString()
+                                              .replaceAllMapped(
+                                                RegExp(
+                                                  r'(\d{1,3})(?=(\d{3})+(?!\d))',
+                                                ),
+                                                (m) => '${m[1]}.',
+                                              );
+                                          return Text(
+                                            'Rp$formatted',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
                                             ),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
+                                          );
+                                        },
                                       ),
-                                      const SizedBox(height: 8),
+                                      const SizedBox(width: 10),
                                       GestureDetector(
                                         onTap: () {
                                           setState(() {
@@ -359,51 +660,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                 ],
                               ),
-                              if (editingNoteIndex == i)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 8,
-                                    right: 8,
-                                    left: 72,
-                                  ),
-                                  child: TextField(
-                                    controller: _noteControllers[i],
-                                    decoration: InputDecoration(
-                                      hintText: 'Catatan untuk restoran',
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 8,
-                                          ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFFB0B0B0),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFFB0B0B0),
-                                          width: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                    minLines: 1,
-                                    maxLines: 2,
-                                    style: const TextStyle(fontSize: 13),
-                                    onEditingComplete: () {
-                                      setState(() {
-                                        items[i]['note'] =
-                                            _noteControllers[i]?.text ?? '';
-                                        editingNoteIndex = null;
-                                        editingQtyIndex = null;
-                                      });
-                                    },
-                                  ),
-                                ),
+                              // Inline note editor removed; editing via modal sheet
                             ],
                           ),
                         );
@@ -418,10 +675,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             style: TextStyle(fontSize: 15),
                           ),
                           Text(
-                            subtotal.toString().replaceAllMapped(
-                              RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                              (m) => '${m[1]}.',
-                            ),
+                            'Rp${subtotal.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                           ),
                         ],
                       ),
@@ -434,10 +688,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   style: TextStyle(fontSize: 15),
                                 ),
                                 Text(
-                                  deliveryFee.toString().replaceAllMapped(
-                                    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                                    (m) => '${m[1]}.',
-                                  ),
+                                  'Rp${deliveryFee.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                                 ),
                               ],
                             )
@@ -472,20 +723,138 @@ class _CheckoutPageState extends State<CheckoutPage> {
               InkWell(
                 onTap: () async {
                   if (!isDelivery) return;
-                  final result = await showDialog<Map<String, String>>(
+                  await showModalBottomSheet(
                     context: context,
-                    builder: (ctx) => AlamatPengantaranDialog(
-                      initialNama: location['name'],
-                      initialDetail: location['detail'],
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                     ),
+                    builder: (ctx) {
+                      return SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Center(
+                                child: SizedBox(
+                                  width: 40,
+                                  child: Divider(thickness: 3),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Pilih Alamat Pengantaran',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Flexible(
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  itemCount: dummyAddresses.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 10),
+                                  itemBuilder: (ctx, i) {
+                                    final a = dummyAddresses[i];
+                                    final bool isSelected =
+                                        selectedAddress?.namaGedung ==
+                                            a.namaGedung &&
+                                        selectedAddress?.namaPenerima ==
+                                            a.namaPenerima &&
+                                        selectedAddress?.noHp == a.noHp;
+                                    return InkWell(
+                                      onTap: () {
+                                        setState(() => selectedAddress = a);
+                                        Navigator.of(ctx).pop();
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? const Color(0xFFD53D3D)
+                                                : const Color(0xFFB0B0B0),
+                                            width: isSelected ? 1.8 : 1.0,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on_outlined,
+                                              color: Color(0xFFD53D3D),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    a.namaGedung,
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    '${a.namaPenerima} - ${a.noHp}',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    a.detailPengantaran,
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (isSelected)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 8,
+                                                ),
+                                                child: Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.green,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
-                  if (result != null) {
-                    setState(() {
-                      location['name'] = result['nama'] ?? location['name'];
-                      location['detail'] =
-                          result['detail'] ?? location['detail'];
-                    });
-                  }
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -510,37 +879,74 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     ],
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        location['icon'],
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.cover,
-                      ),
+                      isDelivery
+                          ? const Icon(
+                              Icons.location_on_outlined,
+                              color: Color(0xFFD53D3D),
+                              size: 28,
+                            )
+                          : Image.asset(
+                              location['icon'],
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.cover,
+                            ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isDelivery ? location['name'] : restaurantName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Color(0xFF602829),
+                        child: isDelivery && selectedAddress != null
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedAddress!.namaGedung,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF602829),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${selectedAddress!.namaPenerima} - ${selectedAddress!.noHp}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    selectedAddress!.detailPengantaran,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    restaurantName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Color(0xFF602829),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text(
+                                    'Lokasi restoran',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Text(
-                              isDelivery
-                                  ? location['detail']
-                                  : 'Lokasi restoran',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                       const Icon(Icons.chevron_right, color: Color(0xFFD53D3D)),
                     ],
@@ -695,10 +1101,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
                     Text(
-                      total.toString().replaceAllMapped(
-                        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                        (m) => '${m[1]}.',
-                      ),
+                      'Rp${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -788,14 +1191,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 24),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
                                     children: [
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.grey[300],
                                           foregroundColor: Colors.black,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                         ),
                                         onPressed: () {
@@ -805,17 +1211,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFD53D3D),
+                                          backgroundColor: const Color(
+                                            0xFFD53D3D,
+                                          ),
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                         ),
                                         onPressed: () {
                                           Navigator.of(ctx).pop();
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) => CheckoutProcessPage(),
+                                              builder: (_) =>
+                                                  CheckoutProcessPage(),
                                             ),
                                           );
                                         },
@@ -866,14 +1277,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 24),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
                                     children: [
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.grey[300],
                                           foregroundColor: Colors.black,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                         ),
                                         onPressed: () {
@@ -883,17 +1297,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFFD53D3D),
+                                          backgroundColor: const Color(
+                                            0xFFD53D3D,
+                                          ),
                                           foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                         ),
                                         onPressed: () {
                                           Navigator.of(ctx).pop();
                                           Navigator.of(context).push(
                                             MaterialPageRoute(
-                                              builder: (_) => CheckoutProcessPage(),
+                                              builder: (_) =>
+                                                  CheckoutProcessPage(),
                                             ),
                                           );
                                         },
