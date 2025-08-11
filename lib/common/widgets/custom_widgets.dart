@@ -1,3 +1,4 @@
+// lib/app/widgets.dart
 import 'package:flutter/material.dart';
 
 // 1. Custom Empty Card
@@ -8,12 +9,12 @@ class CustomEmptyCard extends StatelessWidget {
   final Widget? child;
 
   const CustomEmptyCard({
-    super.key,
+    Key? key,
     this.width,
     this.height,
     this.margin,
     this.child,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +64,7 @@ class TextFieldLine extends StatefulWidget {
 
 class _TextFieldLineState extends State<TextFieldLine> {
   late TextEditingController _controller;
+  // bool _hasCleared = false; // Tidak perlu clear otomatis
 
   @override
   void initState() {
@@ -130,6 +132,7 @@ class CustomInputField extends StatefulWidget {
   final String hintText;
   final TextEditingController? controller;
   final bool obscureText;
+  final String? obscuringCharacter;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final ValueChanged<String>? onSubmitted;
@@ -138,6 +141,7 @@ class CustomInputField extends StatefulWidget {
     required this.hintText,
     this.controller,
     this.obscureText = false,
+    this.obscuringCharacter,
     this.prefixIcon,
     this.suffixIcon,
     this.onSubmitted,
@@ -150,7 +154,6 @@ class CustomInputField extends StatefulWidget {
 
 class _CustomInputFieldState extends State<CustomInputField> {
   late TextEditingController _controller;
-  bool _hasCleared = false;
 
   @override
   void initState() {
@@ -172,6 +175,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
       obscuringCharacter: widget.obscuringCharacter ?? '•',
       decoration: InputDecoration(
         hintText: widget.hintText,
+        hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
         prefixIcon: widget.prefixIcon,
         suffixIcon: widget.suffixIcon,
         filled: true,
@@ -221,7 +225,9 @@ class CustomFilterChip extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? Color.fromRGBO(213, 61, 61, 0.12) : Colors.white,
+          color: selected
+              ? const Color(0xFFD53D3D).withOpacity(0.12)
+              : Colors.white,
           border: Border.all(
             color: selected ? const Color(0xFFD53D3D) : Colors.grey[300]!,
             width: 2,
@@ -272,9 +278,9 @@ class CustomButtonOval extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Color.fromRGBO(18, 18, 18, 0.07),
+              color: Colors.black.withOpacity(0.07),
               blurRadius: 6,
-              offset: const Offset(0, 2),
+              offset: Offset(0, 2),
             ),
           ],
         ),
@@ -293,6 +299,7 @@ class CustomButtonOval extends StatelessWidget {
   }
 }
 
+// 6. Custom Button Kotak (Gradient)
 class CustomButtonKotak extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -313,8 +320,7 @@ class CustomButtonKotak extends StatelessWidget {
     final Color bgColor = backgroundColor ?? Colors.transparent;
     final Color fgColor =
         textColor ??
-        (isDisabled ? Colors.white.withValues(alpha: 0.55) : Colors.white);
-
+        (isDisabled ? Colors.white.withOpacity(0.55) : Colors.white);
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: onPressed,
@@ -326,8 +332,8 @@ class CustomButtonKotak extends StatelessWidget {
               ? LinearGradient(
                   colors: isDisabled
                       ? [
-                          Color.fromRGBO(213, 61, 61, 0.35),
-                          Color.fromRGBO(96, 40, 41, 0.35),
+                          const Color(0xFFD53D3D).withOpacity(0.35),
+                          const Color(0xFF602829).withOpacity(0.35),
                         ]
                       : [const Color(0xFFD53D3D), const Color(0xFF602829)],
                   begin: Alignment.centerLeft,
@@ -337,9 +343,9 @@ class CustomButtonKotak extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: isDisabled
-                  ? Colors.redAccent.withValues(alpha: 0.04)
-                  : Colors.redAccent.withValues(alpha: 0.07),
+              color: (isDisabled
+                  ? Colors.redAccent.withOpacity(0.04)
+                  : Colors.redAccent.withOpacity(0.07)),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -361,7 +367,7 @@ class CustomButtonKotak extends StatelessWidget {
   }
 }
 
-// 7. Custom Button Filter Kotak
+//7. Custom Button Filter Kotak
 class CustomFilterChipKotak extends StatelessWidget {
   final String label;
   final bool selected;
@@ -384,7 +390,9 @@ class CustomFilterChipKotak extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? Color.fromRGBO(213, 61, 61, 0.12) : Colors.white,
+          color: selected
+              ? const Color(0xFFD53D3D).withOpacity(0.12)
+              : Colors.white,
           border: Border.all(
             color: selected ? const Color(0xFFD53D3D) : Colors.grey[300]!,
             width: 2,
