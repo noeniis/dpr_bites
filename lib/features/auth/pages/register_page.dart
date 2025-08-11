@@ -87,140 +87,97 @@ class _RegisterPageState extends State<RegisterPage> {
           elevation: 0,
         ),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 5),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-              margin: const EdgeInsets.symmetric(horizontal: 18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.11),
-                    blurRadius: 10,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Sign Up",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  // Nama Lengkap (paling atas)
-                  CustomInputField(
-                    hintText: "Nama Lengkap",
-                    controller: fullNameController,
-                    prefixIcon: const Icon(
-                      Icons.person,
-                      color: Color(0xFFD53D3D),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 5),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                margin: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.11),
+                      blurRadius: 10,
+                      offset: const Offset(0, 6),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomInputField(
-                    hintText: "Username",
-                    controller: usernameController,
-                    prefixIcon: const Icon(
-                      Icons.person,
-                      color: Color(0xFFD53D3D),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Sign Up",
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomInputField(
-                    hintText: "Email",
-                    controller: emailController,
-                    prefixIcon: const Icon(
-                      Icons.email,
-                      color: Color(0xFFD53D3D),
+                    const SizedBox(height: 20),
+                    CustomInputField(
+                      hintText: "Username",
+                      controller: usernameController,
+                      prefixIcon: const Icon(Icons.person, color: Color(0xFFD53D3D)),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomInputField(
-                    hintText: "Nomor Telepon",
-                    controller: phoneController,
-                    prefixIcon: const Icon(
-                      Icons.phone,
-                      color: Color(0xFFD53D3D),
+                    const SizedBox(height: 16),
+                    CustomInputField(
+                      hintText: "Email",
+                      controller: emailController,
+                      prefixIcon: const Icon(Icons.email, color: Color(0xFFD53D3D)),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  CustomInputField(
-                    hintText: "Password",
-                    controller: passwordController,
-                    prefixIcon: const Icon(
-                      Icons.lock,
-                      color: Color(0xFFD53D3D),
+                    const SizedBox(height: 16),
+                    CustomInputField(
+                      hintText: "Nomor Telepon",
+                      controller: phoneController,
+                      prefixIcon: const Icon(Icons.phone, color: Color(0xFFD53D3D)),
                     ),
-                    obscureText: !_showPassword,
-                    obscuringCharacter: '*',
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _showPassword ? Icons.visibility : Icons.visibility_off,
-                        color: Color(0xFFD53D3D),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _showPassword = !_showPassword;
-                        });
-                      },
+                    const SizedBox(height: 16),
+                    CustomInputField(
+                      hintText: "Password",
+                      controller: passwordController,
+                      prefixIcon: const Icon(Icons.lock, color: Color(0xFFD53D3D)),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Pilihan Role (Bottom Sheet Picker - minimal & modern)
-                  InkWell(
-                    onTap: _openRolePicker,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
+                    // Pilihan Role (Dropdown)
+                    Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: const Color(0xFFD53D3D)),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _iconForRole(selectedRole),
-                            color: const Color(0xFFD53D3D),
+                      child: DropdownButton<String>(
+                        value: selectedRole,
+                        isExpanded: true,
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFFD53D3D)),
+                        underline: Container(),
+                        items: const [
+                          DropdownMenuItem(
+                            value: "Pegawai",
+                            child: Text("Pegawai", style: TextStyle(fontSize: 16)),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              selectedRole,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Colors.black87,
-                              ),
-                            ),
+                          DropdownMenuItem(
+                            value: "Penjual",
+                            child: Text("Penjual", style: TextStyle(fontSize: 16)),
                           ),
-                          Icon(Icons.expand_more, color: Colors.grey[600]),
                         ],
+                        onChanged: (value) {
+                          if (value != null) setState(() => selectedRole = value);
+                        },
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  CustomButtonKotak(
-                    text: "Registrasi",
-                    onPressed: () {
-                      // TODO: logic signup
-                    },
-                  ),
-                ],
+                    CustomButtonKotak(
+                      text: "Registrasi",
+                      onPressed: () {
+                        // TODO: logic signup
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
     );
   }
 }

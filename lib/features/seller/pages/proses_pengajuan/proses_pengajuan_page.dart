@@ -2,9 +2,19 @@ import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import 'halal_page.dart';
+import 'package:dpr_bites/features/seller/pages/pick_map_page.dart';
+import 'package:latlong2/latlong.dart'; // Import LatLng
 
-class ProsesPengajuanPage extends StatelessWidget {
+class ProsesPengajuanPage extends StatefulWidget {
   const ProsesPengajuanPage({super.key});
+
+  @override
+  ProsesPengajuanPageState createState() => ProsesPengajuanPageState();
+}
+
+class ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
+  // Variabel untuk menyimpan lokasi yang dipilih
+  LatLng? selectedLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +67,30 @@ class ProsesPengajuanPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
+                // Tombol pilih lokasi
+                ElevatedButton(
+                  onPressed: () async {
+                    final location = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PickMapPage()),
+                    );
+
+                    if (location != null) {
+                      setState(() {
+                        selectedLocation = location; // Simpan lokasi
+                      });
+                    }
+                  },
+                  child: const Text('Pilih Lokasi di Peta'),
+                ),
+                if (selectedLocation != null)
+                  Text(
+                    'Lokasi: Lat: ${selectedLocation!.latitude}, Lng: ${selectedLocation!.longitude}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+
+                const SizedBox(height: 16),
+
                 const Text(
                   "Informasi penjual",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -78,51 +112,28 @@ class ProsesPengajuanPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 32),
 
+                // Tombol Simpan dan lanjutkan
                 Center(
                   child: CustomButtonKotak(
                     text: "Simpan dan lanjutkan",
                     onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HalalPage()),
-                    );
+                      if (selectedLocation != null) {
+                        (
+                          'Lokasi Gerai: ${selectedLocation!.latitude}, ${selectedLocation!.longitude}',
+                        );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HalalPage()),
+                        );
+                      } else {
+                        ('Lokasi belum dipilih!');
+                      }
                     },
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class CustomInputField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hintText;
-
-  const CustomInputField({
-    super.key,
-    required this.controller,
-    required this.hintText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hintText,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 16,
         ),
       ),
     );
