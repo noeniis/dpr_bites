@@ -10,12 +10,68 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  bool _showPassword = false;
+  final fullNameController = TextEditingController();
   final usernameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
   final passwordController = TextEditingController();
 
   String selectedRole = "Pegawai"; // default
+
+  IconData _iconForRole(String role) {
+    switch (role) {
+      case 'Pegawai':
+        return Icons.badge_outlined;
+      case 'Penjual':
+        return Icons.storefront_outlined;
+      default:
+        return Icons.work_outline;
+    }
+  }
+
+  void _openRolePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              _roleOption("Pegawai", Icons.badge_outlined),
+              _roleOption("Penjual", Icons.storefront_outlined),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _roleOption(String value, IconData icon) {
+    final isSelected = selectedRole == value;
+    return ListTile(
+      leading: Icon(icon, color: const Color(0xFFD53D3D)),
+      title: Text(
+        value,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Color(0xFFD53D3D))
+          : null,
+      onTap: () {
+        setState(() => selectedRole = value);
+        Navigator.pop(context);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +97,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
+<<<<<<< HEAD
                     color: Colors.black.withValues(
                       red: 0.11,
                       green: 0.11,
@@ -60,6 +117,32 @@ class _RegisterPageState extends State<RegisterPage> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
+=======
+                    color: Colors.black.withOpacity(0.11),
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Sign Up",
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  // Nama Lengkap (paling atas)
+                  CustomInputField(
+                    hintText: "Nama Lengkap",
+                    controller: fullNameController,
+                    prefixIcon: const Icon(
+                      Icons.person,
+                      color: Color(0xFFD53D3D),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+>>>>>>> 6eed0ca284b183ee8a712d76e87a7ec76f7475cf
                   CustomInputField(
                     hintText: "Username",
                     controller: usernameController,
@@ -94,6 +177,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       Icons.lock,
                       color: Color(0xFFD53D3D),
                     ),
+<<<<<<< HEAD
                   ),
                   const SizedBox(height: 16),
 
@@ -140,6 +224,68 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: 20),
 
                   CustomButtonKotak(text: "Registrasi", onPressed: () {}),
+=======
+                    obscureText: !_showPassword,
+                    obscuringCharacter: '*',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                        color: Color(0xFFD53D3D),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _showPassword = !_showPassword;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Pilihan Role (Bottom Sheet Picker - minimal & modern)
+                  InkWell(
+                    onTap: _openRolePicker,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFD53D3D)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _iconForRole(selectedRole),
+                            color: const Color(0xFFD53D3D),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              selectedRole,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          Icon(Icons.expand_more, color: Colors.grey[600]),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  CustomButtonKotak(
+                    text: "Registrasi",
+                    onPressed: () {
+                      // TODO: logic signup
+                    },
+                  ),
+>>>>>>> 6eed0ca284b183ee8a712d76e87a7ec76f7475cf
                 ],
               ),
             ),

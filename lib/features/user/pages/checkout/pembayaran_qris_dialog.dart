@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'checkout_process_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -22,8 +21,26 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
   XFile? _buktiPembayaran;
   bool _isLoading = false;
 
+  Future<void> _showMissingProofDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Informasi'),
+        content: const Text('bukti pembayaran belum di upload'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickImage() async {
-    setState(() { _isLoading = true; });
+    setState(() {
+      _isLoading = true;
+    });
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
     setState(() {
@@ -97,9 +114,18 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
                                 )
                               : Column(
                                   children: const [
-                                    Icon(Icons.upload_file, color: Color(0xFFD53D3D), size: 40),
+                                    Icon(
+                                      Icons.upload_file,
+                                      color: Color(0xFFD53D3D),
+                                      size: 40,
+                                    ),
                                     SizedBox(height: 8),
-                                    Text('Upload Bukti Pembayaran', style: TextStyle(color: Color(0xFFD53D3D))),
+                                    Text(
+                                      'Upload Bukti Pembayaran',
+                                      style: TextStyle(
+                                        color: Color(0xFFD53D3D),
+                                      ),
+                                    ),
                                   ],
                                 ),
                         ],
@@ -109,13 +135,14 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
             const SizedBox(height: 24),
             CustomButtonOval(
               text: 'Konfirmasi',
-              onPressed: _buktiPembayaran == null
-                  ? null
-                  : () {
-                      Navigator.of(context).pop();
-                      widget.onKonfirmasi();
-                    },
-              // Button disabled jika belum upload
+              onPressed: () async {
+                if (_buktiPembayaran == null) {
+                  await _showMissingProofDialog();
+                  return;
+                }
+                Navigator.of(context).pop();
+                widget.onKonfirmasi();
+              },
             ),
           ],
         ),
