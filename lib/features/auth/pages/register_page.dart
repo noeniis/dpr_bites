@@ -97,6 +97,27 @@ class _RegisterPageState extends State<RegisterPage> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
+<<<<<<< HEAD
+                    color: Colors.black.withValues(
+                      red: 0.11,
+                      green: 0.11,
+                      blue: 0.11,
+                      alpha: 1,
+                    ),
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Sign Up",
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+=======
                     color: Colors.black.withOpacity(0.11),
                     blurRadius: 10,
                     offset: const Offset(0, 6),
@@ -121,6 +142,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
+>>>>>>> 6eed0ca284b183ee8a712d76e87a7ec76f7475cf
                   CustomInputField(
                     hintText: "Username",
                     controller: usernameController,
@@ -155,6 +177,54 @@ class _RegisterPageState extends State<RegisterPage> {
                       Icons.lock,
                       color: Color(0xFFD53D3D),
                     ),
+<<<<<<< HEAD
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Pilihan Role (Dropdown)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFD53D3D)),
+                    ),
+                    child: DropdownButton<String>(
+                      value: selectedRole,
+                      isExpanded: true,
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: Color(0xFFD53D3D),
+                      ),
+                      underline: Container(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: "Pegawai",
+                          child: Text(
+                            "Pegawai",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: "Penjual",
+                          child: Text(
+                            "Penjual",
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => selectedRole = value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  CustomButtonKotak(text: "Registrasi", onPressed: () {}),
+=======
                     obscureText: !_showPassword,
                     obscuringCharacter: '*',
                     suffixIcon: IconButton(
@@ -215,6 +285,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       // TODO: logic signup
                     },
                   ),
+>>>>>>> 6eed0ca284b183ee8a712d76e87a7ec76f7475cf
                 ],
               ),
             ),

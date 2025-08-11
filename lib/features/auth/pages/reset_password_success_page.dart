@@ -19,7 +19,12 @@ class ResetPasswordSuccessPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.11),
+                  color: Colors.black.withValues(
+                    red: 0.07,
+                    green: 0.07,
+                    blue: 0.07,
+                    alpha: 0.11,
+                  ),
                   blurRadius: 10,
                   offset: const Offset(0, 6),
                 ),
