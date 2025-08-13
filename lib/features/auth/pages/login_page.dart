@@ -9,6 +9,7 @@ import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
+import 'package:dpr_bites/common/data/dummy_carts.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -78,11 +79,17 @@ class _LoginPageState extends State<LoginPage> {
 
     // Redirect sesuai role
     if (account['role'] == 'user') {
+      // Reset carts to fresh dummy on each user login
+      // ignore: unused_local_variable
+      final _ = freshDummyCarts();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomePage()),
       );
     } else if (account['role'] == 'seller') {
+      // For seller role, still reset user-side dummy carts to keep consistency
+      // ignore: unused_local_variable
+      final _ = freshDummyCarts();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
