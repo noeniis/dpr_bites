@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
-import '../../../app/gradient_background.dart';
+import '../../../app/gradient_background.dart'; 
 import 'reset_password_success_page.dart';
 
 class ForgotPasswordPage extends StatelessWidget {
@@ -29,12 +29,7 @@ class ForgotPasswordPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(
-                      red: 0.08,
-                      green: 0.08,
-                      blue: 0.08,
-                      alpha: 1,
-                    ),
+                    color: Colors.black.withOpacity(0.08),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -55,30 +50,27 @@ class ForgotPasswordPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   const Text(
                     "Masukkan email Anda untuk reset password.",
-                    style: TextStyle(color: Colors.black54, fontSize: 14),
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 20),
                   CustomInputField(
                     hintText: "Masukkan email",
                     controller: emailController,
-                    prefixIcon: const Icon(
-                      Icons.email_outlined,
-                      color: Color(0xFFD53D3D),
-                    ),
+                    prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFD53D3D)),
                   ),
                   const SizedBox(height: 20),
                   CustomButtonKotak(
-                    text: "Kirim Link Reset",
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const ResetPasswordSuccessPage(),
-                        ),
-                      );
-                    },
-                  ),
+                  text: "Kirim Link Reset",
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ResetPasswordSuccessPage()),
+                    );
+                  },
+                )
                 ],
               ),
             ),

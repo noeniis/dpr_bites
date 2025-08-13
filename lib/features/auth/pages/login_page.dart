@@ -18,6 +18,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  bool _showPassword = false;
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   String? errorMessage;
@@ -109,12 +110,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(
-                          red: 0.07,
-                          green: 0.07,
-                          blue: 0.07,
-                          alpha: 1,
-                        ),
+                        color: Colors.black.withOpacity(0.07),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -182,6 +178,7 @@ class _LoginPageState extends State<LoginPage> {
                           Icons.person,
                           color: Color(0xFFD53D3D),
                         ),
+                        obscureText: false,
                       ),
                       const SizedBox(height: 18),
 
@@ -201,6 +198,21 @@ class _LoginPageState extends State<LoginPage> {
                         prefixIcon: const Icon(
                           Icons.lock,
                           color: Color(0xFFD53D3D),
+                        ),
+                        obscureText: !_showPassword,
+                        obscuringCharacter: '*',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Color(0xFFD53D3D),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showPassword = !_showPassword;
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(height: 16),
