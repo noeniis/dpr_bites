@@ -9,6 +9,7 @@ import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
+import 'package:dpr_bites/common/data/dummy_carts.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +19,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  bool _showPassword = false;
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   String? errorMessage;
@@ -77,11 +79,17 @@ class _LoginPageState extends State<LoginPage> {
 
     // Redirect sesuai role
     if (account['role'] == 'user') {
+      // Reset carts to fresh dummy on each user login
+      // ignore: unused_local_variable
+      final _ = freshDummyCarts();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomePage()),
       );
     } else if (account['role'] == 'seller') {
+      // For seller role, still reset user-side dummy carts to keep consistency
+      // ignore: unused_local_variable
+      final _ = freshDummyCarts();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
@@ -109,12 +117,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(22),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(
-                          red: 0.07,
-                          green: 0.07,
-                          blue: 0.07,
-                          alpha: 1,
-                        ),
+                        color: Colors.black.withOpacity(0.07),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -182,6 +185,7 @@ class _LoginPageState extends State<LoginPage> {
                           Icons.person,
                           color: Color(0xFFD53D3D),
                         ),
+                        obscureText: false,
                       ),
                       const SizedBox(height: 18),
 
@@ -201,6 +205,21 @@ class _LoginPageState extends State<LoginPage> {
                         prefixIcon: const Icon(
                           Icons.lock,
                           color: Color(0xFFD53D3D),
+                        ),
+                        obscureText: !_showPassword,
+                        obscuringCharacter: '*',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Color(0xFFD53D3D),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showPassword = !_showPassword;
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(height: 16),
