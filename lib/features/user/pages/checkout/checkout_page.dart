@@ -57,7 +57,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final checkout = dummyCheckout;
     // Ambil 3 menu dari dummy_carts (lintas restoran jika perlu)
     final List<Map<String, dynamic>> picked = [];
-    for (final cart in dummyCarts) {
+    final cartsSrc = freshDummyCarts();
+    for (final cart in cartsSrc) {
       final menus = cart['menus'] as List<dynamic>;
       for (final m in menus) {
         if (picked.length < 3) {
@@ -68,8 +69,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
     items = picked;
     // Judul pakai restoran pertama (fallback ke dummyCheckout bila kosong)
-    restaurantName = (dummyCarts.isNotEmpty
-        ? dummyCarts.first['restaurantName'] as String
+    restaurantName = (cartsSrc.isNotEmpty
+        ? cartsSrc.first['restaurantName'] as String
         : checkout['restaurantName'] as String);
     // Data lain tetap dari dummyCheckout agar alur lain tidak berubah
     deliveryFee = checkout['deliveryFee'] as int;
