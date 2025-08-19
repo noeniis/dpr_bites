@@ -1,19 +1,114 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import 'halal_page.dart';
+import 'ktp_form_page.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'seller_pick_location_page.dart';
+import 'package:latlong2/latlong.dart';
+import '../../../../common/data/dummy_address.dart';
 
-class ProsesPengajuanPage extends StatelessWidget {
+class ProsesPengajuanPage extends StatefulWidget {
   const ProsesPengajuanPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final storeNameController = TextEditingController();
-    final locationController = TextEditingController();
-    final sellerNameController = TextEditingController();
-    final phoneNumberController = TextEditingController();
-    final emailController = TextEditingController();
+  State<ProsesPengajuanPage> createState() => _ProsesPengajuanPageState();
+}
 
+class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
+  final storeNameController = TextEditingController();
+  final locationController = TextEditingController();
+  final sellerNameController = TextEditingController();
+  final phoneNumberController = TextEditingController();
+  final optionalPhoneController = TextEditingController();
+  final emailController = TextEditingController();
+
+  double? selectedLat;
+  double? selectedLng;
+  String? selectedAddress;
+
+  @override
+  void dispose() {
+    storeNameController.dispose();
+    locationController.dispose();
+    sellerNameController.dispose();
+    phoneNumberController.dispose();
+    optionalPhoneController.dispose();
+    emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> handlePickLocation(BuildContext context) async {
+    try {
+      var status = await Permission.location.request();
+      if (!status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Akses lokasi diperlukan untuk memilih lokasi.')),
+        );
+        return;
+      }
+      // Ambil area DPR dari dummyAddresses (gunakan min/max lat/lng)
+      final dprLatitudes = dummyAddresses
+          .where((a) => a.latitude != null)
+          .map((a) => a.latitude!)
+          .toList();
+      final dprLongitudes = dummyAddresses
+          .where((a) => a.longitude != null)
+          .map((a) => a.longitude!)
+          .toList();
+      final dprSouthWest = LatLng(
+        dprLatitudes.reduce((a, b) => a < b ? a : b),
+        dprLongitudes.reduce((a, b) => a < b ? a : b),
+      );
+      final dprNorthEast = LatLng(
+        dprLatitudes.reduce((a, b) => a > b ? a : b),
+        dprLongitudes.reduce((a, b) => a > b ? a : b),
+      );
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SellerPickLocationPage(
+            dprSouthWest: dprSouthWest,
+            dprNorthEast: dprNorthEast,
+          ),
+        ),
+      );
+      if (result is Map<String, dynamic> && result['lat'] != null && result['lng'] != null) {
+        setState(() {
+          selectedLat = result['lat'];
+          selectedLng = result['lng'];
+          selectedAddress = (result['address'] as String?)?.isNotEmpty == true
+              ? result['address']
+              : 'Lat: ${selectedLat!.toStringAsFixed(6)}, Lng: ${selectedLng!.toStringAsFixed(6)}';
+          locationController.text = selectedAddress!;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terjadi error: $e')),
+      );
+    }
+  }
+
+  void showLocationDetail(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Detail Lokasi'),
+        content: Text(selectedAddress ?? '-'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -51,9 +146,24 @@ class ProsesPengajuanPage extends StatelessWidget {
                   hintText: "Nama gerai",
                 ),
                 const SizedBox(height: 12),
-                CustomInputField(
-                  controller: locationController,
-                  hintText: "Lokasi",
+                GestureDetector(
+                  onTap: () {
+                    if (selectedLat != null && selectedLng != null) {
+                      showLocationDetail(context);
+                    } else {
+                      // Jika belum ada lokasi, double tap juga akan handle pick
+                      handlePickLocation(context);
+                    }
+                  },
+                  onDoubleTap: () async {
+                    await handlePickLocation(context);
+                  },
+                  child: AbsorbPointer(
+                    child: CustomInputField(
+                      controller: locationController,
+                      hintText: "Pilih lokasi gerai",
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -69,23 +179,34 @@ class ProsesPengajuanPage extends StatelessWidget {
                 const SizedBox(height: 12),
                 CustomInputField(
                   controller: phoneNumberController,
-                  hintText: "Telepon penjual",
+                  hintText: "Nomor Handphone",
                 ),
                 const SizedBox(height: 12),
                 CustomInputField(
                   controller: emailController,
                   hintText: "Email penjual",
                 ),
+                const SizedBox(height: 12),
+                CustomInputField(
+                  controller: optionalPhoneController,
+                  hintText: "Nomor telepon (opsional)",
+                ),
                 const SizedBox(height: 32),
 
                 Center(
                   child: CustomButtonKotak(
                     text: "Simpan dan lanjutkan",
-                    onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HalalPage()),
-                    );
+                    onPressed: () async {
+                      final ktpResult = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const KtpFormPage()),
+                      );
+                      if (ktpResult != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HalalPage()),
+                        );
+                      }
                     },
                   ),
                 ),
@@ -101,17 +222,19 @@ class ProsesPengajuanPage extends StatelessWidget {
 class CustomInputField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
-
+  final List<TextInputFormatter>? inputFormatters;
   const CustomInputField({
     super.key,
     required this.controller,
     required this.hintText,
+    this.inputFormatters,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,

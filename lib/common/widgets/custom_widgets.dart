@@ -1,4 +1,4 @@
-// lib/app/widgets.dart
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 
 // 1. Custom Empty Card
@@ -136,8 +136,10 @@ class CustomInputField extends StatefulWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final ValueChanged<String>? onSubmitted;
+  final List<TextInputFormatter>? inputFormatters;
 
   const CustomInputField({
+    Key? key,
     required this.hintText,
     this.controller,
     this.obscureText = false,
@@ -145,8 +147,8 @@ class CustomInputField extends StatefulWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.onSubmitted,
-    super.key,
-  });
+    this.inputFormatters,
+  }) : super(key: key);
 
   @override
   State<CustomInputField> createState() => _CustomInputFieldState();
@@ -173,9 +175,10 @@ class _CustomInputFieldState extends State<CustomInputField> {
       controller: _controller,
       obscureText: widget.obscureText,
       obscuringCharacter: widget.obscuringCharacter ?? '•',
+      inputFormatters: widget.inputFormatters,
       decoration: InputDecoration(
         hintText: widget.hintText,
-        hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
+          hintStyle: TextStyle(color: Colors.black.withOpacity(0.45)),
         prefixIcon: widget.prefixIcon,
         suffixIcon: widget.suffixIcon,
         filled: true,
