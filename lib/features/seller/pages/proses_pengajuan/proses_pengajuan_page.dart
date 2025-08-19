@@ -192,25 +192,28 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                   hintText: "Nomor telepon (opsional)",
                 ),
                 const SizedBox(height: 32),
-
-                Center(
-                  child: CustomButtonKotak(
-                    text: "Simpan dan lanjutkan",
-                    onPressed: () async {
-                      final ktpResult = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const KtpFormPage()),
-                      );
-                      if (ktpResult != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const HalalPage()),
-                        );
-                      }
-                    },
-                  ),
-                ),
               ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: CustomButtonKotak(
+              text: "Simpan dan lanjutkan",
+              onPressed: () async {
+                final ktpResult = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const KtpFormPage()),
+                );
+                if (ktpResult != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HalalPage()),
+                  );
+                }
+              },
             ),
           ),
         ),
