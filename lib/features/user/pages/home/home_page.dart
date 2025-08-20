@@ -4,6 +4,9 @@ import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_restaurants.dart';
 import '../../../../common/data/dummy_address.dart';
 import '../../../../common/data/address_store.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'filter_category_sheet.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
@@ -25,6 +28,56 @@ class _HomePageState extends State<HomePage> {
   String? selectedPrice;
   String? selectedCategory;
   final searchController = TextEditingController();
+
+  String _buildingName = '';
+  String _detailPengantaran = '';
+  bool _addressLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserAddress();
+  }
+
+  Future<void> _fetchUserAddress() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    if (idUsers == null) {
+      setState(() {
+        _buildingName = 'Tambah Alamat Disini';
+        _detailPengantaran = '';
+        _addressLoaded = true;
+      });
+      return;
+    }
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_address.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id_users': idUsers}),
+      );
+      final result = jsonDecode(response.body);
+      if (result['success'] == true && result['has_address'] == true) {
+        setState(() {
+          _buildingName = result['nama_gedung'] ?? 'Tambah Alamat Disini';
+          _detailPengantaran = result['detail_pengantaran'] ?? '';
+          _addressLoaded = true;
+        });
+      } else {
+        setState(() {
+          _buildingName = 'Tambah Alamat Disini';
+          _detailPengantaran = '';
+          _addressLoaded = true;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _buildingName = 'Tambah Alamat Disini';
+        _detailPengantaran = '';
+        _addressLoaded = true;
+      });
+    }
+  }
 
   // Dummy: filter function
   List<Map<String, dynamic>> get filteredRestaurants {
@@ -104,7 +157,6 @@ class _HomePageState extends State<HomePage> {
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () async {
-                    // Open AddressPage to pick address; update store when returned
                     final result = await Navigator.pushNamed(
                       context,
                       '/address',
@@ -112,6 +164,8 @@ class _HomePageState extends State<HomePage> {
                     if (result is DummyAddress) {
                       store.select(result);
                     }
+                    // Refresh address after returning
+                    _fetchUserAddress();
                   },
                   child: Padding(
                     padding: const EdgeInsets.only(top: 0, bottom: 0),
@@ -135,7 +189,7 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  current.namaGedung,
+                                  _addressLoaded ? _buildingName : '',
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 16,
@@ -153,14 +207,15 @@ class _HomePageState extends State<HomePage> {
                             ],
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            current.detailPengantaran,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black45,
-                              fontWeight: FontWeight.w400,
+                          if (_addressLoaded && _detailPengantaran.isNotEmpty)
+                            Text(
+                              _detailPengantaran,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black45,
+                                fontWeight: FontWeight.w400,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
