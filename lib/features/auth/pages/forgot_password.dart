@@ -1,15 +1,62 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
-import '../../../app/gradient_background.dart'; 
-import 'reset_password_success_page.dart';
+import '../../../app/gradient_background.dart';
+import 'otp_verification_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-class ForgotPasswordPage extends StatelessWidget {
+class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final emailController = TextEditingController();
+  State<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
+}
 
+class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
+  final TextEditingController emailController = TextEditingController();
+  bool _isLoading = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _error = 'Email wajib diisi';
+      });
+      return;
+    }
+    try {
+      final response = await forgotPasswordApi(email);
+      if (response['success'] == true) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationPage(email: email),
+          ),
+        );
+      } else {
+        setState(() {
+          _error = response['message'] ?? 'Gagal mengirim OTP';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Terjadi kesalahan';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -50,27 +97,26 @@ class ForgotPasswordPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   const Text(
                     "Masukkan email Anda untuk reset password.",
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.black54, fontSize: 14),
                   ),
                   const SizedBox(height: 20),
                   CustomInputField(
                     hintText: "Masukkan email",
                     controller: emailController,
-                    prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFD53D3D)),
+                    prefixIcon: const Icon(
+                      Icons.email_outlined,
+                      color: Color(0xFFD53D3D),
+                    ),
                   ),
                   const SizedBox(height: 20),
+                  if (_error != null) ...[
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 10),
+                  ],
                   CustomButtonKotak(
-                  text: "Kirim Link Reset",
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ResetPasswordSuccessPage()),
-                    );
-                  },
-                )
+                    text: _isLoading ? 'Mengirim...' : "Kirim Kode OTP",
+                    onPressed: _isLoading ? null : _submit,
+                  ),
                 ],
               ),
             ),
@@ -79,4 +125,14 @@ class ForgotPasswordPage extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<Map<String, dynamic>> forgotPasswordApi(String email) async {
+  // Ganti IP di bawah sesuai IP komputer Anda
+  final response = await http.post(
+    Uri.parse('http://10.0.2.2/dpr_bites_api/forgot_password.php'),
+    body: jsonEncode({'email': email}),
+    headers: {'Content-Type': 'application/json'},
+  );
+  return jsonDecode(response.body);
 }
