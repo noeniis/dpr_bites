@@ -1,9 +1,44 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
-import '../../../../common/data/dummy_address.dart';
-import '../../../../common/data/address_store.dart';
 import 'address_add_page.dart';
+
+// Data model yang mencerminkan struktur alamat dari API
+class ApiAddress {
+  final int? id;
+  final String namaPenerima;
+  final String namaGedung;
+  final String detailPengantaran;
+  final String noHp;
+  bool isDefault;
+
+  ApiAddress({
+    this.id,
+    required this.namaPenerima,
+    required this.namaGedung,
+    required this.detailPengantaran,
+    required this.noHp,
+    this.isDefault = false,
+  });
+
+  factory ApiAddress.fromMap(Map<String, dynamic> m) {
+    return ApiAddress(
+      id: (m['id'] ?? m['id_alamat']) is int
+          ? (m['id'] ?? m['id_alamat']) as int
+          : int.tryParse((m['id'] ?? m['id_alamat'] ?? '').toString()),
+      namaPenerima: (m['nama_penerima'] ?? '').toString(),
+      namaGedung: (m['nama_gedung'] ?? '').toString(),
+      detailPengantaran: (m['detail_pengantaran'] ?? '').toString(),
+      noHp: (m['no_hp'] ?? '').toString(),
+      isDefault:
+          (m['alamat_utama'] == 1 ||
+          m['alamat_utama'] == true ||
+          (m['alamat_utama']?.toString() == '1')),
+    );
+  }
+}
 
 class AddressPage extends StatefulWidget {
   final bool popOnPick; // if true, pop with result on pick (used by Checkout)
@@ -14,18 +49,18 @@ class AddressPage extends StatefulWidget {
 }
 
 class _AddressPageState extends State<AddressPage> {
-  late List<DummyAddress> _addresses;
+  List<ApiAddress> _addresses = [];
+  ApiAddress? _selected;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    // Make a mutable copy so we can re-order locally
-    _addresses = List<DummyAddress>.from(dummyAddresses);
-    _sortWithSelectedFirst();
+    _fetchAddresses();
   }
 
-  bool _isSame(DummyAddress a, DummyAddress b) {
+  bool _isSame(ApiAddress a, ApiAddress? b) {
+    if (b == null) return false;
     return a.namaGedung == b.namaGedung &&
         a.namaPenerima == b.namaPenerima &&
         a.noHp == b.noHp &&
@@ -33,7 +68,7 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   void _sortWithSelectedFirst() {
-    final selected = AddressStore.instance.selected;
+    final selected = _selected;
     _addresses.sort((a, b) {
       final aSel = _isSame(a, selected);
       final bSel = _isSame(b, selected);
@@ -44,21 +79,82 @@ class _AddressPageState extends State<AddressPage> {
     });
   }
 
-  void _makeDefault(int index) {
+  Future<bool> _setDefaultOnServer(ApiAddress target) async {
+    // TODO: Ambil id_users dari session/login
+    const int idUsers = 1;
+    if (target.id == null) return false;
+    final url = Uri.parse(
+      'http://10.0.2.2/dpr_bites_api/set_default_address.php', // server should update alamat_utama
+    );
+    try {
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['success'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _fetchAddresses() async {
+    // TODO: Ambil id_users dari session/login
+    const int idUsers = 1;
+    final url = Uri.parse(
+      'http://10.0.2.2/dpr_bites_api/get_user_addresses.php',
+    );
+    try {
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id_users': idUsers}),
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        final list = (body['addresses'] as List?) ?? [];
+        final fetched = list
+            .map((e) => ApiAddress.fromMap(e as Map<String, dynamic>))
+            .toList();
+        setState(() {
+          _addresses = fetched;
+          _selected = _addresses
+              .where((a) => a.isDefault)
+              .cast<ApiAddress?>()
+              .firstOrNull;
+          _sortWithSelectedFirst();
+        });
+      } else {
+        setState(() => _addresses = []);
+      }
+    } catch (_) {
+      setState(() => _addresses = []);
+    }
+  }
+
+  Future<void> _makeDefault(int index) async {
     final target = _addresses[index];
-    _addresses = _addresses
-        .map(
-          (a) => DummyAddress(
-            namaPenerima: a.namaPenerima,
-            namaGedung: a.namaGedung,
-            detailPengantaran: a.detailPengantaran,
-            noHp: a.noHp,
-            isDefault: a == target,
-          ),
-        )
-        .toList();
+    // Optimistic update (UI instant), then sync with server
+    for (final a in _addresses) {
+      a.isDefault = identical(a, target);
+    }
+    _selected = target;
     _sortWithSelectedFirst();
     setState(() {});
+
+    final ok = await _setDefaultOnServer(target);
+    if (!ok) {
+      // Revert by refetching to ensure consistency
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal menjadikan alamat utama')),
+      );
+    }
+    await _fetchAddresses();
+
     // After UI updates, scroll to top to highlight the new default card
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -71,16 +167,25 @@ class _AddressPageState extends State<AddressPage> {
     });
   }
 
-  void _hapus(int index) {
-    final removed = _addresses.removeAt(index);
-    _sortWithSelectedFirst();
-    setState(() {});
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Alamat "${removed.namaGedung}" dihapus'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<bool> _deleteOnServer(ApiAddress target) async {
+    // TODO: Ambil id_users dari session/login
+    const int idUsers = 1;
+    if (target.id == null) return false;
+    final url = Uri.parse('http://10.0.2.2/dpr_bites_api/delete_address.php');
+    try {
+      final res = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['success'] == true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _confirmHapus(int index) async {
@@ -88,26 +193,135 @@ class _AddressPageState extends State<AddressPage> {
     final bool? ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Alamat'),
-        content: Text('Apakah Anda yakin ingin menghapus "${a.namaGedung}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Hapus',
-              style: TextStyle(color: AppTheme.primaryColor),
-            ),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        bool deleting = false;
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0x1AE53935),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xFFE53935),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Hapus alamat?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Yakin ingin menghapus "${a.namaGedung}"? Tindakan ini tidak dapat dibatalkan.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.black.withOpacity(0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: deleting
+                                ? null
+                                : () => Navigator.of(ctx).pop(false),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.black.withOpacity(0.2),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: const Text(
+                              'Tidak',
+                              style: TextStyle(
+                                color: AppTheme.textColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: deleting
+                                ? null
+                                : () async {
+                                    setLocal(() => deleting = true);
+                                    final success = await _deleteOnServer(a);
+                                    Navigator.of(ctx).pop(success);
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE53935),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: deleting
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Ya, Hapus',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
     if (ok == true) {
-      _hapus(index);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Alamat "${a.namaGedung}" dihapus')),
+      );
+      await _fetchAddresses();
+    } else if (ok == false) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gagal menghapus alamat')));
     }
   }
 
@@ -153,32 +367,13 @@ class _AddressPageState extends State<AddressPage> {
                     InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: () async {
-                        final result = await Navigator.push(
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const AddressAddPage(),
                           ),
                         );
-                        if (result is DummyAddress) {
-                          setState(() {
-                            _addresses.add(result);
-                            // If new address is default, clear previous defaults
-                            if (result.isDefault) {
-                              _addresses = _addresses
-                                  .map(
-                                    (a) => DummyAddress(
-                                      namaPenerima: a.namaPenerima,
-                                      namaGedung: a.namaGedung,
-                                      detailPengantaran: a.detailPengantaran,
-                                      noHp: a.noHp,
-                                      isDefault: a == result,
-                                    ),
-                                  )
-                                  .toList();
-                            }
-                            _sortWithSelectedFirst();
-                          });
-                        }
+                        await _fetchAddresses();
                       },
                       child: Row(
                         children: const [
@@ -210,10 +405,7 @@ class _AddressPageState extends State<AddressPage> {
                           itemBuilder: (context, index) {
                             final a = _addresses[index];
                             final bool isDefault = a.isDefault;
-                            final bool isSelected = _isSame(
-                              a,
-                              AddressStore.instance.selected,
-                            );
+                            final bool isSelected = _isSame(a, _selected);
                             final borderColor = isSelected
                                 ? AppTheme.primaryColor
                                 : const Color(0xFF767070);
@@ -333,41 +525,16 @@ class _AddressPageState extends State<AddressPage> {
                                             alignment: Alignment.center,
                                             child: TextButton(
                                               onPressed: () async {
-                                                final updated =
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (_) =>
-                                                            AddressAddPage(
-                                                              initial: a,
-                                                            ),
-                                                      ),
-                                                    );
-                                                if (updated is DummyAddress) {
-                                                  setState(() {
-                                                    _addresses[index] = updated;
-                                                    if (updated.isDefault) {
-                                                      _addresses = _addresses
-                                                          .map(
-                                                            (
-                                                              aa,
-                                                            ) => DummyAddress(
-                                                              namaPenerima: aa
-                                                                  .namaPenerima,
-                                                              namaGedung:
-                                                                  aa.namaGedung,
-                                                              detailPengantaran:
-                                                                  aa.detailPengantaran,
-                                                              noHp: aa.noHp,
-                                                              isDefault:
-                                                                  aa == updated,
-                                                            ),
-                                                          )
-                                                          .toList();
-                                                    }
-                                                    _sortWithSelectedFirst();
-                                                  });
-                                                }
+                                                await Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        AddressAddPage(
+                                                          idAlamat: a.id,
+                                                        ),
+                                                  ),
+                                                );
+                                                await _fetchAddresses();
                                               },
                                               child: const Text('Ubah'),
                                             ),
@@ -407,46 +574,16 @@ class _AddressPageState extends State<AddressPage> {
                                                     const SizedBox(width: 12),
                                                   TextButton(
                                                     onPressed: () async {
-                                                      final updated =
-                                                          await Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                              builder: (_) =>
-                                                                  AddressAddPage(
-                                                                    initial: a,
-                                                                  ),
-                                                            ),
-                                                          );
-                                                      if (updated
-                                                          is DummyAddress) {
-                                                        setState(() {
-                                                          _addresses[index] =
-                                                              updated;
-                                                          if (updated
-                                                              .isDefault) {
-                                                            _addresses = _addresses
-                                                                .map(
-                                                                  (
-                                                                    aa,
-                                                                  ) => DummyAddress(
-                                                                    namaPenerima:
-                                                                        aa.namaPenerima,
-                                                                    namaGedung:
-                                                                        aa.namaGedung,
-                                                                    detailPengantaran:
-                                                                        aa.detailPengantaran,
-                                                                    noHp:
-                                                                        aa.noHp,
-                                                                    isDefault:
-                                                                        aa ==
-                                                                        updated,
-                                                                  ),
-                                                                )
-                                                                .toList();
-                                                          }
-                                                          _sortWithSelectedFirst();
-                                                        });
-                                                      }
+                                                      await Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              AddressAddPage(
+                                                                idAlamat: a.id,
+                                                              ),
+                                                        ),
+                                                      );
+                                                      await _fetchAddresses();
                                                     },
                                                     child: const Text('Ubah'),
                                                   ),
@@ -480,8 +617,7 @@ class _AddressPageState extends State<AddressPage> {
                                         ),
                                       ),
                                       onPressed: () {
-                                        // Update global selection
-                                        AddressStore.instance.select(a);
+                                        _selected = a;
                                         if (widget.popOnPick) {
                                           Navigator.of(context).pop(a);
                                         } else {

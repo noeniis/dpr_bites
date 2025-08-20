@@ -3,14 +3,16 @@ import 'package:flutter/services.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import '../../../../common/data/dummy_address.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:geocoding/geocoding.dart';
 import 'address_maps_page.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 class AddressAddPage extends StatefulWidget {
-  final DummyAddress? initial;
-  const AddressAddPage({super.key, this.initial});
+  final int? idAlamat; // if set -> edit mode
+  const AddressAddPage({Key? key, this.idAlamat}) : super(key: key);
 
   @override
   State<AddressAddPage> createState() => _AddressAddPageState();
@@ -31,17 +33,9 @@ class _AddressAddPageState extends State<AddressAddPage> {
   @override
   void initState() {
     super.initState();
-    final init = widget.initial;
-    if (init != null) {
-      _namaGedungC.text = init.namaGedung;
-      _detailPengantaranC.text = init.detailPengantaran;
-      _namaPenerimaC.text = init.namaPenerima;
-      _noHpC.text = init.noHp;
-      _isDefault = init.isDefault; // preserve on edit
-      _lat = init.latitude;
-      _lon = init.longitude;
-      _alamatLengkapMaps = init.alamatLengkapMaps;
-      _lokasiDipilih = (_lat != null && _lon != null);
+    // Jika edit mode, load detail alamat
+    if (widget.idAlamat != null) {
+      _loadDetail();
     }
   }
 
@@ -54,29 +48,149 @@ class _AddressAddPageState extends State<AddressAddPage> {
     super.dispose();
   }
 
-  void _save() {
-    if (!_formKey.currentState!.validate()) return;
-    final newAddr = DummyAddress(
-      namaPenerima: _namaPenerimaC.text.trim(),
-      namaGedung: _namaGedungC.text.trim(),
-      detailPengantaran: _detailPengantaranC.text.trim(),
-      noHp: _noHpC.text.trim(),
-      isDefault: _isDefault,
-      latitude: _lat,
-      longitude: _lon,
-      alamatLengkapMaps: _alamatLengkapMaps,
+  bool _loading = false; // saving state
+  bool _loadingDetail = false; // loading detail in edit mode
+
+  Future<void> _loadDetail() async {
+    setState(() => _loadingDetail = true);
+    // TODO: Ganti id_users sesuai session user
+    const int idUsers = 1;
+    final url = Uri.parse(
+      'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_get_detail.php',
     );
-    Navigator.pop(context, newAddr);
+    try {
+      final res = await http.post(
+        url,
+        body: jsonEncode({'id_users': idUsers, 'id_alamat': widget.idAlamat}),
+        headers: {'Content-Type': 'application/json'},
+      );
+      final data = jsonDecode(res.body);
+      if (data['success'] == true && data['address'] != null) {
+        final a = data['address'] as Map<String, dynamic>;
+        _namaPenerimaC.text = (a['nama_penerima'] ?? '').toString();
+        _namaGedungC.text = (a['nama_gedung'] ?? '').toString();
+        _detailPengantaranC.text = (a['detail_pengantaran'] ?? '').toString();
+        _noHpC.text = (a['no_hp'] ?? '').toString();
+        final lat = (a['latitude']);
+        final lon = (a['longitude']);
+        _lat = (lat is num) ? lat.toDouble() : double.tryParse('$lat');
+        _lon = (lon is num) ? lon.toDouble() : double.tryParse('$lon');
+        _lokasiDipilih = _lat != null && _lon != null;
+        if (_lat != null && _lon != null) {
+          _alamatLengkapMaps = await _getAddressFromLatLng(_lat!, _lon!);
+        } else {
+          _alamatLengkapMaps = null;
+        }
+        _isDefault =
+            (a['alamat_utama'] == 1 ||
+            a['alamat_utama'] == true ||
+            a['alamat_utama']?.toString() == '1');
+        setState(() {});
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Gagal memuat detail alamat'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memuat detail alamat: $e')));
+    } finally {
+      if (mounted) setState(() => _loadingDetail = false);
+    }
+  }
+
+  Future<String?> _getAddressFromLatLng(double lat, double lon) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(lat, lon);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final address = [
+          p.street,
+          p.subLocality,
+          p.locality,
+          p.subAdministrativeArea,
+          p.administrativeArea,
+          p.postalCode,
+          p.country,
+        ].where((e) => e != null && e.isNotEmpty).join(', ');
+        return address.isNotEmpty ? address : null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_lat == null || _lon == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pilih titik lokasi terlebih dahulu')),
+      );
+      return;
+    }
+    setState(() => _loading = true);
+    // TODO: Ganti id_users sesuai session user
+    const int idUsers = 1;
+    final isEdit = widget.idAlamat != null;
+    final url = Uri.parse(
+      isEdit
+          ? 'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_update.php'
+          : 'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_add.php',
+    );
+    final body = {
+      'id_users': idUsers,
+      if (isEdit) 'id_alamat': widget.idAlamat,
+      'nama_penerima': _namaPenerimaC.text.trim(),
+      'nama_gedung': _namaGedungC.text.trim(),
+      'detail_pengantaran': _detailPengantaranC.text.trim(),
+      'latitude': _lat,
+      'longitude': _lon,
+      'no_hp': _noHpC.text.trim(),
+      'alamat_utama': _isDefault ? 1 : 0,
+    };
+    try {
+      final res = await http.post(
+        url,
+        body: jsonEncode(body),
+        headers: {'Content-Type': 'application/json'},
+      );
+      final data = jsonDecode(res.body);
+      if (data['success'] == true) {
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              data['message'] ??
+                  (isEdit ? 'Gagal mengubah alamat' : 'Gagal menyimpan alamat'),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEdit ? 'Gagal mengubah alamat: $e' : 'Gagal menyimpan alamat: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.initial != null;
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: Text(isEdit ? 'Ubah Alamat' : 'Tambah Alamat Baru'),
+          title: Text(
+            widget.idAlamat == null ? 'Tambah Alamat Baru' : 'Ubah Alamat',
+          ),
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
@@ -88,6 +202,8 @@ class _AddressAddPageState extends State<AddressAddPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_loadingDetail)
+                    const LinearProgressIndicator(minHeight: 2),
                   // Titik Lokasi Alamat card
                   Container(
                     decoration: BoxDecoration(
@@ -195,11 +311,19 @@ class _AddressAddPageState extends State<AddressAddPage> {
                                 ),
                               );
                               if (result is Map) {
+                                final lat = (result['lat'] as num?)?.toDouble();
+                                final lon = (result['lon'] as num?)?.toDouble();
+                                String? alamat;
+                                if (lat != null && lon != null) {
+                                  alamat = await _getAddressFromLatLng(
+                                    lat,
+                                    lon,
+                                  );
+                                }
                                 setState(() {
-                                  _lat = (result['lat'] as num?)?.toDouble();
-                                  _lon = (result['lon'] as num?)?.toDouble();
-                                  _alamatLengkapMaps =
-                                      result['address'] as String?;
+                                  _lat = lat;
+                                  _lon = lon;
+                                  _alamatLengkapMaps = alamat;
                                   _lokasiDipilih = _lat != null && _lon != null;
                                 });
                               }
@@ -307,9 +431,15 @@ class _AddressAddPageState extends State<AddressAddPage> {
 
                   // Save button using custom widget
                   CustomButtonKotak(
-                    text: isEdit ? 'Simpan Perubahan' : 'Simpan Alamat',
-                    onPressed: _save,
+                    text: widget.idAlamat == null
+                        ? 'Simpan Alamat'
+                        : 'Ubah Alamat',
+                    onPressed: (_loading || _loadingDetail) ? null : _save,
                   ),
+                  if (_loading) ...[
+                    const SizedBox(height: 12),
+                    const LinearProgressIndicator(minHeight: 2),
+                  ],
                 ],
               ),
             ),
