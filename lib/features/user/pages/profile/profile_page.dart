@@ -7,6 +7,11 @@ import 'package:dpr_bites/features/auth/pages/logout.dart';
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/history/history_page.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,24 +21,136 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  late Map<String, String> user;
+  Map<String, String> user = {};
   bool isEditing = false;
   String editingField = '';
+  bool isUploadingPhoto = false;
   final nameController = TextEditingController();
   final usernameController = TextEditingController();
   final phoneController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    user = Map<String, String>.from(dummyUser);
-    nameController.text = user['name'] ?? '';
-    usernameController.text = user['username'] ?? '';
-    phoneController.text = user['phone'] ?? '';
-    emailController.text = user['email'] ?? '';
-    passwordController.text = user['password'] ?? '';
+    fetchUserProfile();
+  }
+
+  Future<void> fetchUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    if (idUsers == null) return; // Belum login
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_profile.php'),
+      body: jsonEncode({'id_users': idUsers}),
+      headers: {'Content-Type': 'application/json'},
+    );
+    // Upload foto ke Cloudinary, mengembalikan secure_url atau null jika gagal
+    final result = jsonDecode(response.body);
+    if (result['success'] == true) {
+      final data = result['data'];
+      setState(() {
+        user = {
+          'name': data['nama_lengkap'] ?? '',
+          'username': data['username'] ?? '',
+          'phone': data['no_hp'] ?? '',
+          'email': data['email'] ?? '',
+          'password': '********',
+          'photo': data['photo_path'] ?? '',
+        };
+        nameController.text = user['name']!;
+        usernameController.text = user['username']!;
+        phoneController.text = user['phone']!;
+        emailController.text = user['email']!;
+        passwordController.text = '********';
+      });
+    }
+  }
+
+  // Helper: upload file ke Cloudinary dan kembalikan secure_url
+  Future<String?> _uploadToCloudinary(File file) async {
+    try {
+      final uri = Uri.parse(
+        'https://api.cloudinary.com/v1_1/dip8i3f6x/image/upload',
+      );
+      final req = http.MultipartRequest('POST', uri)
+        ..fields['upload_preset'] = 'dpr_bites'
+        ..files.add(await http.MultipartFile.fromPath('file', file.path));
+      final res = await req.send();
+      final body = await res.stream.bytesToString();
+      if (res.statusCode == 200) {
+        final data = jsonDecode(body);
+        return data['secure_url'] ?? data['url'];
+      } else {
+        debugPrint('Cloudinary upload failed ${res.statusCode}: ' + body);
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Cloudinary exception: ' + e.toString());
+      return null;
+    }
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    if (isUploadingPhoto) return;
+    final xfile = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (xfile == null) return;
+    setState(() => isUploadingPhoto = true);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Mengunggah foto...')));
+    final url = await _uploadToCloudinary(File(xfile.path));
+    if (url != null && mounted) {
+      setState(() {
+        user['photo'] = url;
+      });
+      // Simpan photo_path ke server bersama data lain yang wajib
+      final prefs = await SharedPreferences.getInstance();
+      final idUsers = prefs.getString('id_users');
+      if (idUsers != null) {
+        final response = await http.post(
+          Uri.parse('http://10.0.2.2/dpr_bites_api/edit_user_profile.php'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'id_users': idUsers,
+            'nama_lengkap': user['name'],
+            'username': user['username'],
+            'no_hp': user['phone'],
+            'email': user['email'],
+            'photo_path': user['photo'],
+          }),
+        );
+        final result = jsonDecode(response.body);
+        if (result['success'] == true) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Foto profil diperbarui')),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(result['message'] ?? 'Gagal memperbarui foto'),
+              ),
+            );
+          }
+        }
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Gagal mengunggah foto')));
+      }
+    }
+    if (mounted) setState(() => isUploadingPhoto = false);
   }
 
   void startEdit(String field) {
@@ -43,7 +160,7 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  void saveEdit() {
+  Future<void> saveEdit() async {
     setState(() {
       if (editingField == 'name') user['name'] = nameController.text;
       if (editingField == 'username')
@@ -57,13 +174,47 @@ class _ProfilePageState extends State<ProfilePage> {
       dummyUser.clear();
       dummyUser.addAll(user);
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
+
+    // Kirim ke API edit profil
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    if (idUsers == null) return;
+    final Map<String, dynamic> body = {
+      'id_users': idUsers,
+      'nama_lengkap': user['name'],
+      'username': user['username'],
+      'no_hp': user['phone'],
+      'email': user['email'],
+    };
+    // Jika password diisi dan bukan bintang, kirim ke API
+    if (passwordController.text.isNotEmpty &&
+        passwordController.text != '********') {
+      body['password'] = passwordController.text;
+    }
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2/dpr_bites_api/edit_user_profile.php'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    final result = jsonDecode(response.body);
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Gagal menyimpan perubahan'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (user.isEmpty) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -118,30 +269,53 @@ class _ProfilePageState extends State<ProfilePage> {
                             border: Border.all(color: Colors.black26, width: 2),
                           ),
                           child: ClipOval(
-                            child: Image.asset(
-                              user['photo'] ?? 'lib/assets/images/iconUser.png',
-                              width: 90,
-                              height: 90,
-                              fit: BoxFit.cover,
-                            ),
+                            child:
+                                user['photo'] != null &&
+                                    user['photo']!.isNotEmpty
+                                ? Image.network(
+                                    user['photo']!,
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.asset(
+                                    'lib/assets/images/iconUser.png',
+                                    width: 90,
+                                    height: 90,
+                                    fit: BoxFit.cover,
+                                  ),
                           ),
                         ),
                         Positioned(
                           bottom: 6,
                           right: 6,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: Center(
-                              child: Image.asset(
-                                'lib/assets/images/iconCamera.png',
-                                width: 18,
-                                height: 18,
+                          child: GestureDetector(
+                            onTap: _pickAndUploadPhoto,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: isUploadingPhoto
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Image.asset(
+                                        'lib/assets/images/iconCamera.png',
+                                        width: 18,
+                                        height: 18,
+                                      ),
                               ),
                             ),
                           ),

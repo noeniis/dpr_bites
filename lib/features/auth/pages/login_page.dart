@@ -11,6 +11,7 @@ import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
 import 'package:dpr_bites/common/data/dummy_carts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -32,7 +33,10 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> loginUser(String username, String password) async {
+  Future<Map<String, dynamic>> loginUser(
+    String username,
+    String password,
+  ) async {
     try {
       // Jika pakai emulator Android, gunakan 10.0.2.2
       final response = await http.post(
@@ -87,6 +91,11 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         errorMessage = null;
       });
+      // Simpan id_users ke SharedPreferences
+      if (result['id_users'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('id_users', result['id_users'].toString());
+      }
       // Redirect sesuai role dari backend
       if (result['role'] == 'user') {
         final _ = freshDummyCarts();

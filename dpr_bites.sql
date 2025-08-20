@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 20, 2025 at 05:00 AM
+-- Generation Time: Aug 20, 2025 at 08:45 AM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- PHP Version: 8.0.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -161,6 +161,27 @@ CREATE TABLE `menu_addon` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `password_resets`
+--
+
+CREATE TABLE `password_resets` (
+  `id` int(11) NOT NULL,
+  `email` varchar(100) NOT NULL,
+  `otp` varchar(6) NOT NULL,
+  `expired_at` datetime NOT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `password_resets`
+--
+
+INSERT INTO `password_resets` (`id`, `email`, `otp`, `expired_at`, `created_at`) VALUES
+(5, 'raihanadeprnm@gmail.com', '969287', '2025-08-20 12:35:31', '2025-08-20 12:25:31');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `penjual_info`
 --
 
@@ -265,9 +286,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `password_hash`, `role`, `photo_path`, `created_at`, `updated_at`) VALUES
-(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$/gfXwP6vscPlNvv0W0Rh9O9qMgtPtjkgmXxNpPFZDcWCBnfdIl5V2', 'pegawai', NULL, '2025-08-20 08:46:39', '2025-08-20 08:46:39'),
+(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755671388/vzd6qahdgm9nz7zsdrkz.jpg', '2025-08-20 08:46:39', '2025-08-20 13:30:28'),
 (2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', 'penjual', NULL, '2025-08-20 08:47:38', '2025-08-20 08:47:38'),
-(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$YHyvHA7gHjTa2ZtE643DUOYTbtOHQwoFkmOk8tAvYcn2UZywX5oAK', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-20 08:56:09');
+(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$YHyvHA7gHjTa2ZtE643DUOYTbtOHQwoFkmOk8tAvYcn2UZywX5oAK', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-20 08:56:09'),
+(4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', 'pegawai', NULL, '2025-08-20 11:06:08', '2025-08-20 12:23:52');
 
 --
 -- Indexes for dumped tables
@@ -331,6 +353,12 @@ ALTER TABLE `menu_addon`
   ADD PRIMARY KEY (`id_menu_addon`),
   ADD KEY `id_menu` (`id_menu`),
   ADD KEY `id_addon` (`id_addon`);
+
+--
+-- Indexes for table `password_resets`
+--
+ALTER TABLE `password_resets`
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `penjual_info`
@@ -435,6 +463,12 @@ ALTER TABLE `menu_addon`
   MODIFY `id_menu_addon` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `password_resets`
+--
+ALTER TABLE `password_resets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
 -- AUTO_INCREMENT for table `penjual_info`
 --
 ALTER TABLE `penjual_info`
@@ -468,7 +502,7 @@ ALTER TABLE `ulasan`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Constraints for dumped tables

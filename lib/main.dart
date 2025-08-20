@@ -9,6 +9,7 @@ import 'features/user/pages/favorit/favorit.dart';
 import 'features/user/pages/history/history_page.dart';
 import 'features/user/pages/profile/profile_page.dart';
 import 'features/seller/pages/beranda/onboarding_checklist_page.dart';
+import 'features/auth/pages/reset_password_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,6 +35,12 @@ class MyApp extends StatelessWidget {
         '/profile': (context) => const ProfilePage(),
         '/onboarding_checklist': (context) => const OnboardingChecklistPage(),
         '/dashboard': (context) => const SellerDashboardPage(),
+        '/reset-password': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          return ResetPasswordPage(email: args['email'], otp: args['otp']);
+        },
       },
       home: const LoginPage(),
     );
