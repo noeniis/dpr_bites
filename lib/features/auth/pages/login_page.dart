@@ -1,11 +1,12 @@
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'forgot_password.dart';
 import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
-import 'package:dpr_bites/common/data/dummy_accounts.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
@@ -31,11 +32,32 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void handleLogin() {
+  Future<Map<String, dynamic>> loginUser(String username, String password) async {
+    try {
+      // Jika pakai emulator Android, gunakan 10.0.2.2
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/login.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        return result is Map<String, dynamic> ? result : {};
+      } else {
+        debugPrint('HTTP error: \\${response.statusCode} - \\${response.body}');
+        return {'success': false, 'message': 'Server error'};
+      }
+    } catch (e) {
+      debugPrint('Exception saat login: \\${e.toString()}');
+      return {'success': false, 'message': 'Terjadi kesalahan'};
+    }
+  }
+
+  void handleLogin() async {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
-    // Username khusus
+    // Username khusus (opsional, bisa dihapus jika semua login via backend)
     if (username == 'koperasi' && password == 'koperasi') {
       Navigator.pushReplacement(
         context,
@@ -51,7 +73,6 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     if (username == 'ikafahriza') {
-      // Reset checklist sebelum masuk onboarding
       OnboardingChecklistStorage.forceReset().then((_) {
         Navigator.pushReplacement(
           context,
@@ -61,39 +82,40 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final account = dummyAccounts.firstWhere(
-      (acc) => acc['username'] == username && acc['password'] == password,
-      orElse: () => {},
-    );
-
-    if (account.isEmpty) {
+    final result = await loginUser(username, password);
+    if (result['success'] == true) {
       setState(() {
-        errorMessage = 'Username atau password salah';
+        errorMessage = null;
       });
-      return;
-    }
-
-    setState(() {
-      errorMessage = null;
-    });
-
-    // Redirect sesuai role
-    if (account['role'] == 'user') {
-      // Reset carts to fresh dummy on each user login
-      // ignore: unused_local_variable
-      final _ = freshDummyCarts();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomePage()),
-      );
-    } else if (account['role'] == 'seller') {
-      // For seller role, still reset user-side dummy carts to keep consistency
-      // ignore: unused_local_variable
-      final _ = freshDummyCarts();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-      );
+      // Redirect sesuai role dari backend
+      if (result['role'] == 'user') {
+        final _ = freshDummyCarts();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      } else if (result['role'] == 'seller') {
+        final _ = freshDummyCarts();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+        );
+      } else if (result['role'] == 'koperasi') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
+        );
+      } else {
+        // Default: ke HomePage
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      }
+    } else {
+      setState(() {
+        errorMessage = result['message'] ?? 'Username atau password salah';
+      });
     }
   }
 

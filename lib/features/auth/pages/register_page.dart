@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 
@@ -71,6 +73,32 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.pop(context);
       },
     );
+  }
+
+  Future<bool> registerUser(Map<String, dynamic> data) async {
+    try {
+      // Jika menggunakan emulator Android, ganti 'localhost' dengan '10.0.2.2'
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/register.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result is Map && result.containsKey('success')) {
+          return result['success'];
+        } else {
+          debugPrint('Response JSON tidak mengandung kunci success: \\${response.body}');
+          return false;
+        }
+      } else {
+        debugPrint('HTTP error: \\${response.statusCode} - \\${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Exception saat register: \\${e.toString()}');
+      return false;
+    }
   }
 
   @override
@@ -211,9 +239,50 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   CustomButtonKotak(
                     text: "Registrasi",
-                    onPressed: () {
-                      // TODO: logic signup
-                    },
+                      onPressed: () async {
+                        final data = {
+                          "nama_lengkap": fullNameController.text,
+                          "username": usernameController.text,
+                          "email": emailController.text,
+                          "no_hp": phoneController.text,
+                          "password": passwordController.text,
+                          "role": selectedRole.toLowerCase(), // 'pegawai' atau 'penjual'
+                        };
+
+                        final success = await registerUser(data);
+                        if (success) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text("Registrasi Berhasil"),
+                              content: Text("Silakan login dengan akun Anda."),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // tutup dialog
+                                    Navigator.pop(context); // kembali ke login
+                                  },
+                                  child: Text("OK"),
+                                ),
+                              ],
+                            ),
+                          );
+                        } else {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text("Registrasi Gagal"),
+                              content: Text("Cek kembali data Anda atau coba lagi nanti."),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text("OK"),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
                   ),
                 ],
               ),

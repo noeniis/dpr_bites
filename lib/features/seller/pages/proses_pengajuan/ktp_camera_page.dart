@@ -51,10 +51,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
   final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
   final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
   final text = recognizedText.text;
-  // Print hasil OCR ke debug console
-  print('=== HASIL OCR KTP ===');
-  print(text);
-  print('======================');
 
     String nik = '';
     String nama = '';
