@@ -1,4 +1,5 @@
 import 'ktp_camera_page.dart';
+import 'pengajuan_data.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
@@ -6,7 +7,8 @@ import '../../../../common/widgets/custom_widgets.dart';
 import 'package:flutter/services.dart';
 
 class KtpFormPage extends StatefulWidget {
-  const KtpFormPage({super.key});
+  final PengajuanData pengajuanData;
+  const KtpFormPage({super.key, required this.pengajuanData});
 
   @override
   State<KtpFormPage> createState() => _KtpFormPageState();
@@ -18,13 +20,32 @@ class _KtpFormPageState extends State<KtpFormPage> {
   final nikController = TextEditingController();
   String? gender;
   final birthPlaceController = TextEditingController();
+  final birthDateController = TextEditingController();
   DateTime? birthDate;
+  @override
+  void initState() {
+    super.initState();
+    // Restore data dari pengajuanData
+    nameController.text = widget.pengajuanData.ktpName ?? '';
+    nikController.text = widget.pengajuanData.ktpNik ?? '';
+    gender = widget.pengajuanData.ktpGender;
+    birthPlaceController.text = widget.pengajuanData.ktpBirthPlace ?? '';
+    birthDateController.text = widget.pengajuanData.ktpBirthDate ?? '';
+    ktpImagePath = widget.pengajuanData.ktpImagePath;
+    if (widget.pengajuanData.ktpBirthDate != null && widget.pengajuanData.ktpBirthDate!.isNotEmpty) {
+      final parts = widget.pengajuanData.ktpBirthDate!.split('-');
+      if (parts.length == 3) {
+        birthDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+      }
+    }
+  }
 
   @override
   void dispose() {
     nameController.dispose();
     nikController.dispose();
     birthPlaceController.dispose();
+    birthDateController.dispose();
     super.dispose();
   }
 
@@ -58,17 +79,18 @@ class _KtpFormPageState extends State<KtpFormPage> {
           if (ocr['gender'] != null && ocr['gender'].toString().isNotEmpty) gender = ocr['gender'];
           if (ocr['tempatLahir'] != null && ocr['tempatLahir'].toString().isNotEmpty) birthPlaceController.text = ocr['tempatLahir'];
           if (ocr['tanggalLahir'] != null && ocr['tanggalLahir'].toString().isNotEmpty) {
-            // Parsing tanggal lahir ke DateTime jika memungkinkan
             try {
               final parts = ocr['tanggalLahir'].split('-');
               if (parts.length == 3) {
                 birthDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+                birthDateController.text = "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
               }
             } catch (_) {}
           }
         });
       }
     }
+
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -116,39 +138,18 @@ class _KtpFormPageState extends State<KtpFormPage> {
                         ),
                       ),
                     ),
-                  TextFormField(
+                  CustomInputField(
                     controller: nameController,
-                    textCapitalization: TextCapitalization.characters,
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
-                    decoration: const InputDecoration(
-                      labelText: 'NAMA LENGKAP',
-                      labelStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black, width: 2)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    ),
+                    hintText: 'Nama Lengkap',
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
+                  CustomInputField(
                     controller: nikController,
+                    hintText: 'NIK',
                     inputFormatters: [
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(16),
                     ],
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
-                    decoration: const InputDecoration(
-                      labelText: 'NIK',
-                      labelStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black, width: 2)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    ),
                   ),
                   const SizedBox(height: 2),
                   Text('MAKSIMAL 16 DIGIT', style: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
@@ -160,65 +161,65 @@ class _KtpFormPageState extends State<KtpFormPage> {
                       DropdownMenuItem(value: 'Perempuan', child: Text('PEREMPUAN', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1))),
                     ],
                     onChanged: (val) => setState(() => gender = val),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'JENIS KELAMIN',
-                      labelStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      labelStyle: const TextStyle(color: Colors.black, letterSpacing: 1),
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black, width: 2)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    ),
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
-                    dropdownColor: Colors.white,
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: birthPlaceController,
-                    textCapitalization: TextCapitalization.characters,
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
-                    decoration: const InputDecoration(
-                      labelText: 'TEMPAT LAHIR',
-                      labelStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black, width: 2)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                 
-                  InkWell(
-                    onTap: pickDate,
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'TANGGAL LAHIR',
-                        labelStyle: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12)), borderSide: BorderSide(color: Colors.black, width: 2)),
-                        contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                        alignLabelWithHint: true,
-                        floatingLabelAlignment: FloatingLabelAlignment.start,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
                       ),
-                      child: Text(
-                        birthDate != null
-                            ? '${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}'
-                            : '',
-                        style: const TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
-                        textAlign: TextAlign.left,
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 2.0),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  CustomInputField(
+                    controller: birthPlaceController,
+                    hintText: 'Tempat Lahir',
+                  ),
+                  const SizedBox(height: 14),
+                  GestureDetector(
+                    onTap: () async {
+                      await pickDate();
+                      if (birthDate != null) {
+                        birthDateController.text = "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
+                      }
+                    },
+                    child: AbsorbPointer(
+                      child: CustomInputField(
+                        controller: birthDateController,
+                        hintText: 'Tanggal Lahir',
+                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFFD53D3D)),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
                   CustomButtonKotak(
                     text: 'Simpan',
-                    onPressed: () {},
+                    onPressed: () {
+                      // Kumpulkan data KTP
+                      final updated = widget.pengajuanData.copyWith(
+                        ktpName: nameController.text,
+                        ktpNik: nikController.text,
+                        ktpGender: gender,
+                        ktpBirthPlace: birthPlaceController.text,
+                        ktpBirthDate: birthDateController.text,
+                        ktpImagePath: ktpImagePath,
+                      );
+                      Navigator.pop(context, updated);
+                    },
                   ),
                 ],
               ),

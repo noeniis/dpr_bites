@@ -1,5 +1,6 @@
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:http/http.dart' as http;
+import 'package:dpr_bites/common/utils/base_url.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
@@ -8,9 +9,7 @@ import 'forgot_password.dart';
 import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
-import 'package:dpr_bites/common/data/dummy_carts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
@@ -40,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       // Jika pakai emulator Android, gunakan 10.0.2.2
       final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/login.php'),
+        Uri.parse('${getBaseUrl()}/login.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
       );
@@ -61,28 +60,12 @@ class _LoginPageState extends State<LoginPage> {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
-    // Username khusus (opsional, bisa dihapus jika semua login via backend)
+    // Username khusus koperasi (hardcode, jika tidak ada di database)
     if (username == 'koperasi' && password == 'koperasi') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
       );
-      return;
-    }
-    if (username == 'seller2') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-      );
-      return;
-    }
-    if (username == 'ikafahriza') {
-      OnboardingChecklistStorage.forceReset().then((_) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
-        );
-      });
       return;
     }
 
@@ -97,18 +80,27 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('id_users', result['id_users'].toString());
       }
       // Redirect sesuai role dari backend
-      if (result['role'] == 'user') {
-        final _ = freshDummyCarts();
+      if (result['role'] == 'user' || result['role'] == 'pegawai') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomePage()),
         );
-      } else if (result['role'] == 'seller') {
-        final _ = freshDummyCarts();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-        );
+      } else if (result['role'] == 'penjual') {
+        // Pastikan step1, step2, step3 boolean
+        final step1 = result['step1'] == true;
+        final step2 = result['step2'] == true;
+        final step3 = result['step3'] == true;
+        if (step1 && step2 && step3) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+          );
+        }
       } else if (result['role'] == 'koperasi') {
         Navigator.pushReplacement(
           context,
@@ -341,56 +333,64 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 24),
 
-                // Bantuan Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFE5EC),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
+                // Bantuan Card (bisa diklik untuk masuk onboarding checklist seller)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE5EC),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.help_outline,
+                            color: Color(0xFFD53D3D),
+                            size: 28,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.help_outline,
-                          color: Color(0xFFD53D3D),
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Butuh Bantuan?',
-                              style: TextStyle(
-                                color: Color(0xFFD53D3D),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'Butuh Bantuan?',
+                                style: TextStyle(
+                                  color: Color(0xFFD53D3D),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Hubungi admin IT untuk bantuan teknis',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
+                              SizedBox(height: 2),
+                              Text(
+                                'Hubungi admin IT untuk bantuan teknis',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Icon(Icons.chevron_right, color: Colors.grey),
-                    ],
+                        Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
+                    ),
                   ),
                 ),
               ],

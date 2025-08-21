@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 20, 2025 at 12:12 PM
+-- Generation Time: Aug 21, 2025 at 04:38 AM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -106,6 +106,7 @@ CREATE TABLE `gerai` (
   `latitude` decimal(10,7) NOT NULL,
   `longitude` decimal(10,7) NOT NULL,
   `detail_alamat` text DEFAULT NULL,
+  `telepon` varchar(100) NOT NULL,
   `qris_path` varchar(255) DEFAULT NULL,
   `status_pengajuan` enum('pending','approved','rejected') DEFAULT 'pending',
   `sertifikasi_halal` tinyint(1) DEFAULT 0,
@@ -287,18 +288,22 @@ CREATE TABLE `users` (
   `role` enum('pegawai','penjual','koperasi') NOT NULL,
   `photo_path` varchar(255) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `step1` tinyint(1) NOT NULL,
+  `step2` tinyint(1) NOT NULL,
+  `step3` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `password_hash`, `role`, `photo_path`, `created_at`, `updated_at`) VALUES
-(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755671388/vzd6qahdgm9nz7zsdrkz.jpg', '2025-08-20 08:46:39', '2025-08-20 13:30:28'),
-(2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', 'penjual', NULL, '2025-08-20 08:47:38', '2025-08-20 08:47:38'),
-(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$YHyvHA7gHjTa2ZtE643DUOYTbtOHQwoFkmOk8tAvYcn2UZywX5oAK', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-20 08:56:09'),
-(4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', 'pegawai', NULL, '2025-08-20 11:06:08', '2025-08-20 12:23:52');
+INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `password_hash`, `role`, `photo_path`, `created_at`, `updated_at`, `step1`, `step2`, `step3`) VALUES
+(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755671388/vzd6qahdgm9nz7zsdrkz.jpg', '2025-08-20 08:46:39', '2025-08-20 13:30:28', 0, 0, 0),
+(2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', 'penjual', NULL, '2025-08-20 08:47:38', '2025-08-20 08:47:38', 0, 0, 0),
+(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$XQ9KWkzRj93mCXrBuGjJrOormPrL7CSXfzHGoouFHNKiQIDhq5yCu', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-21 07:57:36', 0, 0, 0),
+(4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', 'pegawai', NULL, '2025-08-20 11:06:08', '2025-08-20 12:23:52', 0, 0, 0),
+(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '085719832740', '$2y$10$8isPta1SmVZ5V9VZfYLp6uXeh4rxXQwxLVmNH3VI/WTyZfbz27mVW', 'penjual', NULL, '2025-08-21 07:55:43', '2025-08-21 07:55:43', 0, 0, 0);
 
 --
 -- Indexes for dumped tables
@@ -475,7 +480,7 @@ ALTER TABLE `menu_addon`
 -- AUTO_INCREMENT for table `password_resets`
 --
 ALTER TABLE `password_resets`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `penjual_info`
@@ -511,7 +516,7 @@ ALTER TABLE `ulasan`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- Constraints for dumped tables

@@ -1,4 +1,6 @@
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/seller_user_service.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
@@ -19,10 +21,33 @@ class ProsesPengajuanPage extends StatefulWidget {
 class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   final storeNameController = TextEditingController();
   final locationController = TextEditingController();
+  final detailAddressController = TextEditingController();
   final sellerNameController = TextEditingController();
   final phoneNumberController = TextEditingController();
   final optionalPhoneController = TextEditingController();
   final emailController = TextEditingController();
+    bool isLoadingUser = true;
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    if (idUsers != null) {
+      final user = await SellerUserService.fetchUserById(idUsers);
+      if (user != null) {
+        sellerNameController.text = user['nama_lengkap'] ?? '';
+        phoneNumberController.text = user['no_hp'] ?? '';
+        emailController.text = user['email'] ?? '';
+      }
+    }
+    setState(() {
+      isLoadingUser = false;
+    });
+  }
 
   double? selectedLat;
   double? selectedLng;
@@ -32,6 +57,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   void dispose() {
     storeNameController.dispose();
     locationController.dispose();
+    detailAddressController.dispose();
     sellerNameController.dispose();
     phoneNumberController.dispose();
     optionalPhoneController.dispose();
@@ -138,6 +164,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
               children: [
                 const Text(
                   "Informasi umum",
+                
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
@@ -165,6 +192,12 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                // Field Detail Alamat
+                CustomInputField(
+                  controller: detailAddressController,
+                  hintText: "Detail Alamat (misal: Blok, gedung, dsb)",
+                ),
                 const SizedBox(height: 16),
 
                 const Text(
@@ -172,20 +205,26 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
-                CustomInputField(
-                  controller: sellerNameController,
-                  hintText: "Nama penjual",
-                ),
-                const SizedBox(height: 12),
-                CustomInputField(
-                  controller: phoneNumberController,
-                  hintText: "Nomor Handphone",
-                ),
-                const SizedBox(height: 12),
-                CustomInputField(
-                  controller: emailController,
-                  hintText: "Email penjual",
-                ),
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: sellerNameController,
+                      hintText: "Nama penjual",
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: phoneNumberController,
+                      hintText: "Nomor Handphone",
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: emailController,
+                      hintText: "Email penjual",
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 CustomInputField(
                   controller: optionalPhoneController,
@@ -197,23 +236,25 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
         bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: CustomButtonKotak(
-              text: "Simpan dan lanjutkan",
-              onPressed: () async {
-                final ktpResult = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const KtpFormPage()),
-                );
-                if (ktpResult != null) {
-                  Navigator.push(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), // Tambah jarak bawah
+          child: SafeArea(
+            child: SizedBox(
+              width: double.infinity,
+              child: CustomButtonKotak(
+                text: "Simpan dan lanjutkan",
+                onPressed: () async {
+                  final ktpResult = await Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const HalalPage()),
+                    MaterialPageRoute(builder: (_) => const KtpFormPage()),
                   );
-                }
-              },
+                  if (ktpResult != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HalalPage()),
+                    );
+                  }
+                },
+              ),
             ),
           ),
         ),
