@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_checkout.dart';
 
 class AlamatPengantaranDialog extends StatefulWidget {
   final String? initialNama;

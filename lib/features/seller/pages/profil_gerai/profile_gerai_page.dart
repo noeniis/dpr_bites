@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
@@ -14,6 +15,29 @@ class ProfilGeraiPage extends StatefulWidget {
 }
 
 class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
+  // Hari buka (Senin-Minggu)
+  final List<String> days = [
+    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+  ];
+  List<bool> selectedDays = List.generate(7, (_) => false);
+
+
+  TextEditingController? timeStartController;
+  TextEditingController? timeEndController;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    timeStartController ??= TextEditingController(text: selectedTimeStart.format(context));
+    timeEndController ??= TextEditingController(text: selectedTimeEnd.format(context));
+  }
+
+  @override
+  void dispose() {
+    timeStartController?.dispose();
+    timeEndController?.dispose();
+    super.dispose();
+  }
   // State untuk gambar banner dan listing
   XFile? _bannerImage;
   XFile? _listingImage;
@@ -85,24 +109,24 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
             icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
             onPressed: () => Navigator.pop(context),
           ),
+          title: const Text(
+            "Profil Gerai",
+            style: TextStyle(
+              color: AppTheme.textColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              fontFamily: 'Afacad',
+            ),
+          ),
         ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Judul halaman
-                const Text(
-                  "Profil Gerai",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 20),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ...existing code...
 
                 // Gambar banner & listing
                 const Text(
@@ -190,19 +214,44 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                CustomInputField(
                   controller: menuController,
-                  decoration: InputDecoration(
-                    hintText: "Masukkan menu masakan",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
+                  hintText: "Cth. Ayam, Nasi, Kopi",
                 ),
                 const SizedBox(height: 20),
 
+                // Hari buka
+                const Text(
+                  "Hari buka",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: List.generate(days.length, (i) {
+                    return FilterChip(
+                      label: Text(days[i]),
+                      selected: selectedDays[i],
+                      onSelected: (val) {
+                        setState(() {
+                          selectedDays[i] = val;
+                        });
+                      },
+                      selectedColor: const Color(0xFFD53D3D),
+                      checkmarkColor: Colors.white,
+                      labelStyle: TextStyle(
+                        color: selectedDays[i] ? Colors.white : Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 20),
                 // Jam operasional
                 const Text(
                   "Jam operasional",
@@ -217,55 +266,69 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Buka: ${selectedTimeStart.format(context)}',
-                      style: const TextStyle(fontSize: 15, fontFamily: 'Inter'),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await _selectTimeStart(context);
+                          if (timeStartController != null) {
+                            timeStartController!.text = selectedTimeStart.format(context);
+                          }
+                        },
+                        child: AbsorbPointer(
+                          child: CustomInputField(
+                            controller: timeStartController,
+                            hintText: 'Jam Buka',
+                            prefixIcon: const Icon(Icons.access_time, color: Color(0xFFD53D3D)),
+                          ),
+                        ),
+                      ),
                     ),
-                    ElevatedButton(
-                      onPressed: () => _selectTimeStart(context),
-                      child: const Text('Pilih Jam'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tutup: ${selectedTimeEnd.format(context)}',
-                      style: const TextStyle(fontSize: 15, fontFamily: 'Inter'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => _selectTimeEnd(context),
-                      child: const Text('Pilih Jam'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await _selectTimeEnd(context);
+                          if (timeEndController != null) {
+                            timeEndController!.text = selectedTimeEnd.format(context);
+                          }
+                        },
+                        child: AbsorbPointer(
+                          child: CustomInputField(
+                            controller: timeEndController,
+                            hintText: 'Jam Tutup',
+                            prefixIcon: const Icon(Icons.access_time, color: Color(0xFFD53D3D)),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
 
-                const Spacer(),
-                // Tombol Simpan dan Lanjutkan
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: CustomButtonKotak(
-                      text: "Simpan dan lanjutkan",
-                      onPressed: () async {
-                        // Set card 2 selesai
-                        await OnboardingChecklistStorage.setStatus(1, true);
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/onboarding_checklist',
-                          (route) => false,
-                        );
-                      },
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 24),
+                  // ...existing code...
               ],
             ),
           ),
         ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        child: SizedBox(
+          width: double.infinity,
+          child: CustomButtonKotak(
+            text: "Simpan dan lanjutkan",
+            onPressed: () async {
+              // Set card 2 selesai
+              await OnboardingChecklistStorage.setStatus(1, true);
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/onboarding_checklist',
+                (route) => false,
+              );
+            },
+          ),
+        ),
+      ),
       ),
     );
   }

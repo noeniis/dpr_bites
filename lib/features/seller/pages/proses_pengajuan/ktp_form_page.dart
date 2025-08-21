@@ -1,4 +1,5 @@
 import 'ktp_camera_page.dart';
+import 'halal_page.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
@@ -189,7 +190,12 @@ class _KtpFormPageState extends State<KtpFormPage> {
                   const SizedBox(height: 24),
                   CustomButtonKotak(
                     text: 'Simpan',
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => HalalPage()),
+                      );
+                    },
                   ),
                 ],
               ),

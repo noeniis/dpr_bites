@@ -1,19 +1,34 @@
+
 import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
-import 'package:dpr_bites/common/widgets/custom_widgets.dart';
+import 'package:image_picker/image_picker.dart';
 import 'pengajuan_selesai_page.dart';
+import 'dart:io';
+import 'dart:ui';
 
-class InformasiRekeningPage extends StatelessWidget {
+class InformasiRekeningPage extends StatefulWidget {
   const InformasiRekeningPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final pemegangController = TextEditingController();
-    final bankController = TextEditingController();
-    final noRekController = TextEditingController();
-    final qrisController = TextEditingController();
+  State<InformasiRekeningPage> createState() => _InformasiRekeningPageState();
+}
 
+class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
+  XFile? _qrisImage;
+
+  Future<void> _pickQrisImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _qrisImage = image;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -24,69 +39,87 @@ class InformasiRekeningPage extends StatelessWidget {
             icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
             onPressed: () => Navigator.pop(context),
           ),
+          title: const Text(
+            "Qris Penjual",
+            style: TextStyle(
+              color: AppTheme.textColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              fontFamily: 'Afacad',
+            ),
+          ),
         ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                const SizedBox(height: 12),
                 const Text(
-                  "Lengkapi informasi rekening bank gerai Anda",
+                  "Upload gambar QRIS yang dimiliki penjual untuk pembayaran digital.",
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
                     color: AppTheme.textColor,
                   ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Penghasilan akan ditransfer secara otomatis ke rekening bank yang Anda daftarkan.",
-                  style: TextStyle(fontSize: 14, color: Colors.black87),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  "Detail rekening bank",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textColor,
+                Center(
+                  child: DottedBorderContainer(
+                    child: _qrisImage == null
+                        ? const Icon(Icons.qr_code_2, size: 80, color: Colors.grey)
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.file(
+                              File(_qrisImage!.path),
+                              height: 180,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                _buildLabel("Pemegang rekening"),
-                _buildInput(
-                  pemegangController,
-                  "Masukkan nama pemegang rekening",
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _pickQrisImage,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text("Upload QRIS dari Galeri"),
                 ),
-                const SizedBox(height: 16),
-                _buildLabel("Nama bank"),
-                _buildInput(bankController, "Bank"),
-                const SizedBox(height: 16),
-                _buildLabel("Nomor rekening bank"),
-                _buildInput(noRekController, "Nomor akun"),
-                const SizedBox(height: 16),
-                _buildLabel("Qris gerai Anda"),
-                const Text(
-                  "NMID adalah kode unik untuk toko Anda yang dapat ditemukan pada kode QRIS",
-                  style: TextStyle(fontSize: 12, color: Colors.black87),
-                ),
-                const SizedBox(height: 8),
-                _buildInput(qrisController, "Masukkan angka"),
                 const Spacer(),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: SizedBox(
                     width: double.infinity,
-                    child: CustomButtonKotak(
-                    text: "Kirim",
-                    onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PengajuanSelesaiPage()),
-                    );
-                    },
-                  ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onPressed: () {
+                        if (_qrisImage != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const PengajuanSelesaiPage()),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Silakan upload gambar QRIS terlebih dahulu.')),
+                          );
+                        }
+                      },
+                      child: const Text("Kirim", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
                   ),
                 ),
               ],
@@ -96,34 +129,68 @@ class InformasiRekeningPage extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildLabel(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppTheme.textColor,
-      ),
-    );
-  }
+class DottedBorderContainer extends StatelessWidget {
+  final Widget child;
+  const DottedBorderContainer({super.key, required this.child});
 
-  Widget _buildInput(TextEditingController controller, String hint) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 220,
+        height: 320,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppTheme.primaryColor,
+            width: 2,
+            style: BorderStyle.solid,
+          ),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+        child: CustomPaint(
+          painter: _DashedBorderPainter(color: AppTheme.primaryColor, radius: 16),
+          child: Center(child: child),
         ),
       ),
     );
   }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  _DashedBorderPainter({required this.color, required this.radius});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    const dashWidth = 8.0;
+    const dashSpace = 6.0;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rect);
+    double distance = 0.0;
+    for (PathMetric pathMetric in path.computeMetrics()) {
+      while (distance < pathMetric.length) {
+        final next = distance + dashWidth;
+        canvas.drawPath(
+          pathMetric.extractPath(distance, next),
+          paint,
+        );
+        distance = next + dashSpace;
+      }
+      distance = 0.0;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

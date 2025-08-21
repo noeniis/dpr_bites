@@ -1,4 +1,3 @@
-import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
