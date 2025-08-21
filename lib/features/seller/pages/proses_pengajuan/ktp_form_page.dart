@@ -1,5 +1,4 @@
 import 'ktp_camera_page.dart';
-import 'pengajuan_data.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
@@ -7,8 +6,7 @@ import '../../../../common/widgets/custom_widgets.dart';
 import 'package:flutter/services.dart';
 
 class KtpFormPage extends StatefulWidget {
-  final PengajuanData pengajuanData;
-  const KtpFormPage({super.key, required this.pengajuanData});
+  const KtpFormPage({super.key});
 
   @override
   State<KtpFormPage> createState() => _KtpFormPageState();
@@ -22,23 +20,6 @@ class _KtpFormPageState extends State<KtpFormPage> {
   final birthPlaceController = TextEditingController();
   final birthDateController = TextEditingController();
   DateTime? birthDate;
-  @override
-  void initState() {
-    super.initState();
-    // Restore data dari pengajuanData
-    nameController.text = widget.pengajuanData.ktpName ?? '';
-    nikController.text = widget.pengajuanData.ktpNik ?? '';
-    gender = widget.pengajuanData.ktpGender;
-    birthPlaceController.text = widget.pengajuanData.ktpBirthPlace ?? '';
-    birthDateController.text = widget.pengajuanData.ktpBirthDate ?? '';
-    ktpImagePath = widget.pengajuanData.ktpImagePath;
-    if (widget.pengajuanData.ktpBirthDate != null && widget.pengajuanData.ktpBirthDate!.isNotEmpty) {
-      final parts = widget.pengajuanData.ktpBirthDate!.split('-');
-      if (parts.length == 3) {
-        birthDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-      }
-    }
-  }
 
   @override
   void dispose() {
@@ -208,18 +189,7 @@ class _KtpFormPageState extends State<KtpFormPage> {
                   const SizedBox(height: 24),
                   CustomButtonKotak(
                     text: 'Simpan',
-                    onPressed: () {
-                      // Kumpulkan data KTP
-                      final updated = widget.pengajuanData.copyWith(
-                        ktpName: nameController.text,
-                        ktpNik: nikController.text,
-                        ktpGender: gender,
-                        ktpBirthPlace: birthPlaceController.text,
-                        ktpBirthDate: birthDateController.text,
-                        ktpImagePath: ktpImagePath,
-                      );
-                      Navigator.pop(context, updated);
-                    },
+                    onPressed: () {},
                   ),
                 ],
               ),
