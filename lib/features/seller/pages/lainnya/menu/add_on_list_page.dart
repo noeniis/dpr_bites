@@ -4,7 +4,8 @@ import '../../../../../app/gradient_background.dart';
 import 'add_on_form_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'dart:io';
+import 'package:http/http.dart' as http;
+
 
 class AddOnListPage extends StatefulWidget {
   final List<Map<String, String>>? selectedAddOns;
@@ -15,53 +16,62 @@ class AddOnListPage extends StatefulWidget {
 }
 
 class _AddOnListPageState extends State<AddOnListPage> {
-  List<Map<String, String>> _addOns = [];
-  final String _dummyUser = 'ikafahriza';
+  List<Map<String, dynamic>> _addOns = [];
   bool _loading = true;
   List<int> _selectedIndexes = [];
+  String? _idUser;
+  int? _idGerai;
 
   @override
   void initState() {
     super.initState();
-    _loadAddOns();
+    _loadUserAndGeraiAndAddOns();
   }
 
-  Future<void> _loadAddOns() async {
+  Future<void> _loadUserAndGeraiAndAddOns() async {
     final prefs = await SharedPreferences.getInstance();
-    final key = 'add_ons_$_dummyUser';
-    final list = prefs.getStringList(key) ?? [];
-    List<Map<String, String>> loadedAddOns = list.map((e) => Map<String, String>.from(jsonDecode(e))).toList();
-    // Tambah dummy jika kosong
-    if (loadedAddOns.isEmpty) {
-      loadedAddOns.add({
-        'nama': 'Tempe',
-        'deskripsi': 'Add on tempe goreng',
-        'harga': '3000',
-        'stok': '99',
-        'foto': 'lib/assets/images/ayam_teriyaki.jpeg',
-        'tersedia': 'true',
-        'user': _dummyUser,
+    _idUser = prefs.getString('id_users');
+    if (_idUser != null) {
+      final responseGerai = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/get_gerai_by_user.php'),
+        body: {'id_users': _idUser},
+      );
+      final dataGerai = jsonDecode(responseGerai.body);
+      if (dataGerai['success'] == true && dataGerai['id_gerai'] != null) {
+        // Convert id_gerai to int for safe usage
+        _idGerai = int.tryParse(dataGerai['id_gerai'].toString());
+        debugPrint('ID GERAI: $_idGerai');
+        final responseAddOn = await http.get(
+          Uri.parse('http://10.0.2.2/dpr_bites_api/get_addon.php?id_gerai=${_idGerai ?? ''}'),
+        );
+        final dataAddOn = jsonDecode(responseAddOn.body);
+        List<Map<String, dynamic>> loadedAddOns = [];
+        if (dataAddOn['success'] == true && dataAddOn['addons'] != null) {
+          loadedAddOns = List<Map<String, dynamic>>.from(dataAddOn['addons']);
+        }
+        List<int> selected = [];
+        if (widget.selectedAddOns != null && widget.selectedAddOns!.isNotEmpty) {
+          for (int i = 0; i < loadedAddOns.length; i++) {
+            if (widget.selectedAddOns!.any((e) => e['nama'] == loadedAddOns[i]['nama_addon'])) {
+              selected.add(i);
+            }
+          }
+        }
+        setState(() {
+          _addOns = loadedAddOns;
+          _selectedIndexes = selected;
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _loading = false;
+        });
+      }
+    } else {
+      setState(() {
+        _loading = false;
       });
     }
-    List<int> selected = [];
-    if (widget.selectedAddOns != null && widget.selectedAddOns!.isNotEmpty) {
-      for (int i = 0; i < loadedAddOns.length; i++) {
-        if (widget.selectedAddOns!.any((e) => e['nama'] == loadedAddOns[i]['nama'])) {
-          selected.add(i);
-        }
-      }
-    }
-    setState(() {
-      _addOns = loadedAddOns;
-      _selectedIndexes = selected;
-      _loading = false;
-    });
-  }
-
-  Future<void> _saveAddOns() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'add_ons_$_dummyUser';
-    await prefs.setStringList(key, _addOns.map((e) => jsonEncode(e)).toList());
   }
 
   void _addAddOn() async {
@@ -69,11 +79,12 @@ class _AddOnListPageState extends State<AddOnListPage> {
       context,
       MaterialPageRoute(builder: (_) => const AddOnFormPage()),
     );
-    if (result != null && result is Map<String, String>) {
+    if (result != null) {
+      // Reload dari API setelah tambah
       setState(() {
-        _addOns.add(result);
+        _loading = true;
       });
-      _saveAddOns();
+      await _loadUserAndGeraiAndAddOns();
     }
   }
 
@@ -124,26 +135,19 @@ class _AddOnListPageState extends State<AddOnListPage> {
                                               decoration: BoxDecoration(
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: addOn['foto'] != null && addOn['foto']!.isNotEmpty
-                                                  ? (addOn['foto']!.startsWith('lib/assets/')
-                                                      ? Image.asset(
-                                                          addOn['foto']!,
-                                                          width: 48,
-                                                          height: 48,
-                                                          fit: BoxFit.cover,
-                                                        )
-                                                      : Image.file(
-                                                          File(addOn['foto']!),
-                                                          width: 48,
-                                                          height: 48,
-                                                          fit: BoxFit.cover,
-                                                        ))
+                                              child: addOn['image_path'] != null && addOn['image_path'].toString().isNotEmpty
+                                                  ? Image.network(
+                                                      addOn['image_path'],
+                                                      width: 48,
+                                                      height: 48,
+                                                      fit: BoxFit.cover,
+                                                    )
                                                   : const Icon(Icons.fastfood, color: Colors.orange, size: 32),
                                             ),
                                           ),
-                                          title: Text(addOn['nama'] ?? '-'),
+                                          title: Text(addOn['nama_addon'] ?? '-'),
                                           subtitle: Text('Stok: ${addOn['stok'] ?? '-'} | Harga: Rp${addOn['harga'] ?? '-'}'),
-                                          trailing: addOn['tersedia'] == 'true'
+                                          trailing: addOn['tersedia'].toString() == '1'
                                               ? const Icon(Icons.check_circle, color: Colors.green)
                                               : const Icon(Icons.cancel, color: Colors.red),
                                         ),

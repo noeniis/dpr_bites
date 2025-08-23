@@ -74,10 +74,11 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         errorMessage = null;
       });
-      // Simpan id_users ke SharedPreferences
+      // Simpan id_users ke SharedPreferences dan print ke terminal
       if (result['id_users'] != null) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('id_users', result['id_users'].toString());
+        debugPrint('ID USERS LOGIN: ${result['id_users']}');
       }
       // Redirect sesuai role dari backend
       if (result['role'] == 'user' || result['role'] == 'pegawai') {
