@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 21, 2025 at 04:38 AM
+-- Generation Time: Aug 23, 2025 at 05:10 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -34,8 +34,22 @@ CREATE TABLE `addon` (
   `harga` int(11) NOT NULL,
   `deskripsi` text DEFAULT NULL,
   `image_path` varchar(255) DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp()
+  `created_at` datetime DEFAULT current_timestamp(),
+  `stok` int(11) NOT NULL,
+  `tersedia` tinyint(4) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `addon`
+--
+
+INSERT INTO `addon` (`id_addon`, `id_gerai`, `nama_addon`, `harga`, `deskripsi`, `image_path`, `created_at`, `stok`, `tersedia`) VALUES
+(3, 3, 'ayam', 20000, 'ayam potong', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755952696/l0uh7tw0cfotnf9hqeka.jpg', '2025-08-23 19:38:16', 0, 0),
+(4, 1, 'ayam', 19000, 'ayam potong bagian paha', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755953052/gbp4jpkh2u3oznmxsrwt.jpg', '2025-08-23 19:44:11', 10, 1),
+(5, 3, 'erty', 5000, 'ert', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961095/guk89qwdbfn71h3bliat.jpg', '2025-08-23 21:58:15', 0, 0),
+(6, 3, 'ice cream', 24000, 'mcflurry matcha', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961486/nwoai0qj1kylqlx0ijuc.jpg', '2025-08-23 22:04:45', 0, 0),
+(7, 3, 'puding', 23000, 'puding rasa cokelat', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961599/br5sodzx3hczoezcqm96.jpg', '2025-08-23 22:06:38', 4, 1),
+(8, 3, 'Minuman milk tea', 6000, 'minuman milk tea', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961694/uvvhot534rywjct3tgrs.jpg', '2025-08-23 22:08:14', 10, 1);
 
 -- --------------------------------------------------------
 
@@ -111,8 +125,18 @@ CREATE TABLE `gerai` (
   `status_pengajuan` enum('pending','approved','rejected') DEFAULT 'pending',
   `sertifikasi_halal` tinyint(1) DEFAULT 0,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `alasan_tolak` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `gerai`
+--
+
+INSERT INTO `gerai` (`id_gerai`, `id_users`, `nama_gerai`, `latitude`, `longitude`, `detail_alamat`, `telepon`, `qris_path`, `status_pengajuan`, `sertifikasi_halal`, `created_at`, `updated_at`, `alasan_tolak`) VALUES
+(1, 1, 'Waroenk Noeni', 123.0000000, 123.0000000, 'JL. Merdeka 1', '0862528293', 'cloudinary//hsjsj', 'approved', 0, '2025-08-20 11:28:09', '2025-08-23 12:54:50', ''),
+(2, 2, 'Waroenk Noeni', 123.0000000, 123.0000000, 'JL. Merdeka 3', '0862528293', 'cloudinary//hsjsj', 'rejected', 0, '2025-08-20 11:28:09', '2025-08-23 13:02:43', 'Data tidak valid; Dokumen tidak sesuai'),
+(3, 5, 'Waroenk Sila', 123.0000000, 123.0000000, 'JL. Maju 10', '0862528293', 'cloudinary//hsjsj', 'pending', 0, '2025-08-20 11:28:09', '2025-08-23 13:06:01', '');
 
 -- --------------------------------------------------------
 
@@ -133,6 +157,15 @@ CREATE TABLE `gerai_profil` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `gerai_profil`
+--
+
+INSERT INTO `gerai_profil` (`id_gerai_profil`, `id_gerai`, `banner_path`, `listing_path`, `deskripsi_gerai`, `hari_buka`, `jam_buka`, `jam_tutup`, `created_at`, `updated_at`) VALUES
+(1, 1, 'esrdhj', 'fdgfhjk', 'sfdghj', 'Senin', '15:30:26', '19:30:26', '2025-08-23 11:31:51', '2025-08-23 11:31:51'),
+(2, 2, 'esrdhj', 'fdgfhjk', 'sfdghj', 'Senin', '15:30:26', '19:30:26', '2025-08-23 11:31:51', '2025-08-23 11:31:51'),
+(3, 3, 'esrdhj', 'fdgfhjk', 'sfdghj', 'Senin', '15:30:26', '19:30:26', '2025-08-23 11:31:51', '2025-08-23 11:31:51');
+
 -- --------------------------------------------------------
 
 --
@@ -150,8 +183,6 @@ CREATE TABLE `menu` (
   `harga` int(11) NOT NULL,
   `jumlah_stok` int(11) NOT NULL,
   `tersedia` tinyint(1) DEFAULT 1,
-  `pengantaran` tinyint(1) DEFAULT 0,
-  `pickup` tinyint(1) DEFAULT 0,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -208,6 +239,15 @@ CREATE TABLE `penjual_info` (
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `penjual_info`
+--
+
+INSERT INTO `penjual_info` (`id_penjual_info`, `id_users`, `id_gerai`, `no_telepon_penjual`, `nik`, `tempat_lahir`, `tanggal_lahir`, `jenis_kelamin`, `foto_ktp_path`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, '098675432', '09876542345', 'tangerang', '2015-08-06', 'perempuan', '1sdfghj', '2025-08-23 11:32:40', '2025-08-23 11:32:40'),
+(2, 2, 2, '098675432', '0987654234544', 'tangerang', '2015-08-06', 'perempuan', '1sdfghj', '2025-08-23 11:32:40', '2025-08-23 11:32:40'),
+(3, 5, 3, '098675432', '09876549000', 'tangerang', '2015-08-06', 'perempuan', '1sdfghjer', '2025-08-23 11:32:40', '2025-08-23 11:32:40');
 
 -- --------------------------------------------------------
 
@@ -432,7 +472,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `addon`
 --
 ALTER TABLE `addon`
-  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `alamat_pengantaran`
@@ -456,13 +496,13 @@ ALTER TABLE `favorite`
 -- AUTO_INCREMENT for table `gerai`
 --
 ALTER TABLE `gerai`
-  MODIFY `id_gerai` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_gerai` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `gerai_profil`
 --
 ALTER TABLE `gerai_profil`
-  MODIFY `id_gerai_profil` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_gerai_profil` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `menu`
@@ -486,7 +526,7 @@ ALTER TABLE `password_resets`
 -- AUTO_INCREMENT for table `penjual_info`
 --
 ALTER TABLE `penjual_info`
-  MODIFY `id_penjual_info` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_penjual_info` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `transaksi`
