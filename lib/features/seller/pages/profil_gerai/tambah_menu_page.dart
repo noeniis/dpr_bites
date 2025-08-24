@@ -15,10 +15,17 @@ class TambahMenuPage extends StatefulWidget {
 }
 
 class TambahMenuPageState extends State<TambahMenuPage> {
-  List<Map<String, String>> _selectedAddOns = [];
+  List<Map<String, dynamic>> _selectedAddOns = [];
   List<String> _etalaseList = ['Nasi Goreng', 'Soto', 'Bakso', 'Minuman'];
   List<String> _selectedEtalase = [];
   XFile? _menuImage;
+
+  final TextEditingController _namaMenuController = TextEditingController();
+  final TextEditingController _deskripsiController = TextEditingController();
+  final TextEditingController _hargaController = TextEditingController();
+  final TextEditingController _jumlahStokController = TextEditingController();
+  bool _isTersedia = false;
+  String? _selectedKategori;
 
   Future<void> _pickMenuImage() async {
     final ImagePicker picker = ImagePicker();
@@ -29,13 +36,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
       });
     }
   }
-  final TextEditingController _namaMenuController = TextEditingController();
-  final TextEditingController _deskripsiController = TextEditingController();
-  final TextEditingController _hargaController = TextEditingController();
-  final TextEditingController _jumlahStokController =
-      TextEditingController(); // Controller untuk jumlah stok
-
-  bool _isTersedia = false;
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +92,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 // Foto Hidangan
                 const Text(
                   "Foto hidangan",
@@ -177,7 +176,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
                   hint: const Text("Pilih kategori menu"),
-                  items: <String>['Makanan', 'Minuman', 'Dessert'].map((
+                  value: _selectedKategori,
+                  items: <String>['Makanan', 'Minuman', 'Jajanan'].map((
                     String value,
                   ) {
                     return DropdownMenuItem<String>(
@@ -185,7 +185,11 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                       child: Text(value),
                     );
                   }).toList(),
-                  onChanged: (value) {},
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedKategori = value;
+                    });
+                  },
                   decoration: const InputDecoration(
                     filled: true,
                     fillColor: Colors.white,
@@ -200,6 +204,7 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
                 // Etalase/Kategori Lain
                 const Text(
                   "Kategori/Etalase Lain",
@@ -240,9 +245,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   },
                 ),
                 const SizedBox(height: 12),
-                const SizedBox(height: 12),
-
-                // ...section jenis layanan dihapus...
 
                 // Harga
                 const Text(
@@ -316,7 +318,7 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   spacing: 8,
                   children: _selectedAddOns.isEmpty
                       ? [const Text('Belum ada add on', style: TextStyle(color: Colors.black54))]
-                      : _selectedAddOns.map((e) => Chip(label: Text(e['nama'] ?? '-'))).toList(),
+                      : _selectedAddOns.map((e) => Chip(label: Text(e['nama_addon'] ?? e['nama'] ?? '-'))).toList(),
                 ),
                 const SizedBox(height: 8),
                 CustomButtonKotak(
@@ -325,12 +327,12 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const AddOnListPage(),
+                        builder: (_) => AddOnListPage(selectedAddOns: _selectedAddOns),
                       ),
                     );
-                    if (result != null && result is List<Map<String, String>>) {
+                    if (result != null && result is List) {
                       setState(() {
-                        _selectedAddOns = result;
+                        _selectedAddOns = List<Map<String, dynamic>>.from(result);
                       });
                     }
                   },
@@ -356,14 +358,39 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   },
                 ),
                 const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
+                
+              ],
+            ),
+          ),
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 16), // Jeda atas agar tombol tidak mepet ke atas
+                SizedBox(
+                  width: double.infinity,
                   child: CustomButtonKotak(
                     text: "Periksa menu",
                     onPressed: () {
                       Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PeriksaMenuPage()),);
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PeriksaMenuPage(
+                            namaMenu: _namaMenuController.text,
+                            deskripsi: _deskripsiController.text,
+                            harga: _hargaController.text,
+                            jumlahStok: _jumlahStokController.text,
+                            kategori: _selectedKategori ?? '',
+                            isTersedia: _isTersedia,
+                            imagePath: _menuImage?.path,
+                            etalase: _selectedEtalase,
+                            addOns: _selectedAddOns,
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),

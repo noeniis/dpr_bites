@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 
 
 class AddOnListPage extends StatefulWidget {
-  final List<Map<String, String>>? selectedAddOns;
+  final List<Map<String, dynamic>>? selectedAddOns;
   const AddOnListPage({super.key, this.selectedAddOns});
 
   @override
@@ -52,7 +52,8 @@ class _AddOnListPageState extends State<AddOnListPage> {
         List<int> selected = [];
         if (widget.selectedAddOns != null && widget.selectedAddOns!.isNotEmpty) {
           for (int i = 0; i < loadedAddOns.length; i++) {
-            if (widget.selectedAddOns!.any((e) => e['nama'] == loadedAddOns[i]['nama_addon'])) {
+            if (widget.selectedAddOns!.any((e) =>
+              (e['nama_addon'] ?? e['nama']) == loadedAddOns[i]['nama_addon'])) {
               selected.add(i);
             }
           }
@@ -96,7 +97,7 @@ class _AddOnListPageState extends State<AddOnListPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Text('Add On Menu', style: TextStyle(color: Color(0xFF602829), fontWeight: FontWeight.bold)),
+          title: const Text('Add On Menu', style: TextStyle(color: Color(0xFF602829), fontSize: 20)),
           iconTheme: const IconThemeData(color: Color(0xFF602829)),
         ),
         body: Padding(
@@ -170,16 +171,29 @@ class _AddOnListPageState extends State<AddOnListPage> {
                               },
                             ),
                     ),
-                    const SizedBox(height: 16),
-                    CustomButtonKotak(
-                      text: 'Simpan Pilihan',
-                      onPressed: () {
-                        final selected = _selectedIndexes.map((i) => _addOns[i]).toList();
-                        Navigator.pop(context, selected);
-                      },
-                    ),
                   ],
                 ),
+        ),
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 16), // Jeda atas
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButtonKotak(
+                    text: 'Simpan',
+                    onPressed: () {
+                      final selected = _selectedIndexes.map((i) => _addOns[i]).toList();
+                      Navigator.pop(context, selected);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

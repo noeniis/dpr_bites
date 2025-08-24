@@ -308,12 +308,16 @@ class CustomButtonKotak extends StatelessWidget {
   final VoidCallback? onPressed;
   final Color? backgroundColor;
   final Color? textColor;
+  final double? fontSize;
+  final double? width;
 
   const CustomButtonKotak({
     required this.text,
     this.onPressed,
     this.backgroundColor,
     this.textColor,
+    this.fontSize,
+    this.width,
     super.key,
   });
 
@@ -329,6 +333,7 @@ class CustomButtonKotak extends StatelessWidget {
       onTap: onPressed,
       child: Container(
         height: 48,
+        width: width,
         decoration: BoxDecoration(
           color: backgroundColor != null ? bgColor : null,
           gradient: (backgroundColor == null)
@@ -360,7 +365,7 @@ class CustomButtonKotak extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             color: fgColor,
-            fontSize: 18,
+            fontSize: fontSize ?? 18,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
           ),

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 23, 2025 at 05:10 PM
+-- Generation Time: Aug 24, 2025 at 07:49 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -44,12 +44,9 @@ CREATE TABLE `addon` (
 --
 
 INSERT INTO `addon` (`id_addon`, `id_gerai`, `nama_addon`, `harga`, `deskripsi`, `image_path`, `created_at`, `stok`, `tersedia`) VALUES
-(3, 3, 'ayam', 20000, 'ayam potong', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755952696/l0uh7tw0cfotnf9hqeka.jpg', '2025-08-23 19:38:16', 0, 0),
-(4, 1, 'ayam', 19000, 'ayam potong bagian paha', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755953052/gbp4jpkh2u3oznmxsrwt.jpg', '2025-08-23 19:44:11', 10, 1),
-(5, 3, 'erty', 5000, 'ert', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961095/guk89qwdbfn71h3bliat.jpg', '2025-08-23 21:58:15', 0, 0),
-(6, 3, 'ice cream', 24000, 'mcflurry matcha', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961486/nwoai0qj1kylqlx0ijuc.jpg', '2025-08-23 22:04:45', 0, 0),
 (7, 3, 'puding', 23000, 'puding rasa cokelat', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961599/br5sodzx3hczoezcqm96.jpg', '2025-08-23 22:06:38', 4, 1),
-(8, 3, 'Minuman milk tea', 6000, 'minuman milk tea', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961694/uvvhot534rywjct3tgrs.jpg', '2025-08-23 22:08:14', 10, 1);
+(8, 3, 'Minuman milk tea', 6000, 'minuman milk tea', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961694/uvvhot534rywjct3tgrs.jpg', '2025-08-23 22:08:14', 10, 1),
+(9, 3, 'Minuman green tea', 7000, 'minuman green tea', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756007739/bzvadm7wiuqch8vwo3hb.jpg', '2025-08-24 10:55:38', 15, 1);
 
 -- --------------------------------------------------------
 
@@ -92,6 +89,16 @@ CREATE TABLE `etalase` (
   `nama_etalase` varchar(100) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `etalase`
+--
+
+INSERT INTO `etalase` (`id_etalase`, `id_gerai`, `nama_etalase`, `created_at`) VALUES
+(1, 3, 'Jajanan', '2025-08-24 10:47:52'),
+(2, 3, 'Makanan Berat', '2025-08-24 10:48:01'),
+(3, 3, 'Minuman', '2025-08-24 10:48:41'),
+(4, 3, 'Ayam', '2025-08-24 10:48:46');
 
 -- --------------------------------------------------------
 
@@ -182,10 +189,18 @@ CREATE TABLE `menu` (
   `kategori` enum('makanan','minuman','jajanan') NOT NULL,
   `harga` int(11) NOT NULL,
   `jumlah_stok` int(11) NOT NULL,
-  `tersedia` tinyint(1) DEFAULT 1,
+  `tersedia` tinyint(1) DEFAULT 0,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `menu`
+--
+
+INSERT INTO `menu` (`id_menu`, `id_gerai`, `id_etalase`, `nama_menu`, `gambar_menu`, `deskripsi_menu`, `kategori`, `harga`, `jumlah_stok`, `tersedia`, `created_at`, `updated_at`) VALUES
+(1, 3, 1, 'Ayam Goreng', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756014393/czvrf29tk788ztypuhs3.jpg', 'Ayam goreng bagian dada, nasi, lalapan', 'makanan', 19000, 20, 1, '2025-08-24 12:46:32', '2025-08-24 12:46:32'),
+(2, 3, 1, 'Papeda', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756014531/g4i5fiu0zznt4fyuwteu.jpg', 'papeda is 3', 'jajanan', 10000, 4, 1, '2025-08-24 12:48:50', '2025-08-24 12:48:50');
 
 -- --------------------------------------------------------
 
@@ -198,6 +213,13 @@ CREATE TABLE `menu_addon` (
   `id_menu` int(11) NOT NULL,
   `id_addon` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `menu_addon`
+--
+
+INSERT INTO `menu_addon` (`id_menu_addon`, `id_menu`, `id_addon`) VALUES
+(1, 2, 7);
 
 -- --------------------------------------------------------
 
@@ -472,7 +494,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `addon`
 --
 ALTER TABLE `addon`
-  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `alamat_pengantaran`
@@ -484,7 +506,7 @@ ALTER TABLE `alamat_pengantaran`
 -- AUTO_INCREMENT for table `etalase`
 --
 ALTER TABLE `etalase`
-  MODIFY `id_etalase` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_etalase` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `favorite`
@@ -508,13 +530,13 @@ ALTER TABLE `gerai_profil`
 -- AUTO_INCREMENT for table `menu`
 --
 ALTER TABLE `menu`
-  MODIFY `id_menu` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_menu` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `menu_addon`
 --
 ALTER TABLE `menu_addon`
-  MODIFY `id_menu_addon` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_menu_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
