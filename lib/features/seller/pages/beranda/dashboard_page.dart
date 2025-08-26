@@ -1,3 +1,7 @@
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
@@ -8,8 +12,48 @@ import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/kelola_gerai.dart';
 import 'package:dpr_bites/features/auth/pages/login_page.dart';
 
-class SellerDashboardPage extends StatelessWidget {
+class SellerDashboardPage extends StatefulWidget {
   const SellerDashboardPage({super.key});
+
+  @override
+  State<SellerDashboardPage> createState() => _SellerDashboardPageState();
+}
+
+class _SellerDashboardPageState extends State<SellerDashboardPage> {
+  String? _namaGerai;
+  bool _loadingGerai = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNamaGerai();
+  }
+
+  Future<void> _fetchNamaGerai() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUser = prefs.getString('id_users');
+    print('DEBUG id_users (dashboard): $idUser');
+    if (idUser == null) {
+      setState(() { _namaGerai = '-'; _loadingGerai = false; });
+      return;
+    }
+    final response = await http.post(
+      Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+      body: {'id_users': idUser},
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      print('DEBUG response get_gerai_by_user: $data');
+      if (data['success'] == true && data['nama_gerai'] != null) {
+        setState(() {
+          _namaGerai = data['nama_gerai'] ?? '-';
+          _loadingGerai = false;
+        });
+        return;
+      }
+    }
+    setState(() { _namaGerai = '-'; _loadingGerai = false; });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +63,7 @@ class SellerDashboardPage extends StatelessWidget {
     final sedangDisiapkan = 1;
     final selfPickup = 0;
     final pesananAntar = 1;
-    DateTime? selectedDate;
+    DateTime? selectedDate; // tidak dipakai, dihapus agar tidak error
 
     return GradientBackground(
       child: Scaffold(
@@ -28,16 +72,18 @@ class SellerDashboardPage extends StatelessWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: const Icon(Icons.storefront, color: Color(0xFFD53D3D), size: 24),
-          title: Text(
-            "Waroeng Kenyank 88",
-            style: const TextStyle(
-              color: Color(0xFF602829),
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
+          title: _loadingGerai
+              ? const SizedBox(height: 18, width: 120, child: LinearProgressIndicator())
+              : Text(
+                  _namaGerai ?? '-',
+                  style: const TextStyle(
+                    color: Color(0xFF602829),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
           actions: [
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.black),

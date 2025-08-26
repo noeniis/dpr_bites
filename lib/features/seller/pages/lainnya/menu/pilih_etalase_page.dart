@@ -94,6 +94,53 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
   // kurung tutup berlebih dihapus
   }
 
+  void _deleteEtalase(Map<String, dynamic> etalase) async {
+    final id = etalase['id_etalase']?.toString();
+    if (id == null) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Etalase'),
+        content: Text('Yakin ingin menghapus etalase "${etalase['nama_etalase']}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    setState(() { _loading = true; });
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/delete_etalase.php'),
+        body: {'id_etalase': id},
+      );
+      if (response.statusCode == 200) {
+        final resJson = jsonDecode(response.body);
+        if (resJson['success'] == true) {
+          _selected.remove(etalase['nama_etalase']);
+          await _loadUserAndGeraiAndEtalase();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Etalase berhasil dihapus.')));
+        } else {
+          setState(() { _loading = false; });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal hapus etalase: ${resJson['message'] ?? 'Unknown error'}')),
+          );
+        }
+      } else {
+        setState(() { _loading = false; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal hapus etalase: HTTP ${response.statusCode}')),
+        );
+      }
+    } catch (e) {
+      setState(() { _loading = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal hapus etalase: ${e.toString()}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GradientBackground(
@@ -153,19 +200,30 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
                           : ListView(
                               children: _etalase.map((e) => CustomEmptyCard(
                                 margin: const EdgeInsets.only(bottom: 10),
-                                child: CheckboxListTile(
-                                  value: _selected.contains(e['nama_etalase']),
-                                  title: Text(e['nama_etalase'] ?? '-'),
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      if (val == true) {
-                                        _selected.add(e['nama_etalase']);
-                                      } else {
-                                        _selected.remove(e['nama_etalase']);
-                                      }
-                                    });
-                                  },
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: CheckboxListTile(
+                                        value: _selected.contains(e['nama_etalase']),
+                                        title: Text(e['nama_etalase'] ?? '-'),
+                                        controlAffinity: ListTileControlAffinity.leading,
+                                        onChanged: (val) {
+                                          setState(() {
+                                            if (val == true) {
+                                              _selected.add(e['nama_etalase']);
+                                            } else {
+                                              _selected.remove(e['nama_etalase']);
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      tooltip: 'Hapus etalase',
+                                      onPressed: () => _deleteEtalase(e),
+                                    ),
+                                  ],
                                 ),
                               )).toList(),
                             ),
