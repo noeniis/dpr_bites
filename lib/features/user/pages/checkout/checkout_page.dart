@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_checkout.dart';
-import 'package:dpr_bites/common/data/dummy_address.dart';
+import 'package:dpr_bites/common/data/dummy_checkout.dart'; // tetap dipakai utk icon/location fallback
 import 'package:dpr_bites/common/data/address_store.dart';
 import 'package:dpr_bites/features/user/pages/address/address_page.dart';
-import 'package:dpr_bites/common/data/dummy_carts.dart';
+import 'package:http/http.dart' as http;
 import 'pembayaran_qris_dialog.dart';
 import '../history/history_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
@@ -40,52 +41,230 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return result == true;
   }
 
-  late List<Map<String, dynamic>> items;
-  late int deliveryFee;
-  late String restaurantName;
-  late Map<String, dynamic> location;
-  late Map<String, dynamic> payment;
+  List<Map<String, dynamic>> items = [];
+  int deliveryFee = 0;
+  String restaurantName = '';
+  Map<String, dynamic> location = {};
+  Map<String, dynamic> payment = {};
+  String? qrisPath;
+  double? geraiLat;
+  double? geraiLng;
   bool isDelivery = true;
   int? editingQtyIndex;
   String selectedPayment = 'qris';
-  DummyAddress? selectedAddress;
+  Map<String, dynamic>?
+  selectedAddress; // disamakan ke map agar mudah isi dari API
+  int? selectedAddressId; // id alamat terpilih untuk sinkron ke AddressPage
   late final AddressStore _addressStore;
+  bool _loading = true;
+  String? _error;
+  final int _userId = 1; // TODO: ambil dari auth saat tersedia
+  int _geraiId = 0; // diisi dari arguments
+  List<int> _selectedCartItemIds =
+      []; // dari cart: id_keranjang_item yang dipilih
+  bool _didFetch = false;
+
+  Future<void> _prefetchSelectedItemsDetail(String baseUrl) async {
+    if (_selectedCartItemIds.isEmpty) return; // hanya saat dari cart
+    final futures = <Future>[];
+    for (int i = 0; i < items.length; i++) {
+      final it = items[i];
+      // Jika sudah punya addonOptions dan desc skip
+      final hasAddons =
+          (it['addonOptions'] is List) &&
+          (it['addonOptions'] as List).isNotEmpty;
+      final hasDesc =
+          (it['desc']?.toString().isNotEmpty ?? false) ||
+          (it['description']?.toString().isNotEmpty ?? false);
+      if (hasAddons && hasDesc) continue;
+      final menuId = it['menu_id'] ?? it['id_menu'] ?? it['id'];
+      if (menuId == null) continue;
+      final mid = int.tryParse(menuId.toString());
+      if (mid == null) continue;
+      futures.add(_fetchSingleMenuDetail(baseUrl, mid, i));
+    }
+    if (futures.isEmpty) return;
+    try {
+      await Future.wait(futures);
+      if (mounted) setState(() {}); // refresh UI
+    } catch (_) {}
+  }
+
+  Future<void> _fetchSingleMenuDetail(
+    String baseUrl,
+    int menuId,
+    int index,
+  ) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/dpr_bites_api/get_menu_detail.php?menu_id=$menuId',
+      );
+      final resp = await http.get(uri, headers: {'Accept': 'application/json'});
+      if (resp.statusCode != 200) return;
+      dynamic data;
+      try {
+        var raw = resp.body.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
+        data = jsonDecode(raw);
+      } catch (_) {
+        return;
+      }
+      if (data is Map && data['success'] == true) {
+        final d = data['data'];
+        if (d is Map) {
+          final updated = Map<String, dynamic>.from(items[index]);
+          // desc
+          if (!(updated['desc']?.toString().isNotEmpty ?? false)) {
+            updated['desc'] = d['description'] ?? d['desc'] ?? updated['desc'];
+          }
+          // addonOptions
+          if (!(updated['addonOptions'] is List) ||
+              (updated['addonOptions'] as List).isEmpty) {
+            final opts = d['addons'] ?? d['addonOptions'];
+            if (opts is List) {
+              updated['addonOptions'] = opts;
+            }
+          }
+          items[index] = updated;
+        }
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didFetch) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map && args['geraiId'] != null) {
+        _geraiId = int.tryParse(args['geraiId'].toString()) ?? 0;
+        final rawSel = args['selectedCartItemIds'];
+        if (rawSel is List) {
+          _selectedCartItemIds = rawSel
+              .map((e) => int.tryParse(e.toString()))
+              .whereType<int>()
+              .toList();
+        }
+      }
+      _fetchCheckoutData();
+      _didFetch = true;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    // fallback location & payment dari dummy agar UI tetap konsisten
     final checkout = dummyCheckout;
-    // Ambil 3 menu dari dummy_carts (lintas restoran jika perlu)
-    final List<Map<String, dynamic>> picked = [];
-    final cartsSrc = freshDummyCarts();
-    for (final cart in cartsSrc) {
-      final menus = cart['menus'] as List<dynamic>;
-      for (final m in menus) {
-        if (picked.length < 3) {
-          picked.add(Map<String, dynamic>.from(m as Map));
-        }
-      }
-      if (picked.length >= 3) break;
-    }
-    items = picked;
-    // Judul pakai restoran pertama (fallback ke dummyCheckout bila kosong)
-    restaurantName = (cartsSrc.isNotEmpty
-        ? cartsSrc.first['restaurantName'] as String
-        : checkout['restaurantName'] as String);
-    // Data lain tetap dari dummyCheckout agar alur lain tidak berubah
-    deliveryFee = checkout['deliveryFee'] as int;
     location = Map<String, dynamic>.from(checkout['location'] as Map);
     payment = Map<String, dynamic>.from(checkout['payment'] as Map);
-
-    // Set default delivery address from dummy addresses
     _addressStore = AddressStore.instance;
-    selectedAddress = _addressStore.selected;
     _addressStore.addListener(_onAddressChanged);
+    // Populate selectedAddress awal jika sudah ada
+    _onAddressChanged();
+  }
 
-    // No inline note editors on checkout; editing via modal sheet like Cart
+  Future<void> _fetchCheckoutData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final baseUrl =
+          'http://10.0.2.2'; // ganti dengan IP LAN jika pakai device fisik
+      final uri = Uri.parse(
+        '$baseUrl/dpr_bites_api/get_checkout_data.php?user_id=$_userId&gerai_id=$_geraiId',
+      );
+      debugPrint('[CHECKOUT] Fetching: $uri');
+      final resp = await http.get(uri, headers: {'Accept': 'application/json'});
+      debugPrint('[CHECKOUT] Status: ${resp.statusCode}');
+      debugPrint(
+        '[CHECKOUT] Raw body (first 300 chars): ${resp.body.length > 300 ? resp.body.substring(0, 300) : resp.body}',
+      );
+      if (resp.statusCode == 200) {
+        dynamic data;
+        try {
+          var raw = resp.body;
+          // Bersihkan BOM & spasi tak perlu
+          raw = raw.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
+          data = jsonDecode(raw);
+        } catch (e) {
+          _error = 'Format JSON tidak valid: $e';
+          if (mounted)
+            setState(() {
+              _loading = false;
+            });
+          return;
+        }
+        if (data is Map && data['success'] == true) {
+          final d = data['data'] as Map? ?? {};
+          restaurantName = (d['restaurantName'] ?? '').toString();
+          deliveryFee = (d['deliveryFee'] is num)
+              ? (d['deliveryFee'] as num).toInt()
+              : 0;
+          qrisPath = (d['qrisPath']?.toString().isNotEmpty ?? false)
+              ? d['qrisPath'].toString()
+              : null;
+          if (d['latitude'] != null && d['longitude'] != null) {
+            geraiLat = double.tryParse(d['latitude'].toString());
+            geraiLng = double.tryParse(d['longitude'].toString());
+          }
+          items = ((d['items'] as List?) ?? [])
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          // Jika ada filter selectedCartItemIds, terapkan
+          if (_selectedCartItemIds.isNotEmpty) {
+            items = items.where((m) {
+              final raw = m['id_keranjang_item'] ?? m['cart_item_id'];
+              if (raw == null) return false;
+              final id = int.tryParse(raw.toString());
+              return id != null && _selectedCartItemIds.contains(id);
+            }).toList();
+            // Jika filter menghasilkan kosong (mungkin mismatch field), fallback ke semua
+            if (items.isEmpty) {
+              items = ((d['items'] as List?) ?? [])
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+            }
+            // Prefetch detail agar sama dengan dari restaurant detail
+            await _prefetchSelectedItemsDetail(baseUrl);
+          }
+          final addr = d['address'];
+          if (addr is Map) {
+            selectedAddress = Map<String, dynamic>.from(addr);
+            // Set id alamat jika tersedia
+            final dynamic rawId = addr['id'] ?? addr['address_id'];
+            if (rawId != null) {
+              final parsed = int.tryParse(rawId.toString());
+              if (parsed != null) {
+                selectedAddressId = parsed;
+              }
+            }
+          }
+        } else {
+          _error = data is Map
+              ? (data['message']?.toString() ?? 'Gagal memuat')
+              : 'Format tidak dikenali';
+        }
+      } else {
+        _error = 'HTTP ${resp.statusCode}';
+      }
+    } catch (e) {
+      _error = e.toString();
+    }
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
   }
 
   int get subtotal => items.fold(0, (a, b) {
+    // Jika API sudah hitung subtotal per item (misal field subtotal) gunakan itu
+    if (b['subtotal'] is num) {
+      return a + (b['subtotal'] as num).toInt();
+    }
     final base = (b['price'] is num) ? (b['price'] as num).toInt() : 0;
     final qty = (b['qty'] is num) ? (b['qty'] as num).toInt() : 1;
     final add = _addonTotalFor(b);
@@ -154,6 +333,48 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Future<void> _showEditMenuSheet(int index) async {
     final Map<String, dynamic> menu = items[index];
+    // Pastikan kita punya daftar semua addon (bukan hanya yang terpilih)
+    List addonOptions = (menu['addonOptions'] as List?) ?? [];
+    try {
+      final dynamic menuId = menu['menuId'] ?? menu['menu_id'] ?? menu['id'];
+      if (menuId != null) {
+        final uri = Uri.parse(
+          'http://10.0.2.2/dpr_bites_api/get_menu_detail.php?id=${Uri.encodeQueryComponent(menuId.toString())}',
+        );
+        final resp = await http.get(
+          uri,
+          headers: {'Accept': 'application/json'},
+        );
+        if (resp.statusCode == 200) {
+          final body = jsonDecode(resp.body);
+          if (body is Map && body['success'] == true) {
+            final data = body['data'];
+            if (data is Map && data['addonOptions'] is List) {
+              final fullOpts = (data['addonOptions'] as List)
+                  .whereType<Map>()
+                  .map(
+                    (m) => {
+                      'id': m['id'] ?? m['id_addon'] ?? m['addon_id'],
+                      'label': m['label'] ?? m['nama_addon'] ?? m['name'],
+                      'price': (m['price'] is num)
+                          ? (m['price'] as num).toInt()
+                          : int.tryParse(m['price']?.toString() ?? '0') ?? 0,
+                      'image': m['image'] ?? m['image_path'] ?? m['path'],
+                    },
+                  )
+                  .toList();
+              // Jika server mengembalikan lebih banyak opsi daripada yang ada sekarang, pakai itu
+              if (fullOpts.isNotEmpty) {
+                addonOptions = fullOpts;
+                items[index]['addonOptions'] = fullOpts; // cache
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[CHECKOUT] Gagal fetch addon lengkap: $e');
+    }
     final TextEditingController noteController = TextEditingController(
       text: menu['note'] ?? '',
     );
@@ -163,7 +384,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     } else if (menu['addon'] is List) {
       selectedAddons = List<String>.from(menu['addon'] as List);
     }
-    final List addonOptions = menu['addonOptions'] ?? [];
+    // addonOptions sudah diisi / diupdate di atas
 
     await showModalBottomSheet(
       context: context,
@@ -201,22 +422,42 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         Center(
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.asset(
-                              menu['image'] ?? '',
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, e, s) => Container(
-                                width: 100,
-                                height: 100,
-                                color: Colors.grey.shade200,
-                                child: const Icon(
-                                  Icons.image,
-                                  size: 40,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
+                            child:
+                                (menu['image'] ?? '').toString().startsWith(
+                                  'http',
+                                )
+                                ? Image.network(
+                                    menu['image'],
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c, e, s) => Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(
+                                        Icons.broken_image,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  )
+                                : Image.asset(
+                                    menu['image'] ?? '',
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c, e, s) => Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(
+                                        Icons.image,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -247,21 +488,121 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                           const SizedBox(height: 6),
                           ...addonOptions.map<Widget>((opt) {
-                            return CheckboxListTile(
-                              value: selectedAddons.contains(opt['label']),
-                              title: Text(
-                                '${opt['label']} ${opt['price'] > 0 ? '(+Rp${(opt['price'] as int).toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})' : ''}',
-                              ),
-                              onChanged: (val) {
+                            final label = opt['label'];
+                            final priceInt = (opt['price'] is num)
+                                ? (opt['price'] as num).toInt()
+                                : 0;
+                            final priceStr = priceInt > 0
+                                ? '(+Rp${priceInt.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})'
+                                : '';
+                            return InkWell(
+                              onTap: () {
                                 setStateDialog(() {
-                                  if (val == true) {
-                                    selectedAddons.add(opt['label']);
+                                  if (selectedAddons.contains(label)) {
+                                    selectedAddons.remove(label);
                                   } else {
-                                    selectedAddons.remove(opt['label']);
+                                    selectedAddons.add(label);
                                   }
                                 });
                               },
-                              controlAffinity: ListTileControlAffinity.leading,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Checkbox(
+                                      value: selectedAddons.contains(label),
+                                      activeColor: const Color(0xFFD53D3D),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      onChanged: (_) {
+                                        setStateDialog(() {
+                                          if (selectedAddons.contains(label)) {
+                                            selectedAddons.remove(label);
+                                          } else {
+                                            selectedAddons.add(label);
+                                          }
+                                        });
+                                      },
+                                    ),
+                                    // Gambar addon jika ada
+                                    if ((opt['image'] ?? '')
+                                        .toString()
+                                        .isNotEmpty)
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child:
+                                            (opt['image'] as String).startsWith(
+                                              'http',
+                                            )
+                                            ? Image.network(
+                                                opt['image'],
+                                                width: 42,
+                                                height: 42,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (c, e, s) =>
+                                                    Container(
+                                                      width: 42,
+                                                      height: 42,
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                      child: const Icon(
+                                                        Icons.broken_image,
+                                                        size: 20,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                              )
+                                            : Image.asset(
+                                                opt['image'] ?? '',
+                                                width: 42,
+                                                height: 42,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (c, e, s) =>
+                                                    Container(
+                                                      width: 42,
+                                                      height: 42,
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                      child: const Icon(
+                                                        Icons.image,
+                                                        size: 20,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                              ),
+                                      )
+                                    else
+                                      Container(
+                                        width: 42,
+                                        height: 42,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.extension,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        '$label $priceStr',
+                                        style: const TextStyle(fontSize: 14),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             );
                           }).toList(),
                           const SizedBox(height: 12),
@@ -308,11 +649,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           width: double.infinity,
                           child: CustomButtonKotak(
                             text: 'Simpan',
-                            onPressed: () {
+                            onPressed: () async {
                               int totalAddonPrice = 0;
+                              final chosenIds = <int>[];
                               for (var opt in addonOptions) {
                                 if (selectedAddons.contains(opt['label'])) {
-                                  totalAddonPrice += opt['price'] as int;
+                                  final priceVal = (opt['price'] is num)
+                                      ? (opt['price'] as num).toInt()
+                                      : 0;
+                                  totalAddonPrice += priceVal;
+                                  if (opt['id'] != null) {
+                                    final idParsed = int.tryParse(
+                                      opt['id'].toString(),
+                                    );
+                                    if (idParsed != null)
+                                      chosenIds.add(idParsed);
+                                  }
                                 }
                               }
                               setState(() {
@@ -320,7 +672,35 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 items[index]['addon'] = selectedAddons;
                                 items[index]['addonPrice'] = totalAddonPrice;
                               });
-                              Navigator.of(context).pop();
+                              // Sinkron ke server (add_or_update_cart_item.php)
+                              try {
+                                final payload = jsonEncode({
+                                  'user_id': _userId,
+                                  'gerai_id': _geraiId,
+                                  'menu_id':
+                                      menu['menuId'] ??
+                                      menu['menu_id'] ??
+                                      menu['id'] ??
+                                      items[index]['menuId'],
+                                  'qty':
+                                      menu['qty'] ?? items[index]['qty'] ?? 1,
+                                  'addons': chosenIds,
+                                  'note': noteController.text,
+                                });
+                                await http.post(
+                                  Uri.parse(
+                                    'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
+                                  ),
+                                  headers: {
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: payload,
+                                );
+                              } catch (e) {
+                                debugPrint('[CHECKOUT] sync edit failed: $e');
+                              }
+                              if (mounted) Navigator.of(context).pop();
                             },
                           ),
                         ),
@@ -336,8 +716,57 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
+  Widget _buildImage(String path) {
+    if (path.startsWith('http')) {
+      return Image.network(
+        path,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        errorBuilder: (c, e, s) => Container(
+          width: 60,
+          height: 60,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    }
+    return Image.asset(
+      path,
+      width: 60,
+      height: 60,
+      fit: BoxFit.cover,
+      errorBuilder: (c, e, s) => Container(
+        width: 60,
+        height: 60,
+        color: Colors.grey.shade200,
+        child: const Icon(Icons.image, color: Colors.grey),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Gagal memuat checkout: $_error'),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _fetchCheckoutData,
+                child: const Text('Coba lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     // Untuk close qty editor jika tap di luar
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -401,12 +830,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: Image.asset(
-                                      item['image'],
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                    ),
+                                    child: _buildImage(item['image'] ?? ''),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -726,11 +1150,68 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const AddressPage(popOnPick: true),
+                      builder: (_) => AddressPage(
+                        popOnPick: true,
+                        selectedAddressId: selectedAddressId,
+                      ),
                     ),
                   );
-                  if (result is DummyAddress) {
-                    _addressStore.select(result);
+                  // Jika AddressPage mengembalikan ApiAddress (alamat yang dipilih), set langsung
+                  if (result != null) {
+                    // Hindari tipe langsung agar tidak perlu import model khusus
+                    final mapCandidate = <String, dynamic>{};
+                    try {
+                      // Gunakan refleksi sederhana via toString fallback jika object
+                      // Cek properti umum dengan operator [] jika possible
+                      // Jika result sudah Map langsung pakai
+                      if (result is Map) {
+                        mapCandidate.addAll(
+                          result.map((k, v) => MapEntry(k.toString(), v)),
+                        );
+                        final rid = result['id'] ?? result['address_id'];
+                        if (rid != null) {
+                          final parsed = int.tryParse(rid.toString());
+                          if (parsed != null) selectedAddressId = parsed;
+                        }
+                      } else {
+                        // Fallback: coba akses via getter standar
+                        final dynamic r = result;
+                        mapCandidate['nama_penerima'] = r.namaPenerima;
+                        mapCandidate['nama_gedung'] = r.namaGedung;
+                        mapCandidate['detail_pengantaran'] =
+                            r.detailPengantaran;
+                        mapCandidate['no_hp'] = r.noHp;
+                        try {
+                          final dynamic rid = r.id;
+                          if (rid != null) {
+                            final parsed = int.tryParse(rid.toString());
+                            if (parsed != null) selectedAddressId = parsed;
+                          }
+                        } catch (_) {}
+                      }
+                    } catch (_) {}
+                    if (mapCandidate.isNotEmpty) {
+                      setState(() {
+                        selectedAddress = {
+                          'nama_penerima':
+                              mapCandidate['nama_penerima'] ??
+                              mapCandidate['namaPenerima'] ??
+                              '',
+                          'nama_gedung':
+                              mapCandidate['nama_gedung'] ??
+                              mapCandidate['namaGedung'] ??
+                              '',
+                          'detail_pengantaran':
+                              mapCandidate['detail_pengantaran'] ??
+                              mapCandidate['detailPengantaran'] ??
+                              '',
+                          'no_hp':
+                              mapCandidate['no_hp'] ??
+                              mapCandidate['noHp'] ??
+                              '',
+                        };
+                      });
+                    }
                   }
                 },
                 borderRadius: BorderRadius.circular(14),
@@ -777,7 +1258,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    selectedAddress!.namaGedung,
+                                    (selectedAddress!['nama_gedung'] ??
+                                            selectedAddress!['namaGedung'] ??
+                                            '')
+                                        .toString(),
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
@@ -786,7 +1270,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${selectedAddress!.namaPenerima} - ${selectedAddress!.noHp}',
+                                    '${selectedAddress!['nama_penerima'] ?? selectedAddress!['namaPenerima']} - ${selectedAddress!['no_hp'] ?? selectedAddress!['noHp']}',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       color: Colors.black87,
@@ -795,7 +1279,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    selectedAddress!.detailPengantaran,
+                                    (selectedAddress!['detail_pengantaran'] ??
+                                            selectedAddress!['detailPengantaran'] ??
+                                            '')
+                                        .toString(),
                                     style: const TextStyle(
                                       fontSize: 13,
                                       color: Colors.grey,
@@ -1009,6 +1496,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               return false;
                             },
                             child: PembayaranQrisDialog(
+                              qrisImageUrl: qrisPath,
                               onKonfirmasi: () {
                                 Navigator.of(ctx).pop();
                                 Navigator.of(context).push(
@@ -1172,6 +1660,36 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                         },
                                         child: const Text('Batal'),
                                       ),
+                                      if (geraiLat != null && geraiLng != null)
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF4CAF50,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                          ),
+                                          onPressed: () async {
+                                            final url = Uri.parse(
+                                              'https://www.google.com/maps/search/?api=1&query=$geraiLat,$geraiLng',
+                                            );
+                                            try {
+                                              await launchUrl(
+                                                url,
+                                                mode: LaunchMode
+                                                    .externalApplication,
+                                              );
+                                            } catch (e) {
+                                              debugPrint(
+                                                '[CHECKOUT] gagal buka maps: $e',
+                                              );
+                                            }
+                                          },
+                                          child: const Text('Buka Maps'),
+                                        ),
                                       ElevatedButton(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: const Color(
@@ -1228,8 +1746,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   void _onAddressChanged() {
     if (!mounted) return;
+    final a = _addressStore.selected;
     setState(() {
-      selectedAddress = _addressStore.selected;
+      selectedAddress = {
+        'nama_penerima': a.namaPenerima,
+        'nama_gedung': a.namaGedung,
+        'detail_pengantaran': a.detailPengantaran,
+        'no_hp': a.noHp,
+      };
     });
   }
 
