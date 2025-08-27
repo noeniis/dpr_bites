@@ -7,10 +7,12 @@ import 'dart:io';
 class PembayaranQrisDialog extends StatefulWidget {
   final VoidCallback onKonfirmasi;
   final VoidCallback onBatal;
+  final String? qrisImageUrl; // URL atau path QRIS spesifik gerai
   const PembayaranQrisDialog({
     Key? key,
     required this.onKonfirmasi,
     required this.onBatal,
+    this.qrisImageUrl,
   }) : super(key: key);
 
   @override
@@ -81,12 +83,7 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'lib/assets/images/iconQR.png',
-                width: 180,
-                height: 180,
-                fit: BoxFit.cover,
-              ),
+              child: _buildQrisImage(widget.qrisImageUrl),
             ),
             const SizedBox(height: 18),
             // Input bukti pembayaran
@@ -149,4 +146,35 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
       ),
     );
   }
+}
+
+Widget _buildQrisFallback() => Image.asset(
+  'lib/assets/images/iconQR.png',
+  width: 180,
+  height: 180,
+  fit: BoxFit.cover,
+);
+
+Widget _buildQrisImage(String? url) {
+  if (url == null || url.isEmpty) return _buildQrisFallback();
+  // Jika bukan absolut, coba treat sebagai relatif ke folder API (uploads)
+  if (!url.startsWith('http')) {
+    final cleaned = url.startsWith('/') ? url.substring(1) : url;
+    final base = 'http://10.0.2.2/dpr_bites_api';
+    final full = '$base/$cleaned';
+    return Image.network(
+      full,
+      width: 180,
+      height: 180,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _buildQrisFallback(),
+    );
+  }
+  return Image.network(
+    url,
+    width: 180,
+    height: 180,
+    fit: BoxFit.cover,
+    errorBuilder: (_, __, ___) => _buildQrisFallback(),
+  );
 }

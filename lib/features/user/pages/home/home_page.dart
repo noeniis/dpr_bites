@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import '../../../../common/data/dummy_restaurants.dart';
+// import '../../../../common/data/dummy_restaurants.dart'; // replaced by real API data
 import '../../../../common/data/dummy_address.dart';
 import '../../../../common/data/address_store.dart';
 import 'package:http/http.dart' as http;
@@ -22,12 +22,17 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with RouteAware {
   String? searchQuery;
   String? selectedRating;
   String? selectedPrice;
   String? selectedCategory;
   final searchController = TextEditingController();
+
+  // Data restoran dari API
+  List<Map<String, dynamic>> _restaurants = [];
+  bool _loadingRestaurants = true;
+  bool _errorRestaurants = false;
 
   String _buildingName = '';
   String _detailPengantaran = '';
@@ -37,6 +42,43 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _fetchUserAddress();
+    _fetchRestaurants();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Daftarkan route observer jika tersedia
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      _routeObserverSubscribe(route);
+    }
+  }
+
+  void _routeObserverSubscribe(PageRoute<dynamic> route) {
+    // Cari RouteObserver di Navigator (global observer bisa dibuat di main)
+    // Jika belum ada global, kita skip tanpa error.
+    final navigator = route.navigator;
+    if (navigator != null) {
+      // Tidak ada referensi langsung ke observer global sekarang, jadi manual call not possible.
+      // Alternatif: gunakan addPostFrameCallback untuk clear ketika muncul kembali (fallback simple).
+    }
+  }
+
+  @override
+  void didPopNext() {
+    // Dipanggil saat kembali ke halaman ini dari halaman lain
+    if (mounted) {
+      setState(() {
+        searchController.clear();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserAddress() async {
@@ -79,10 +121,75 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Dummy: filter function
+  Future<void> _fetchRestaurants({
+    double? minRating,
+    String? priceLabel,
+  }) async {
+    setState(() {
+      _loadingRestaurants = true;
+      _errorRestaurants = false;
+    });
+    try {
+      late final Uri url;
+      if (priceLabel != null) {
+        final encoded = Uri.encodeQueryComponent(priceLabel);
+        url = Uri.parse(
+          'http://10.0.2.2/dpr_bites_api/get_restaurants_by_price.php?price=$encoded',
+        );
+      } else if (minRating != null) {
+        url = Uri.parse(
+          'http://10.0.2.2/dpr_bites_api/get_restaurants_by_rating.php?min_rating=${minRating.toString()}',
+        );
+      } else {
+        url = Uri.parse('http://10.0.2.2/dpr_bites_api/get_restaurants.php');
+      }
+      final res = await http.get(url, headers: {'Accept': 'application/json'});
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['success'] == true) {
+          final List data = body['data'] as List? ?? [];
+          _restaurants = data
+              .map<Map<String, dynamic>>(
+                (e) => Map<String, dynamic>.from(e as Map),
+              )
+              .toList();
+        } else {
+          _errorRestaurants = true;
+        }
+      } else {
+        _errorRestaurants = true;
+      }
+    } catch (_) {
+      _errorRestaurants = true;
+    }
+    if (!mounted) return;
+    setState(() {
+      _loadingRestaurants = false;
+    });
+  }
+
+  String _formatRupiah(dynamic value) {
+    if (value == null) return '-';
+    int? v;
+    if (value is int)
+      v = value;
+    else if (value is String)
+      v = int.tryParse(value);
+    if (v == null) return '-';
+    final s = v.toString();
+    final buf = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      final pos = s.length - i;
+      buf.write(s[i]);
+      if (pos > 1 && pos % 3 == 1) buf.write('.');
+    }
+    return 'Rp${buf.toString()}';
+  }
+
+  // Filter function (menggunakan data dari API)
   List<Map<String, dynamic>> get filteredRestaurants {
     List<Map<String, dynamic>> restos = List<Map<String, dynamic>>.from(
-      dummyRestaurants,
+      _restaurants,
     );
 
     // Filter rating
@@ -142,18 +249,15 @@ class _HomePageState extends State<HomePage> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(
-            90,
-          ), // Ubah tinggi AppBar di sini
+          preferredSize: const Size.fromHeight(90),
           child: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
             automaticallyImplyLeading: false,
-            toolbarHeight: 90, // Pastikan tinggi toolbar juga diubah
+            toolbarHeight: 90,
             title: AnimatedBuilder(
               animation: store,
               builder: (context, _) {
-                final current = store.selected;
                 return GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () async {
@@ -164,7 +268,6 @@ class _HomePageState extends State<HomePage> {
                     if (result is DummyAddress) {
                       store.select(result);
                     }
-                    // Refresh address after returning
                     _fetchUserAddress();
                   },
                   child: Padding(
@@ -283,13 +386,20 @@ class _HomePageState extends State<HomePage> {
                           onSubmitted: (val) {
                             print("onSubmitted: $val");
                             if (val.trim().isEmpty) return;
+                            final query = val.trim();
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    SearchPage(initialQuery: val.trim()),
+                                builder: (_) => SearchPage(initialQuery: query),
                               ),
-                            );
+                            ).then((_) {
+                              // Clear setelah kembali
+                              if (mounted) {
+                                setState(() {
+                                  searchController.clear();
+                                });
+                              }
+                            });
                           },
                         ),
                       ),
@@ -300,18 +410,23 @@ class _HomePageState extends State<HomePage> {
                   // Filter chips
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
                         CustomFilterChip(
                           label: "Bintang 4.5+",
                           selected: selectedRating != null,
                           onTap: () {
+                            final willSelect = selectedRating == null;
                             setState(() {
-                              selectedRating = selectedRating == null
-                                  ? '4.5'
-                                  : null;
+                              selectedRating = willSelect ? '4.5' : null;
                             });
+                            // Fetch dari API rating jika diaktifkan, jika tidak ambil semua
+                            if (willSelect) {
+                              _fetchRestaurants(minRating: 4.5);
+                            } else {
+                              _fetchRestaurants();
+                            }
                           },
                         ),
                         const SizedBox(width: 10),
@@ -319,7 +434,6 @@ class _HomePageState extends State<HomePage> {
                           label: "Rentang harga",
                           selected: selectedPrice != null,
                           onTap: () async {
-                            // Modal filter harga
                             final result = await showModalBottomSheet<String>(
                               context: context,
                               shape: const RoundedRectangleBorder(
@@ -333,6 +447,16 @@ class _HomePageState extends State<HomePage> {
                             setState(() {
                               selectedPrice = result;
                             });
+                            if (result != null) {
+                              _fetchRestaurants(priceLabel: result);
+                            } else {
+                              // reset list (pertahankan rating jika aktif)
+                              if (selectedRating != null) {
+                                _fetchRestaurants(minRating: 4.5);
+                              } else {
+                                _fetchRestaurants();
+                              }
+                            }
                           },
                         ),
                         const SizedBox(width: 10),
@@ -365,109 +489,151 @@ class _HomePageState extends State<HomePage> {
 
                   // List restoran (scroll)
                   Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.only(bottom: 25),
-                      itemCount: filteredRestaurants.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, idx) {
-                        final resto = filteredRestaurants[idx];
-                        return InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RestaurantDetailPage(
-                                  restaurantId: resto['id'],
-                                ),
-                              ),
-                            );
-                          },
-                          child: CustomEmptyCard(
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.asset(
-                                      resto['profilePic'],
-                                      width: 75,
-                                      height: 75,
-                                      fit: BoxFit.cover,
+                    child: _loadingRestaurants
+                        ? const Center(child: CircularProgressIndicator())
+                        : _errorRestaurants
+                        ? Center(
+                            child: TextButton(
+                              onPressed: _fetchRestaurants,
+                              child: const Text('Gagal memuat. Coba lagi'),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.only(bottom: 25),
+                            itemCount: filteredRestaurants.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, idx) {
+                              final resto = filteredRestaurants[idx];
+                              return InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RestaurantDetailPage(
+                                        restaurantId: resto['id'].toString(),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
+                                  );
+                                },
+                                child: CustomEmptyCard(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Row(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          resto['name'],
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
+                                          child:
+                                              (resto['profilePic'] != null &&
+                                                  (resto['profilePic']
+                                                          as String)
+                                                      .isNotEmpty)
+                                              ? Image.network(
+                                                  resto['profilePic'],
+                                                  width: 75,
+                                                  height: 75,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) =>
+                                                      Container(
+                                                        width: 75,
+                                                        height: 75,
+                                                        color: Colors.black12,
+                                                        child: const Icon(
+                                                          Icons.store,
+                                                          color: Colors.black38,
+                                                        ),
+                                                      ),
+                                                )
+                                              : Container(
+                                                  width: 75,
+                                                  height: 75,
+                                                  color: Colors.black12,
+                                                  child: const Icon(
+                                                    Icons.store,
+                                                    color: Colors.black38,
+                                                  ),
+                                                ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.star,
-                                              color: Colors.amber,
-                                              size: 18,
-                                            ),
-                                            const SizedBox(width: 2),
-                                            Text(
-                                              "${resto['rating']}",
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                (resto['name'] ?? '')
+                                                    .toString(),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 2),
-                                            Text(
-                                              "(${resto['ratingCount']})",
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.black54,
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.star,
+                                                    color: Colors.amber,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    "${resto['rating']}",
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    "(${resto['ratingCount']})",
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.black54,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  const Icon(
+                                                    Icons.monetization_on,
+                                                    color: Colors.grey,
+                                                    size: 16,
+                                                  ),
+                                                  if (resto['minPrice'] !=
+                                                          null &&
+                                                      resto['maxPrice'] != null)
+                                                    Text(
+                                                      "${_formatRupiah(resto['minPrice'])} – ${_formatRupiah(resto['maxPrice'])}",
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                              Icons.monetization_on,
-                                              color: Colors.grey,
-                                              size: 16,
-                                            ),
-                                            // Dummy range harga, nanti bisa dari menu
-                                            Text(
-                                              "Rp15.000 – Rp25.000",
-                                              style: const TextStyle(
-                                                fontSize: 13,
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                (resto['desc'] ?? '')
+                                                    .toString(),
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.black87,
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          resto['desc'] ?? '',
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.black87,
+                                            ],
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),

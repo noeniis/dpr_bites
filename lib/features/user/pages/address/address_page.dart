@@ -42,7 +42,12 @@ class ApiAddress {
 
 class AddressPage extends StatefulWidget {
   final bool popOnPick; // if true, pop with result on pick (used by Checkout)
-  const AddressPage({super.key, this.popOnPick = false});
+  final int? selectedAddressId; // id alamat yang sudah terpilih (dari Checkout)
+  const AddressPage({
+    super.key,
+    this.popOnPick = false,
+    this.selectedAddressId,
+  });
 
   @override
   State<AddressPage> createState() => _AddressPageState();
@@ -122,10 +127,28 @@ class _AddressPageState extends State<AddressPage> {
             .toList();
         setState(() {
           _addresses = fetched;
-          _selected = _addresses
-              .where((a) => a.isDefault)
-              .cast<ApiAddress?>()
-              .firstOrNull;
+          // Prioritas: selectedAddressId -> default -> none
+          if (widget.selectedAddressId != null) {
+            _selected = _addresses.firstWhere(
+              (a) => a.id == widget.selectedAddressId,
+              orElse: () => _addresses.firstWhere(
+                (a) => a.isDefault,
+                orElse: () => _addresses.isNotEmpty
+                    ? _addresses.first
+                    : ApiAddress(
+                        namaPenerima: '',
+                        namaGedung: '',
+                        detailPengantaran: '',
+                        noHp: '',
+                      ),
+              ),
+            );
+          } else {
+            _selected = _addresses
+                .where((a) => a.isDefault)
+                .cast<ApiAddress?>()
+                .firstOrNull;
+          }
           _sortWithSelectedFirst();
         });
       } else {
