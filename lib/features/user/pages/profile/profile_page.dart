@@ -77,7 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
         'https://api.cloudinary.com/v1_1/dip8i3f6x/image/upload',
       );
       final req = http.MultipartRequest('POST', uri)
-  ..fields['upload_preset'] = 'dpr_bites'
+        ..fields['upload_preset'] = 'dpr_bites'
         ..files.add(await http.MultipartFile.fromPath('file', file.path));
       final res = await req.send();
       final body = await res.stream.bytesToString();
