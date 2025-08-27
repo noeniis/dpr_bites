@@ -7,7 +7,17 @@ import 'dart:convert';
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
   final int initialQty;
-  const MenuDetailPage({super.key, required this.menu, this.initialQty = 0});
+  // Daftar ID addon yang sudah dipilih (saat edit)
+  final List<int>? initialAddonIds;
+  // Catatan awal (saat edit)
+  final String? initialNote;
+  const MenuDetailPage({
+    super.key,
+    required this.menu,
+    this.initialQty = 0,
+    this.initialAddonIds,
+    this.initialNote,
+  });
 
   @override
   State<MenuDetailPage> createState() => _MenuDetailPageState();
@@ -33,7 +43,34 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
     super.initState();
     qty = widget.initialQty > 0 ? widget.initialQty : 1;
     _menuData = Map<String, dynamic>.from(widget.menu);
-    // If menu has an id, attempt to fetch latest detail (addons etc.)
+
+    // 1. Isi selectedAddons dari parameter jika ada
+    if (widget.initialAddonIds != null) {
+      selectedAddons = List<int>.from(widget.initialAddonIds!);
+    } else {
+      // 2. Atau coba ambil dari map menu jika field-field standar tersedia
+      //    Mencari key umum: selectedAddons, addonIds, addons
+      final dynamic raw =
+          widget.menu['selectedAddons'] ??
+          widget.menu['addonIds'] ??
+          widget.menu['addons'];
+      if (raw is List) {
+        selectedAddons = raw
+            .where((e) => e != null)
+            .map((e) => int.tryParse(e.toString()))
+            .whereType<int>()
+            .toList();
+      }
+    }
+
+    // 3. Catatan awal
+    if (widget.initialNote != null && widget.initialNote!.isNotEmpty) {
+      noteController.text = widget.initialNote!;
+    } else if (widget.menu['note'] is String) {
+      noteController.text = widget.menu['note'];
+    }
+
+    // 4. Fetch detail terbaru (mungkin memuat addonOptions) lalu filter selectedAddons agar valid
     final id = widget.menu['id'];
     if (id != null) {
       _fetchMenuDetail(id.toString());
@@ -101,7 +138,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
     });
     try {
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail.php?id=' +
+        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
             Uri.encodeQueryComponent(id),
       );
       final res = await http.get(uri, headers: {'Accept': 'application/json'});

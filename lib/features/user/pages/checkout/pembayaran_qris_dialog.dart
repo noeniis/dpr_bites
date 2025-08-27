@@ -5,8 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 class PembayaranQrisDialog extends StatefulWidget {
-  final VoidCallback onKonfirmasi;
-  final VoidCallback onBatal;
+  final void Function(XFile bukti) onKonfirmasi; // return bukti ke parent
+  final VoidCallback onBatal; // hanya tutup dialog
   final String? qrisImageUrl; // URL atau path QRIS spesifik gerai
   const PembayaranQrisDialog({
     Key? key,
@@ -23,21 +23,7 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
   XFile? _buktiPembayaran;
   bool _isLoading = false;
 
-  Future<void> _showMissingProofDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Informasi'),
-        content: const Text('bukti pembayaran belum di upload'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  bool get _canConfirm => _buktiPembayaran != null && !_isLoading;
 
   Future<void> _pickImage() async {
     setState(() {
@@ -67,8 +53,11 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.black87),
-                  onPressed: widget.onBatal,
-                  tooltip: 'Batal',
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onBatal();
+                  },
+                  tooltip: 'Tutup',
                 ),
               ],
             ),
@@ -130,16 +119,18 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
               ),
             ),
             const SizedBox(height: 24),
-            CustomButtonOval(
-              text: 'Konfirmasi',
-              onPressed: () async {
-                if (_buktiPembayaran == null) {
-                  await _showMissingProofDialog();
-                  return;
-                }
-                Navigator.of(context).pop();
-                widget.onKonfirmasi();
-              },
+            Opacity(
+              opacity: _canConfirm ? 1 : 0.55,
+              child: CustomButtonOval(
+                text: 'Konfirmasi',
+                onPressed: _canConfirm
+                    ? () {
+                        final bukti = _buktiPembayaran!;
+                        Navigator.of(context).pop();
+                        widget.onKonfirmasi(bukti);
+                      }
+                    : null,
+              ),
             ),
           ],
         ),

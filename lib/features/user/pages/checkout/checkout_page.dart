@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_checkout.dart'; // tetap dipakai utk icon/location fallback
@@ -9,6 +7,7 @@ import 'package:dpr_bites/features/user/pages/address/address_page.dart';
 import 'package:http/http.dart' as http;
 import 'pembayaran_qris_dialog.dart';
 import '../history/history_page.dart';
+import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 
@@ -58,11 +57,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
   late final AddressStore _addressStore;
   bool _loading = true;
   String? _error;
+  bool _noSelectionMatch =
+      false; // jika ID terpilih tidak ditemukan di data API
+  bool _retryAfterMismatch = false; // retry sekali bila pertama kosong
+  List<int> _missingSelectedIds = []; // id yang dipilih tapi tidak muncul
   final int _userId = 1; // TODO: ambil dari auth saat tersedia
   int _geraiId = 0; // diisi dari arguments
   List<int> _selectedCartItemIds =
       []; // dari cart: id_keranjang_item yang dipilih
   bool _didFetch = false;
+  bool _cartDirty = false; // tandai jika ada perubahan utk refresh cart
 
   Future<void> _prefetchSelectedItemsDetail(String baseUrl) async {
     if (_selectedCartItemIds.isEmpty) return; // hanya saat dari cart
@@ -97,7 +101,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   ) async {
     try {
       final uri = Uri.parse(
-        '$baseUrl/dpr_bites_api/get_menu_detail.php?menu_id=$menuId',
+        '$baseUrl/dpr_bites_api/get_menu_detail_user.php?id=$menuId',
       );
       final resp = await http.get(uri, headers: {'Accept': 'application/json'});
       if (resp.statusCode != 200) return;
@@ -145,6 +149,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
               .toList();
         }
       }
+      debugPrint('[CHECKOUT] init geraiId=$_geraiId sel=$_selectedCartItemIds');
       _fetchCheckoutData();
       _didFetch = true;
     }
@@ -167,6 +172,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _noSelectionMatch = false;
     });
     try {
       final baseUrl =
@@ -208,27 +214,80 @@ class _CheckoutPageState extends State<CheckoutPage> {
             geraiLat = double.tryParse(d['latitude'].toString());
             geraiLng = double.tryParse(d['longitude'].toString());
           }
-          items = ((d['items'] as List?) ?? [])
+          final allItems = ((d['items'] as List?) ?? [])
               .whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
               .toList();
-          // Jika ada filter selectedCartItemIds, terapkan
+          if (allItems.isNotEmpty) {
+            try {
+              debugPrint(
+                '[CHECKOUT] allItems count=${allItems.length}; first keys=${allItems.first.keys.join(',')}',
+              );
+            } catch (_) {}
+          } else {
+            debugPrint('[CHECKOUT] allItems empty from API');
+          }
           if (_selectedCartItemIds.isNotEmpty) {
-            items = items.where((m) {
-              final raw = m['id_keranjang_item'] ?? m['cart_item_id'];
-              if (raw == null) return false;
-              final id = int.tryParse(raw.toString());
-              return id != null && _selectedCartItemIds.contains(id);
-            }).toList();
-            // Jika filter menghasilkan kosong (mungkin mismatch field), fallback ke semua
-            if (items.isEmpty) {
-              items = ((d['items'] as List?) ?? [])
-                  .whereType<Map>()
-                  .map((e) => Map<String, dynamic>.from(e))
-                  .toList();
+            // Tambahkan variasi key id item dari API (camelCase, snake_case, dll)
+            const possibleIdKeys = [
+              'id_keranjang_item',
+              'cart_item_id',
+              'keranjang_item_id',
+              'id_item',
+              'cartItemId', // key yang muncul di response API sekarang
+              'cartItemID',
+              'cartItem_id',
+            ];
+            final allFoundIds = <int>{};
+            for (final m in allItems) {
+              for (final k in possibleIdKeys) {
+                if (m[k] != null) {
+                  final id = int.tryParse(m[k].toString());
+                  if (id != null) allFoundIds.add(id);
+                }
+              }
             }
-            // Prefetch detail agar sama dengan dari restaurant detail
-            await _prefetchSelectedItemsDetail(baseUrl);
+            debugPrint(
+              '[CHECKOUT] API ids=$allFoundIds selected=$_selectedCartItemIds',
+            );
+            items = allItems.where((m) {
+              for (final k in possibleIdKeys) {
+                if (m[k] != null) {
+                  final id = int.tryParse(m[k].toString());
+                  if (id != null && _selectedCartItemIds.contains(id)) {
+                    m['id_keranjang_item'] = id; // normalize
+                    return true;
+                  }
+                }
+              }
+              return false;
+            }).toList();
+            if (items.isEmpty) {
+              if (!_retryAfterMismatch) {
+                _retryAfterMismatch = true;
+                debugPrint('[CHECKOUT] No match, retry in 400ms');
+                Future.delayed(const Duration(milliseconds: 400), () {
+                  if (mounted) _fetchCheckoutData();
+                });
+              } else {
+                _noSelectionMatch = true;
+              }
+            } else {
+              final foundIds = items
+                  .map((e) => e['id_keranjang_item'] as int)
+                  .toSet();
+              _missingSelectedIds = _selectedCartItemIds
+                  .where((id) => !foundIds.contains(id))
+                  .toList();
+              if (_missingSelectedIds.isNotEmpty) {
+                debugPrint(
+                  '[CHECKOUT] Partial missing ids: $_missingSelectedIds',
+                );
+              }
+              await _prefetchSelectedItemsDetail(baseUrl);
+            }
+          } else {
+            items = allItems; // fallback mode: no explicit selection passed
           }
           final addr = d['address'];
           if (addr is Map) {
@@ -272,74 +331,332 @@ class _CheckoutPageState extends State<CheckoutPage> {
   });
 
   int _addonTotalFor(Map<String, dynamic> item) {
+    // Hanya untuk menampilkan breakdown harga addon; backend sudah include addon dalam harga_satuan & subtotal.
     try {
-      final List addons = (item['addon'] as List?) ?? const [];
-      if (addons.isEmpty) {
-        return (item['addonPrice'] is num)
-            ? (item['addonPrice'] as num).toInt()
-            : 0;
-      }
       final List<Map<String, dynamic>> options =
           ((item['addonOptions'] as List?) ?? const [])
               .map((e) => Map<String, dynamic>.from(e as Map))
               .toList();
+      final List labels = (item['addon'] as List?) ?? const [];
       int sum = 0;
-      for (final a in addons) {
+      for (final lab in labels) {
         final opt = options.firstWhere(
-          (o) => o['label'] == a,
+          (o) => o['label'] == lab,
           orElse: () => const {},
         );
         final p = (opt['price'] is num) ? (opt['price'] as num).toInt() : 0;
         sum += p;
       }
-      if (sum == 0) {
-        return (item['addonPrice'] is num)
-            ? (item['addonPrice'] as num).toInt()
-            : 0;
-      }
       return sum;
     } catch (_) {
-      return (item['addonPrice'] is num)
-          ? (item['addonPrice'] as num).toInt()
-          : 0;
+      return 0;
     }
   }
 
-  Future<void> _showDeleteDialog(int i) async {
-    final itemName = items[i]['name'] ?? 'menu ini';
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Menu'),
-        content: Text('Apakah anda ingin menghapus $itemName dari pesanan?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
-    );
-    if (result == true) {
-      Navigator.of(context).pop();
+  Future<void> _syncItemQtyToServer(Map<String, dynamic> item) async {
+    if (item['__busy'] == true) return; // debounce
+    item['__busy'] = true;
+    if (mounted) setState(() {});
+    try {
+      final userId = _userId;
+      final geraiId = _geraiId;
+      final menuId =
+          item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
+      final qty = item['qty'];
+      if (menuId == null || qty == null) return;
+      // Pastikan kita tidak mengirim addons kosong yang akan menghapus addon di server.
+      // Prefer gunakan field 'addonIds' (list int). Jika belum ada, turunkan dari label 'addon' menggunakan 'addonOptions'.
+      List<int> derivedAddonIds = [];
+      if (item['addonIds'] is List) {
+        derivedAddonIds = (item['addonIds'] as List)
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((e) => e > 0)
+            .toList();
+      } else {
+        // Turunkan dari label => id di addonOptions
+        final labels =
+            (item['addon'] as List?)?.map((e) => e.toString()).toList() ??
+            const [];
+        if (labels.isNotEmpty) {
+          final opts = (item['addonOptions'] as List?) ?? const [];
+          for (final lab in labels) {
+            try {
+              final opt = opts.firstWhere(
+                (o) => (o is Map) && (o['label']?.toString() == lab),
+                orElse: () => const {},
+              );
+              if (opt is Map && opt['id'] != null) {
+                final pid = int.tryParse(opt['id'].toString());
+                if (pid != null && pid > 0) derivedAddonIds.add(pid);
+              }
+            } catch (_) {}
+          }
+          if (derivedAddonIds.isNotEmpty) {
+            item['addonIds'] = derivedAddonIds; // cache
+          }
+        }
+      }
+      final payload = <String, dynamic>{
+        'user_id': userId,
+        'gerai_id': geraiId,
+        'menu_id': int.tryParse(menuId.toString()) ?? menuId,
+        'qty': qty,
+      };
+      // sertakan item_id agar server update baris yang tepat
+      final cartItemId = item['id_keranjang_item'] ?? item['cartItemId'];
+      if (cartItemId != null) {
+        final cid = int.tryParse(cartItemId.toString());
+        if (cid != null && cid > 0) payload['item_id'] = cid;
+      }
+      // Hanya kirim 'addons' jika kita punya daftar id valid (agar server tidak menghapus saat qty update)
+      if (derivedAddonIds.isNotEmpty) {
+        payload['addons'] = derivedAddonIds;
+      }
+      await http
+          .post(
+            Uri.parse(
+              'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
+            ),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(payload),
+          )
+          .then((res) {
+            if (res.statusCode == 200) {
+              try {
+                final json = jsonDecode(res.body);
+                if (json is Map && json['success'] == true) {
+                  final data = json['data'];
+                  if (data is Map && data['item'] is Map) {
+                    final it = Map<String, dynamic>.from(data['item']);
+                    // Update local item with authoritative pricing
+                    item['subtotal'] = it['subtotal'];
+                    item['harga_satuan'] = it['harga_satuan'];
+                    _cartDirty = true; // ada perubahan
+                    // Simpan kembali addon ids dari server (jika ada) agar qty berikutnya tetap konsisten
+                    if (it['addons'] is List) {
+                      item['addonIds'] = (it['addons'] as List)
+                          .map((e) => int.tryParse(e.toString()) ?? 0)
+                          .where((e) => e > 0)
+                          .toList();
+                    }
+                  }
+                }
+              } catch (_) {}
+            }
+          });
+      if (mounted) setState(() {});
+    } catch (_) {
+    } finally {
+      item['__busy'] = false;
+      if (mounted) setState(() {});
     }
+  }
+
+  // _showDeleteDialog dihapus: kini pengurangan qty dari 1 langsung menghapus item.
+
+  Future<void> _deleteItem(int index, {bool navigateBackAfter = false}) async {
+    if (index < 0 || index >= items.length) return;
+    final item = items[index];
+    final menuId =
+        item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
+    if (menuId == null) return;
+    final payload = {
+      'user_id': _userId,
+      'gerai_id': _geraiId,
+      'menu_id': int.tryParse(menuId.toString()) ?? menuId,
+      'qty': 0,
+    };
+    final cartItemId = item['id_keranjang_item'] ?? item['cartItemId'];
+    if (cartItemId != null) {
+      final cid = int.tryParse(cartItemId.toString());
+      if (cid != null && cid > 0) payload['item_id'] = cid;
+    }
+    _cartDirty = true;
+    try {
+      final res = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php'),
+        headers: const {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
+      if (res.statusCode == 200) {
+        try {
+          final json = jsonDecode(res.body);
+          if (json is Map && json['success'] == true) {
+            // Remove locally
+            items.removeAt(index);
+            if (mounted) setState(() {});
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    if (navigateBackAfter) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    // Jika sudah tidak ada item, otomatis kembali
+    if (items.isEmpty && mounted) {
+      Navigator.of(context).pop(true); // pop dengan dirty untuk refresh
+    }
+  }
+
+  Future<bool> _confirmDeleteItem(Map<String, dynamic> item) async {
+    final name = (item['name'] ?? 'Item').toString();
+    return await showGeneralDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          barrierLabel: 'Hapus',
+          transitionDuration: const Duration(milliseconds: 220),
+          pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+          transitionBuilder: (ctx, anim, __, ___) {
+            final curved = CurvedAnimation(
+              parent: anim,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return Opacity(
+              opacity: curved.value,
+              child: Transform.scale(
+                scale: 0.95 + 0.05 * curved.value,
+                child: Center(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: MediaQuery.of(ctx).size.width * 0.78,
+                      padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.10),
+                            blurRadius: 28,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFCE2E2), Color(0xFFF8D1D1)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Color(0xFFD53D3D),
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Hapus Item?',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF2C2C2C),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Yakin ingin menghapus \"$name\" dari keranjang? Tindakan ini tidak bisa dibatalkan.',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              height: 1.35,
+                              color: Color(0xFF5A5A5A),
+                              fontWeight: FontWeight.w400,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF444444),
+                                    side: const BorderSide(
+                                      color: Color(0xFFE4E4E4),
+                                      width: 1.4,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text(
+                                    'Batal',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFD53D3D),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 13,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text(
+                                    'Hapus',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
   }
 
   int get total => isDelivery ? subtotal + deliveryFee : subtotal;
 
   Future<void> _showEditMenuSheet(int index) async {
     final Map<String, dynamic> menu = items[index];
-    // Pastikan kita punya daftar semua addon (bukan hanya yang terpilih)
+    // Ambil daftar addon hanya dari endpoint user (sesuai permintaan)
     List addonOptions = (menu['addonOptions'] as List?) ?? [];
     try {
       final dynamic menuId = menu['menuId'] ?? menu['menu_id'] ?? menu['id'];
       if (menuId != null) {
         final uri = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_menu_detail.php?id=${Uri.encodeQueryComponent(menuId.toString())}',
+          'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=${Uri.encodeQueryComponent(menuId.toString())}',
         );
         final resp = await http.get(
           uri,
@@ -350,41 +667,56 @@ class _CheckoutPageState extends State<CheckoutPage> {
           if (body is Map && body['success'] == true) {
             final data = body['data'];
             if (data is Map && data['addonOptions'] is List) {
-              final fullOpts = (data['addonOptions'] as List)
-                  .whereType<Map>()
-                  .map(
-                    (m) => {
-                      'id': m['id'] ?? m['id_addon'] ?? m['addon_id'],
-                      'label': m['label'] ?? m['nama_addon'] ?? m['name'],
-                      'price': (m['price'] is num)
-                          ? (m['price'] as num).toInt()
-                          : int.tryParse(m['price']?.toString() ?? '0') ?? 0,
-                      'image': m['image'] ?? m['image_path'] ?? m['path'],
-                    },
-                  )
-                  .toList();
-              // Jika server mengembalikan lebih banyak opsi daripada yang ada sekarang, pakai itu
-              if (fullOpts.isNotEmpty) {
-                addonOptions = fullOpts;
-                items[index]['addonOptions'] = fullOpts; // cache
+              final listRaw = (data['addonOptions'] as List).whereType<Map>();
+              final full = <Map<String, dynamic>>[];
+              for (final m in listRaw) {
+                final idVal = m['id'] ?? m['id_addon'];
+                final labelVal = m['label'] ?? m['nama_addon'] ?? '';
+                final priceVal = (m['price'] is num)
+                    ? (m['price'] as num).toInt()
+                    : int.tryParse(m['price']?.toString() ?? '0') ?? 0;
+                full.add({
+                  'id': idVal,
+                  'label': labelVal,
+                  'price': priceVal,
+                  'image': m['image'] ?? m['image_path'] ?? '',
+                });
+              }
+              if (full.isNotEmpty) {
+                addonOptions = full;
+                items[index]['addonOptions'] = full; // cache
               }
             }
           }
         }
+        debugPrint(
+          '[CHECKOUT] EditSheet(user) menuId=$menuId addonOptions=${addonOptions.length}',
+        );
       }
     } catch (e) {
-      debugPrint('[CHECKOUT] Gagal fetch addon lengkap: $e');
+      debugPrint('[CHECKOUT] Gagal fetch addon (user) $e');
     }
     final TextEditingController noteController = TextEditingController(
       text: menu['note'] ?? '',
     );
+    // Kumpulkan addon terpilih (label) seperti di Cart dialog
     List<String> selectedAddons = [];
-    if (menu['addon'] is String && (menu['addon'] as String).isNotEmpty) {
+    if (menu['addon'] is List) {
+      selectedAddons = List<String>.from(menu['addon']);
+    } else if (menu['addon'] is String &&
+        (menu['addon'] as String).trim().isNotEmpty) {
       selectedAddons = [menu['addon'] as String];
-    } else if (menu['addon'] is List) {
-      selectedAddons = List<String>.from(menu['addon'] as List);
     }
-    // addonOptions sudah diisi / diupdate di atas
+    // Jika ada label terpilih yang belum ada di addonOptions (mungkin karena dihapus di server?), tambahkan placeholder agar tetap terlihat
+    final existingLabels = addonOptions
+        .map((e) => (e is Map) ? e['label']?.toString() : null)
+        .whereType<String>()
+        .toSet();
+    for (final lab in selectedAddons) {
+      if (!existingLabels.contains(lab)) {
+        addonOptions.add({'id': null, 'label': lab, 'price': 0, 'image': null});
+      }
+    }
 
     await showModalBottomSheet(
       context: context,
@@ -488,16 +820,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                           const SizedBox(height: 6),
                           ...addonOptions.map<Widget>((opt) {
-                            final label = opt['label'];
+                            final label = opt['label']?.toString() ?? '';
                             final priceInt = (opt['price'] is num)
                                 ? (opt['price'] as num).toInt()
-                                : 0;
+                                : int.tryParse(
+                                        opt['price']?.toString() ?? '0',
+                                      ) ??
+                                      0;
                             final priceStr = priceInt > 0
                                 ? '(+Rp${priceInt.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})'
                                 : '';
                             return InkWell(
                               onTap: () {
                                 setStateDialog(() {
+                                  if (label.isEmpty) return;
                                   if (selectedAddons.contains(label)) {
                                     selectedAddons.remove(label);
                                   } else {
@@ -513,13 +849,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Checkbox(
-                                      value: selectedAddons.contains(label),
+                                      value:
+                                          label.isNotEmpty &&
+                                          selectedAddons.contains(label),
                                       activeColor: const Color(0xFFD53D3D),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       onChanged: (_) {
                                         setStateDialog(() {
+                                          if (label.isEmpty) return;
                                           if (selectedAddons.contains(label)) {
                                             selectedAddons.remove(label);
                                           } else {
@@ -529,7 +868,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                       },
                                     ),
                                     // Gambar addon jika ada
-                                    if ((opt['image'] ?? '')
+                                    if (((opt['image'] ?? '') as String)
                                         .toString()
                                         .isNotEmpty)
                                       ClipRRect(
@@ -594,7 +933,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        '$label $priceStr',
+                                        label.isEmpty
+                                            ? '(Addon tidak dikenal)'
+                                            : '$label $priceStr',
                                         style: const TextStyle(fontSize: 14),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -674,19 +1015,57 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               });
                               // Sinkron ke server (add_or_update_cart_item.php)
                               try {
-                                final payload = jsonEncode({
+                                final currentQty =
+                                    menu['qty'] ?? items[index]['qty'] ?? 1;
+                                final menuId =
+                                    menu['menuId'] ??
+                                    menu['menu_id'] ??
+                                    menu['id'] ??
+                                    items[index]['menuId'];
+                                final cartItemId =
+                                    menu['id_keranjang_item'] ??
+                                    menu['cartItemId'] ??
+                                    items[index]['id_keranjang_item'];
+                                final prevAddons = (menu['addon'] is List)
+                                    ? List<String>.from(menu['addon'])
+                                    : <String>[];
+                                final prevOptions =
+                                    (menu['addonOptions'] as List?) ??
+                                    addonOptions;
+                                // Turunkan prev addon IDs
+                                final prevIds = <int>{};
+                                for (final opt in prevOptions) {
+                                  if (opt is Map &&
+                                      prevAddons.contains(opt['label'])) {
+                                    final pid = int.tryParse(
+                                      opt['id']?.toString() ?? '',
+                                    );
+                                    if (pid != null) prevIds.add(pid);
+                                  }
+                                }
+                                final newIds = chosenIds.toSet();
+                                final addonsChanged =
+                                    newIds.length != prevIds.length ||
+                                    !newIds.containsAll(prevIds);
+                                final mapPayload = <String, dynamic>{
                                   'user_id': _userId,
                                   'gerai_id': _geraiId,
-                                  'menu_id':
-                                      menu['menuId'] ??
-                                      menu['menu_id'] ??
-                                      menu['id'] ??
-                                      items[index]['menuId'],
-                                  'qty':
-                                      menu['qty'] ?? items[index]['qty'] ?? 1,
-                                  'addons': chosenIds,
+                                  'menu_id': menuId,
+                                  'qty': currentQty,
                                   'note': noteController.text,
-                                });
+                                };
+                                if (cartItemId != null) {
+                                  final cid = int.tryParse(
+                                    cartItemId.toString(),
+                                  );
+                                  if (cid != null && cid > 0)
+                                    mapPayload['item_id'] = cid;
+                                }
+                                if (addonsChanged) {
+                                  mapPayload['addons'] =
+                                      chosenIds; // kirim hanya jika berubah
+                                }
+                                final payload = jsonEncode(mapPayload);
                                 await http.post(
                                   Uri.parse(
                                     'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
@@ -697,6 +1076,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   },
                                   body: payload,
                                 );
+                                _cartDirty =
+                                    true; // ensure cart reloads when popping back
                               } catch (e) {
                                 debugPrint('[CHECKOUT] sync edit failed: $e');
                               }
@@ -767,6 +1148,74 @@ class _CheckoutPageState extends State<CheckoutPage> {
         ),
       );
     }
+    if (_noSelectionMatch) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.pink),
+            onPressed: () => Navigator.of(context).pop(_cartDirty),
+          ),
+          title: const Text(
+            'Checkout',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textColor,
+            ),
+          ),
+          centerTitle: false,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.remove_shopping_cart,
+                  size: 80,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Item yang dipilih tidak ditemukan',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Kemungkinan item sudah dihapus / berubah. Silakan kembali ke keranjang dan pilih ulang.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black54,
+                    height: 1.35,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD53D3D),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Kembali ke Keranjang'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     // Untuk close qty editor jika tap di luar
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
@@ -788,7 +1237,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.pink),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(context).pop(_cartDirty),
             ),
             title: Text(
               restaurantName,
@@ -803,6 +1252,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
           body: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
+              if (_missingSelectedIds.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFFD54F)),
+                  ),
+                  child: Text(
+                    'Beberapa item (${_missingSelectedIds.length}) tidak ditemukan dan tidak ikut checkout.',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF8D6E00),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               // Card: Rangkuman Pesanan
               CustomEmptyCard(
                 child: Padding(
@@ -951,15 +1421,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     children: [
                                       Builder(
                                         builder: (context) {
-                                          final base = (item['price'] is num)
-                                              ? (item['price'] as num).toInt()
-                                              : 0;
-                                          final addon = _addonTotalFor(item);
-                                          final qty = (item['qty'] is num)
-                                              ? (item['qty'] as num).toInt()
-                                              : 1;
-                                          final lineTotal =
-                                              (base + addon) * qty;
+                                          // Gunakan subtotal server jika ada
+                                          int lineTotal;
+                                          if (item['subtotal'] is num) {
+                                            lineTotal =
+                                                (item['subtotal'] as num)
+                                                    .toInt();
+                                          } else {
+                                            final unit =
+                                                item['harga_satuan'] is num
+                                                ? (item['harga_satuan'] as num)
+                                                      .toInt()
+                                                : (item['price'] is num)
+                                                ? (item['price'] as num).toInt()
+                                                : 0;
+                                            final qty = (item['qty'] is num)
+                                                ? (item['qty'] as num).toInt()
+                                                : 1;
+                                            lineTotal =
+                                                unit *
+                                                qty; // unit already includes addons if any
+                                          }
                                           final formatted = lineTotal
                                               .toString()
                                               .replaceAllMapped(
@@ -1007,13 +1489,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                       onTap: () async {
                                                         if (items[i]['qty'] ==
                                                             1) {
-                                                          await _showDeleteDialog(
-                                                            i,
-                                                          );
+                                                          final ok =
+                                                              await _confirmDeleteItem(
+                                                                items[i],
+                                                              );
+                                                          if (ok) {
+                                                            await _deleteItem(
+                                                              i,
+                                                              navigateBackAfter:
+                                                                  true,
+                                                            );
+                                                          }
                                                         } else {
                                                           setState(() {
                                                             items[i]['qty']--;
                                                           });
+                                                          _syncItemQtyToServer(
+                                                            items[i],
+                                                          );
                                                         }
                                                       },
                                                       child: const Icon(
@@ -1046,6 +1539,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                                         setState(() {
                                                           items[i]['qty']++;
                                                         });
+                                                        _syncItemQtyToServer(
+                                                          items[i],
+                                                        );
                                                       },
                                                       child: const Icon(
                                                         Icons.add,
@@ -1497,230 +1993,205 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             },
                             child: PembayaranQrisDialog(
                               qrisImageUrl: qrisPath,
-                              onKonfirmasi: () {
+                              onKonfirmasi: (bukti) async {
                                 Navigator.of(ctx).pop();
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => CheckoutProcessPage(),
-                                  ),
-                                );
-                              },
-                              onBatal: () async {
-                                final confirm =
-                                    await _showCancelConfirmDialog();
-                                if (confirm) {
-                                  Navigator.of(ctx).pop();
-                                  batal = true;
+                                // Kirim transaksi ke server
+                                try {
+                                  final itemsPayload = items.map((it) {
+                                    final addonLabels =
+                                        (it['addon'] as List?)
+                                            ?.whereType<String>()
+                                            .toList() ??
+                                        [];
+                                    final addonIds = <int>[];
+                                    final opts =
+                                        (it['addonOptions'] as List?) ?? [];
+                                    for (final lab in addonLabels) {
+                                      try {
+                                        final match = opts.firstWhere(
+                                          (o) => o is Map && o['label'] == lab,
+                                          orElse: () => null,
+                                        );
+                                        if (match is Map &&
+                                            match['id'] != null) {
+                                          final pid = int.tryParse(
+                                            match['id'].toString(),
+                                          );
+                                          if (pid != null) addonIds.add(pid);
+                                        }
+                                      } catch (_) {}
+                                    }
+                                    final cartItemId =
+                                        it['id_keranjang_item'] ??
+                                        it['cartItemId'];
+                                    return {
+                                      'id_menu': it['menu_id'] ?? it['menuId'],
+                                      'jumlah': it['qty'],
+                                      'harga_satuan':
+                                          it['harga_satuan'] ?? it['price'],
+                                      'subtotal':
+                                          it['subtotal'] ??
+                                          ((it['price'] ?? 0) +
+                                                  _addonTotalFor(it)) *
+                                              (it['qty'] ?? 1),
+                                      'note': it['note'] ?? '',
+                                      'addons': addonIds,
+                                      if (cartItemId != null)
+                                        'cart_item_id': cartItemId,
+                                    };
+                                  }).toList();
+                                  final map = {
+                                    'id_users': _userId,
+                                    'id_gerai': _geraiId,
+                                    'total_harga': total,
+                                    // kirim flag boolean juga sbg fallback server
+                                    'is_delivery': isDelivery,
+                                    'jenis_pengantaran': isDelivery
+                                        ? 'pengantaran'
+                                        : 'pickup',
+                                    'metode_pembayaran': 'qris',
+                                    'biaya_pengantaran': isDelivery
+                                        ? deliveryFee
+                                        : 0,
+                                    'items': itemsPayload,
+                                  };
+                                  debugPrint(
+                                    '[CHECKOUT][POST][QRIS] payload=' +
+                                        map.toString(),
+                                  );
+                                  // convert bukti to base64
+                                  try {
+                                    final bytes = await bukti.readAsBytes();
+                                    final b64 = base64Encode(bytes);
+                                    map['bukti_base64'] =
+                                        'data:image/${bukti.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg'};base64,' +
+                                        b64;
+                                  } catch (_) {}
+                                  await http.post(
+                                    Uri.parse(
+                                      'http://10.0.2.2/dpr_bites_api/create_transaction.php',
+                                    ),
+                                    headers: const {
+                                      'Accept': 'application/json',
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: jsonEncode(map),
+                                  );
+                                } catch (e) {
+                                  debugPrint('[CHECKOUT] transaksi gagal: $e');
                                 }
+                                if (mounted) {
+                                  Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (_) => const HomePage(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                }
+                              },
+                              onBatal: () {
+                                // hanya tutup dialog tanpa redirect
                               },
                             ),
                           );
                         },
                       );
                     } else {
-                      // Tunai: animasi bottom sheet konfirmasi
-                      if (isDelivery) {
-                        await showModalBottomSheet(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(24),
-                            ),
+                      // Pembayaran tunai: langsung kirim transaksi tanpa popup tambahan
+                      try {
+                        final itemsPayload = items.map((it) {
+                          final addonLabels =
+                              (it['addon'] as List?)
+                                  ?.whereType<String>()
+                                  .toList() ??
+                              [];
+                          final addonIds = <int>[];
+                          final opts = (it['addonOptions'] as List?) ?? [];
+                          for (final lab in addonLabels) {
+                            try {
+                              final match = opts.firstWhere(
+                                (o) => o is Map && o['label'] == lab,
+                                orElse: () => null,
+                              );
+                              if (match is Map && match['id'] != null) {
+                                final pid = int.tryParse(
+                                  match['id'].toString(),
+                                );
+                                if (pid != null) addonIds.add(pid);
+                              }
+                            } catch (_) {}
+                          }
+                          final cartItemId =
+                              it['id_keranjang_item'] ?? it['cartItemId'];
+                          return {
+                            'id_menu': it['menu_id'] ?? it['menuId'],
+                            'jumlah': it['qty'],
+                            'harga_satuan': it['harga_satuan'] ?? it['price'],
+                            'subtotal':
+                                it['subtotal'] ??
+                                ((it['price'] ?? 0) + _addonTotalFor(it)) *
+                                    (it['qty'] ?? 1),
+                            'note': it['note'] ?? '',
+                            'addons': addonIds,
+                            if (cartItemId != null) 'cart_item_id': cartItemId,
+                          };
+                        }).toList();
+                        final map = {
+                          'id_users': _userId,
+                          'id_gerai': _geraiId,
+                          'total_harga': total,
+                          'is_delivery': isDelivery, // fallback di backend
+                          'jenis_pengantaran': isDelivery
+                              ? 'pengantaran'
+                              : 'pickup',
+                          'metode_pembayaran': 'cash',
+                          'biaya_pengantaran': isDelivery ? deliveryFee : 0,
+                          'items': itemsPayload,
+                        };
+                        debugPrint(
+                          '[CHECKOUT][POST][CASH] payload=' + map.toString(),
+                        );
+                        final resp = await http.post(
+                          Uri.parse(
+                            'http://10.0.2.2/dpr_bites_api/create_transaction.php',
                           ),
-                          builder: (ctx) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 32,
+                          headers: const {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                          },
+                          body: jsonEncode(map),
+                        );
+                        debugPrint(
+                          '[CHECKOUT][POST][CASH] status=${resp.statusCode} body=${resp.body}',
+                        );
+                        bool success = false;
+                        if (resp.statusCode == 200) {
+                          try {
+                            final body = jsonDecode(resp.body);
+                            if (body is Map && body['success'] == true)
+                              success = true;
+                          } catch (_) {}
+                        }
+                        if (mounted) {
+                          if (success) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              MaterialPageRoute(
+                                builder: (_) => const HomePage(),
                               ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.money,
-                                    color: Color(0xFFD53D3D),
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Pembayaran Tunai',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Siapkan uang sebesar Rp${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')} kepada petugas yang mengantar makanan anda',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.grey[300],
-                                          foregroundColor: Colors.black,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          Navigator.of(ctx).pop();
-                                        },
-                                        child: const Text('Batal'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFFD53D3D,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          Navigator.of(ctx).pop();
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  CheckoutProcessPage(),
-                                            ),
-                                          );
-                                        },
-                                        child: const Text('Konfirmasi'),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
+                              (r) => false,
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Gagal membuat transaksi tunai. Lihat log untuk detail.',
+                                ),
                               ),
                             );
-                          },
-                        );
-                      } else {
-                        await showModalBottomSheet(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(24),
-                            ),
-                          ),
-                          builder: (ctx) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 32,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.money,
-                                    color: Color(0xFFD53D3D),
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Pembayaran Tunai',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'Silakan bayar langsung ke kasir saat pesanan diantar atau diambil dengan total pembayaran Rp${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}.',
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.grey[300],
-                                          foregroundColor: Colors.black,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          Navigator.of(ctx).pop();
-                                        },
-                                        child: const Text('Batal'),
-                                      ),
-                                      if (geraiLat != null && geraiLng != null)
-                                        ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF4CAF50,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                          ),
-                                          onPressed: () async {
-                                            final url = Uri.parse(
-                                              'https://www.google.com/maps/search/?api=1&query=$geraiLat,$geraiLng',
-                                            );
-                                            try {
-                                              await launchUrl(
-                                                url,
-                                                mode: LaunchMode
-                                                    .externalApplication,
-                                              );
-                                            } catch (e) {
-                                              debugPrint(
-                                                '[CHECKOUT] gagal buka maps: $e',
-                                              );
-                                            }
-                                          },
-                                          child: const Text('Buka Maps'),
-                                        ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFFD53D3D,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          Navigator.of(ctx).pop();
-                                          Navigator.of(context).push(
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  CheckoutProcessPage(),
-                                            ),
-                                          );
-                                        },
-                                        child: const Text('Konfirmasi'),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                ],
-                              ),
-                            );
-                          },
-                        );
+                          }
+                        }
+                      } catch (e) {
+                        debugPrint('[CHECKOUT] transaksi tunai gagal: $e');
                       }
                     }
                     if (batal) {

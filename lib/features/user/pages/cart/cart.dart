@@ -206,6 +206,7 @@ class _CartPageState extends State<CartPage> {
     bool addonsExplicit = false, // send even if empty when true
     String? note,
     bool noteProvided = false,
+    int? cartItemId, // id_keranjang_item untuk target pasti
   }) async {
     if (_busy) return;
     _busy = true;
@@ -227,6 +228,9 @@ class _CartPageState extends State<CartPage> {
         'menu_id': menuId,
         'qty': qty,
       };
+      if (cartItemId != null && cartItemId > 0) {
+        mapPayload['item_id'] = cartItemId; // API uses item_id for explicit row
+      }
       if (addonsExplicit || addonIds.isNotEmpty) {
         mapPayload['addons'] = addonIds; // explicit even if empty
       }
@@ -433,6 +437,9 @@ class _CartPageState extends State<CartPage> {
                           addonsExplicit: true,
                           note: noteController.text,
                           noteProvided: true,
+                          cartItemId: int.tryParse(
+                            (menu['id_keranjang_item'] ?? '').toString(),
+                          ),
                         );
                         Navigator.pop(context);
                       },
@@ -485,6 +492,9 @@ class _CartPageState extends State<CartPage> {
             addonsExplicit: true,
             note: menu['note'] as String?,
             noteProvided: (menu['note'] as String?) != null,
+            cartItemId: int.tryParse(
+              (menu['id_keranjang_item'] ?? '').toString(),
+            ),
           );
         } catch (_) {}
         menus.removeAt(menuIdx);
@@ -598,6 +608,9 @@ class _CartPageState extends State<CartPage> {
           addonsExplicit: true,
           note: menu['note'] as String?,
           noteProvided: (menu['note'] as String?) != null,
+          cartItemId: int.tryParse(
+            (menu['id_keranjang_item'] ?? '').toString(),
+          ),
         );
         if (!mounted) return;
         setState(() {
@@ -640,8 +653,152 @@ class _CartPageState extends State<CartPage> {
         // do not send addons explicitly here if empty to retain existing
         note: menu['note'] as String?,
         noteProvided: false, // quantity change shouldn't overwrite note
+        cartItemId: int.tryParse((menu['id_keranjang_item'] ?? '').toString()),
       );
     }
+  }
+
+  Future<bool> _showBulkDeleteConfirmDialog(int count) async {
+    return await showGeneralDialog<bool>(
+          context: context,
+          barrierDismissible: true,
+          barrierLabel: 'Hapus',
+          transitionDuration: const Duration(milliseconds: 240),
+          pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+          transitionBuilder: (ctx, anim, __, child) {
+            final curved = CurvedAnimation(
+              parent: anim,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            );
+            return Opacity(
+              opacity: curved.value,
+              child: Transform.scale(
+                scale: 0.95 + 0.05 * curved.value,
+                child: Center(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: MediaQuery.of(ctx).size.width * 0.80,
+                      padding: const EdgeInsets.fromLTRB(24, 26, 24, 18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 32,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 66,
+                            height: 66,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFFFFE1E1), Color(0xFFF7D0D0)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline,
+                              color: Color(0xFFD53D3D),
+                              size: 34,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'Hapus $count Item?',
+                            style: const TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF2C2C2C),
+                              letterSpacing: 0.2,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Item yang dihapus tidak bisa dikembalikan. Lanjutkan?',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.35,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 26),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF424242),
+                                    side: const BorderSide(
+                                      color: Color(0xFFE5E5E5),
+                                      width: 1.5,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text(
+                                    'Batal',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFD53D3D),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 15,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text(
+                                    'Hapus',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
   }
 
   @override
@@ -672,24 +829,11 @@ class _CartPageState extends State<CartPage> {
                 padding: const EdgeInsets.only(right: 8.0),
                 child: TextButton(
                   onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Hapus Item'),
-                        content: const Text(
-                          'Hapus item yang dipilih dari keranjang?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Batal'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Hapus'),
-                          ),
-                        ],
-                      ),
+                    // Hitung total item terpilih
+                    int selectedCount = 0;
+                    selectedMenus.forEach((k, v) => selectedCount += v.length);
+                    final confirm = await _showBulkDeleteConfirmDialog(
+                      selectedCount,
                     );
                     if (confirm == true) {
                       await _deleteSelected();
@@ -1124,17 +1268,25 @@ class _CartPageState extends State<CartPage> {
                                   selectedCartItemIds.add(parsed);
                               }
                             }
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const CheckoutPage(),
-                                settings: RouteSettings(
-                                  arguments: {
-                                    'geraiId': geraiId?.toString() ?? '',
-                                    'selectedCartItemIds': selectedCartItemIds,
-                                  },
-                                ),
-                              ),
-                            );
+                            Navigator.of(context)
+                                .push<bool>(
+                                  MaterialPageRoute(
+                                    builder: (_) => const CheckoutPage(),
+                                    settings: RouteSettings(
+                                      arguments: {
+                                        'geraiId': geraiId?.toString() ?? '',
+                                        'selectedCartItemIds':
+                                            selectedCartItemIds,
+                                      },
+                                    ),
+                                  ),
+                                )
+                                .then((dirty) async {
+                                  if (dirty == true) {
+                                    await _fetchCart();
+                                    setState(() {});
+                                  }
+                                });
                           },
                   ),
                 ),

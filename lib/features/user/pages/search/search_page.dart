@@ -89,7 +89,7 @@ class _SearchPageState extends State<SearchPage> {
   Future<Map<String, dynamic>?> _fetchMenuDetail(String id) async {
     try {
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail.php?id=' +
+        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
             Uri.encodeQueryComponent(id),
       );
       final res = await http.get(uri, headers: {'Accept': 'application/json'});

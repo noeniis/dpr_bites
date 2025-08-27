@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 27, 2025 at 06:20 AM
+-- Generation Time: Aug 27, 2025 at 03:38 PM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- PHP Version: 8.0.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -203,7 +203,16 @@ CREATE TABLE `keranjang` (
 --
 
 INSERT INTO `keranjang` (`id_keranjang`, `id_users`, `id_gerai`, `status`, `total_harga`, `total_qty`, `created_at`, `updated_at`) VALUES
-(4, 1, 3, 'aktif', 39000, 1, '2025-08-26 16:20:01', '2025-08-26 19:38:41');
+(4, 1, 3, 'checkout', 0, 0, '2025-08-26 16:20:01', '2025-08-27 19:53:03'),
+(5, 1, 3, 'checkout', 0, 0, '2025-08-27 19:53:34', '2025-08-27 19:59:47'),
+(6, 1, 3, 'checkout', 0, 0, '2025-08-27 20:02:41', '2025-08-27 20:03:16'),
+(7, 1, 3, 'checkout', 0, 0, '2025-08-27 20:05:08', '2025-08-27 20:08:35'),
+(8, 1, 3, 'checkout', 0, 0, '2025-08-27 20:12:11', '2025-08-27 20:24:12'),
+(9, 1, 3, 'checkout', 0, 0, '2025-08-27 20:24:55', '2025-08-27 20:25:14'),
+(10, 1, 3, 'checkout', 0, 0, '2025-08-27 20:26:04', '2025-08-27 20:26:17'),
+(11, 1, 3, 'checkout', 0, 0, '2025-08-27 20:26:40', '2025-08-27 20:27:01'),
+(12, 1, 3, 'checkout', 0, 0, '2025-08-27 20:34:10', '2025-08-27 20:37:15'),
+(13, 1, 3, 'aktif', 97000, 3, '2025-08-27 20:37:33', '2025-08-27 20:37:43');
 
 -- --------------------------------------------------------
 
@@ -228,7 +237,8 @@ CREATE TABLE `keranjang_item` (
 --
 
 INSERT INTO `keranjang_item` (`id_keranjang_item`, `id_keranjang`, `id_menu`, `qty`, `harga_satuan`, `subtotal`, `note`, `created_at`, `updated_at`) VALUES
-(19, 4, 4, 1, 39000, 39000, 'pedas', '2025-08-26 19:12:14', '2025-08-26 19:38:41');
+(63, 13, 4, 1, 31000, 31000, '', '2025-08-27 20:37:33', '2025-08-27 20:37:33'),
+(64, 13, 4, 2, 33000, 66000, '', '2025-08-27 20:37:43', '2025-08-27 20:37:43');
 
 -- --------------------------------------------------------
 
@@ -248,8 +258,8 @@ CREATE TABLE `keranjang_item_addon` (
 --
 
 INSERT INTO `keranjang_item_addon` (`id_keranjang_item_addon`, `id_keranjang_item`, `id_addon`, `created_at`) VALUES
-(26, 19, 7, '2025-08-26 19:38:41'),
-(27, 19, 15, '2025-08-26 19:38:41');
+(103, 63, 7, '2025-08-27 20:37:33'),
+(104, 64, 15, '2025-08-27 20:37:43');
 
 -- --------------------------------------------------------
 
@@ -366,9 +376,18 @@ CREATE TABLE `transaksi` (
   `biaya_pengantaran` int(11) DEFAULT 5000,
   `jenis_pengantaran` enum('pengantaran','pickup') NOT NULL,
   `catatan_pembatalan` text DEFAULT NULL,
+  `bukti_pembayaran` varchar(255) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `transaksi`
+--
+
+INSERT INTO `transaksi` (`id_transaksi`, `booking_id`, `id_users`, `id_gerai`, `STATUS`, `metode_pembayaran`, `total_harga`, `biaya_pengantaran`, `jenis_pengantaran`, `catatan_pembatalan`, `bukti_pembayaran`, `created_at`, `updated_at`) VALUES
+(11, 'F-AF298F', 1, 3, 'konfirmasi_ketersediaan', 'cash', 36000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-27 20:36:36', '2025-08-27 20:36:36'),
+(12, 'F-10BF62', 1, 3, 'konfirmasi_ketersediaan', 'qris', 39000, 0, 'pickup', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756301788/kmcbk8d5zavr0exydkkz.jpg', '2025-08-27 20:37:15', '2025-08-27 20:37:15');
 
 -- --------------------------------------------------------
 
@@ -386,6 +405,14 @@ CREATE TABLE `transaksi_item` (
   `note` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `transaksi_item`
+--
+
+INSERT INTO `transaksi_item` (`id_transaksi_item`, `id_transaksi`, `id_menu`, `jumlah`, `harga_satuan`, `subtotal`, `note`) VALUES
+(11, 11, 4, 1, 31000, 31000, ''),
+(12, 12, 4, 1, 39000, 39000, '');
+
 -- --------------------------------------------------------
 
 --
@@ -397,6 +424,15 @@ CREATE TABLE `transaksi_item_addon` (
   `id_transaksi_item` int(11) NOT NULL,
   `id_addon` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `transaksi_item_addon`
+--
+
+INSERT INTO `transaksi_item_addon` (`id_transaksi_item_addon`, `id_transaksi_item`, `id_addon`) VALUES
+(11, 11, 7),
+(12, 12, 7),
+(13, 12, 15);
 
 -- --------------------------------------------------------
 
@@ -440,11 +476,12 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `password_hash`, `role`, `photo_path`, `created_at`, `updated_at`, `step1`, `step2`, `step3`) VALUES
-(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756205899/profile-default_ppxjhw.jpg', '2025-08-20 08:46:39', '2025-08-26 17:59:34', 0, 0, 0),
+(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756292863/df2watlencv0kfjzwr6n.jpg', '2025-08-20 08:46:39', '2025-08-27 18:09:04', 0, 0, 0),
 (2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', 'penjual', NULL, '2025-08-20 08:47:38', '2025-08-20 08:47:38', 0, 0, 0),
 (3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$XQ9KWkzRj93mCXrBuGjJrOormPrL7CSXfzHGoouFHNKiQIDhq5yCu', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-21 07:57:36', 0, 0, 0),
 (4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', 'pegawai', NULL, '2025-08-20 11:06:08', '2025-08-20 12:23:52', 0, 0, 0),
-(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '08571992783', '$2y$10$4.HpLPSVqRmbFzHKQ7qlieSNYMChEl8Ym0XPVuOXFqxAaX775XNqm', 'penjual', NULL, '2025-08-21 07:55:43', '2025-08-27 09:13:52', 1, 1, 1);
+(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '08571992783', '$2y$10$4.HpLPSVqRmbFzHKQ7qlieSNYMChEl8Ym0XPVuOXFqxAaX775XNqm', 'penjual', NULL, '2025-08-21 07:55:43', '2025-08-27 09:13:52', 1, 1, 1),
+(7, 'azriel', 'azriel', 'azriel@gmail.com', '08138526372', '$2y$10$rFKakE92te.GsMN5yl/3ruX.WUd0AUET3iWI8BqyxXlGOV/3lN0Zq', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-27 18:24:35', '2025-08-27 18:24:35', 0, 0, 0);
 
 --
 -- Indexes for dumped tables
@@ -633,19 +670,19 @@ ALTER TABLE `gerai_profil`
 -- AUTO_INCREMENT for table `keranjang`
 --
 ALTER TABLE `keranjang`
-  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item`
 --
 ALTER TABLE `keranjang_item`
-  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item_addon`
 --
 ALTER TABLE `keranjang_item_addon`
-  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=105;
 
 --
 -- AUTO_INCREMENT for table `menu`
@@ -675,19 +712,19 @@ ALTER TABLE `penjual_info`
 -- AUTO_INCREMENT for table `transaksi`
 --
 ALTER TABLE `transaksi`
-  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item`
 --
 ALTER TABLE `transaksi_item`
-  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item_addon`
 --
 ALTER TABLE `transaksi_item_addon`
-  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `ulasan`
@@ -699,7 +736,7 @@ ALTER TABLE `ulasan`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- Constraints for dumped tables

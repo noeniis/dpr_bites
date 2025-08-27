@@ -94,7 +94,7 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
     });
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_profile.php'),
+        Uri.parse('http://10.0.2.2/dpr_bites_api/get_seller_profile.php'),
         body: jsonEncode({"id_users": idUsers}),
         headers: {'Content-Type': 'application/json'},
       );

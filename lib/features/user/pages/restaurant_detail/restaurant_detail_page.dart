@@ -22,6 +22,10 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
   final ValueNotifier<Map<String, int>> selectedMenus = ValueNotifier({});
   // selectedAddons: {menuId: List<int>} -> simpan ID addon untuk kirim ke API keranjang
   final Map<String, List<int>> selectedAddons = {};
+  // selectedNotes: {menuId: note} -> simpan catatan terakhir untuk edit
+  final Map<String, String> selectedNotes = {};
+  // Menyimpan menuId yang memiliki lebih dari satu varian di cart (multi-variant)
+  final Set<String> _multiVariantMenus = {};
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _etalaseKeys = {};
 
@@ -32,6 +36,8 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
       []; // setiap menu: { id, name, price, image, kategori/etalase label, desc, recommended }
   bool _loading = true;
   String? _error;
+  // Total harga keranjang (server authoritative, termasuk addon & variasi)
+  int _cartTotalPrice = 0;
   // Cache apakah menu punya addon (menuId -> bool)
   final Map<String, bool> _menuHasAddon = {};
   // (Sementara) user id statis - ganti dengan session/login user sebenarnya
@@ -59,10 +65,15 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
             // Reset current selections to reflect up-to-date cart
             final newSelected = <String, int>{};
             selectedAddons.clear();
+            selectedNotes.clear();
             _menuHasAddon.clear();
+            _multiVariantMenus.clear();
+            final Map<String, int> variantCount = {};
+            int tmpCartTotal = 0;
             for (final it in items) {
               if (it is Map) {
                 final menuId = (it['menu_id'] ?? '').toString();
+                variantCount[menuId] = (variantCount[menuId] ?? 0) + 1;
                 final qty = int.tryParse(it['qty'].toString()) ?? 0;
                 if (qty > 0) newSelected[menuId] = qty;
                 final addonList =
@@ -76,10 +87,31 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                   _menuHasAddon[menuId] =
                       true; // mark has addon so inline +/- works
                 }
+                final noteVal = it['note'];
+                if (noteVal is String && noteVal.trim().isNotEmpty) {
+                  selectedNotes[menuId] = noteVal;
+                }
+                // Hitung subtotal server (prioritaskan field subtotal)
+                final subtotalVal = it['subtotal'];
+                int? subtotal = int.tryParse((subtotalVal ?? '').toString());
+                if (subtotal == null || subtotal == 0) {
+                  // fallback harga_satuan * qty
+                  final hs =
+                      int.tryParse((it['harga_satuan'] ?? '').toString()) ?? 0;
+                  subtotal = hs * qty;
+                }
+                tmpCartTotal += subtotal;
               }
             }
             // Always set value (even if empty) so removed items disappear
             selectedMenus.value = newSelected;
+            setState(() {
+              _cartTotalPrice = tmpCartTotal;
+              // Tandai multi varian
+              variantCount.forEach((k, v) {
+                if (v > 1) _multiVariantMenus.add(k);
+              });
+            });
           }
         }
       }
@@ -170,6 +202,8 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
               _menus = menus;
               _loading = false;
             });
+            // Prefetch addon availability (non-blocking)
+            _prefetchAddonAvailability();
             return;
           }
         }
@@ -191,10 +225,46 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
     }
   }
 
+  Future<void> _prefetchAddonAvailability() async {
+    // Periksa tiap menu sekali untuk mengetahui apakah punya addon tanpa membuka modal (optional optimization)
+    for (final m in _menus) {
+      final menuId = m['id'];
+      if (menuId == null) continue;
+      final idStr = menuId.toString();
+      if (_menuHasAddon.containsKey(idStr)) continue;
+      try {
+        final uri = Uri.parse(
+          'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
+              Uri.encodeQueryComponent(idStr),
+        );
+        final res = await http.get(
+          uri,
+          headers: {'Accept': 'application/json'},
+        );
+        if (res.statusCode == 200) {
+          final body = jsonDecode(res.body);
+          if (body is Map && body['success'] == true) {
+            final data = body['data'];
+            if (data is Map) {
+              final addons = data['addonOptions'] ?? data['add_ons'];
+              if (addons is List && addons.isNotEmpty) {
+                _menuHasAddon[idStr] = true;
+                // Simpan daftar addon ke menu untuk akses cepat (opsional)
+                m['addonOptions'] = addons;
+              } else {
+                _menuHasAddon[idStr] = false;
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
   Future<Map<String, dynamic>?> _fetchMenuDetail(String menuId) async {
     try {
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail.php?id=' +
+        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
             Uri.encodeQueryComponent(menuId),
       );
       final res = await http.get(uri, headers: {'Accept': 'application/json'});
@@ -243,34 +313,242 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
 
   Future<void> _handleAddPressed(Map<String, dynamic> m, int currentQty) async {
     final menuId = m['id'].toString();
-    // Jika sudah tahu apakah punya addon
+    bool creatingVariant = false;
+    final bool isMultiVariant = _multiVariantMenus.contains(menuId);
+    // Jika sudah multi variant, langsung treat sebagai tambah varian baru (tidak ada inline edit)
+    if (isMultiVariant) {
+      creatingVariant = true;
+    }
+    if ((selectedMenus.value[menuId] ?? 0) > 0) {
+      if (!isMultiVariant) {
+        final choice = await showDialog<String>(
+          context: context,
+          barrierDismissible: true,
+          builder: (ctx) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 40,
+              vertical: 24,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDEBEB),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.fastfood,
+                          color: Color(0xFFD53D3D),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Text(
+                          'Menu sudah di keranjang',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        splashRadius: 18,
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Anda ingin mengubah yang sudah ada atau menambahkan sebagai menu baru dengan addon/catatan berbeda?',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.4,
+                      color: Color(0xFF555555),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        side: const BorderSide(
+                          color: Color(0xFFE5E5E5),
+                          width: 1.4,
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(ctx).pop('edit'),
+                      child: const Text(
+                        'Edit Menu',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD53D3D),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: () => Navigator.of(ctx).pop('new'),
+                      child: const Text(
+                        'Tambah Menu Baru',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        if (choice == 'new') {
+          creatingVariant = true;
+        } else if (choice == 'edit') {
+          // keep creatingVariant false -> edit existing
+        } else {
+          return; // cancel
+        }
+      }
+    }
+
     bool? hasAddon = _menuHasAddon[menuId];
     if (hasAddon == null) {
-      // Fetch detail sekali untuk tahu addon
       final detail = await _fetchMenuDetail(menuId);
       final addonOpts =
           (detail != null ? detail['addonOptions'] : null) as List? ?? [];
       hasAddon = addonOpts.isNotEmpty;
       _menuHasAddon[menuId] = hasAddon;
       if (hasAddon) {
-        // Buka MenuDetailPage dengan data awal (m); detail page juga fetch detail lengkap
         final result = await showModalBottomSheet<Map<String, dynamic>>(
           context: context,
           isScrollControlled: true,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          builder: (_) => MenuDetailPage(menu: m, initialQty: currentQty),
+          builder: (_) => MenuDetailPage(
+            menu: m,
+            initialQty: creatingVariant ? 0 : currentQty,
+            initialAddonIds: creatingVariant
+                ? const []
+                : selectedAddons[menuId],
+            initialNote: creatingVariant ? '' : selectedNotes[menuId],
+          ),
         );
         if (result != null) {
-          // Simpan addonOptions ke menu agar perhitungan harga addon bisa dilakukan
           if (result['addonOptions'] != null) {
             m['addonOptions'] = result['addonOptions'];
           }
           if (result['qty'] > 0) {
+            if (creatingVariant) {
+              await _addOrUpdateCart(
+                menuId: menuId,
+                qty: result['qty'],
+                addonIds: List<int>.from(result['addonIds'] ?? []),
+                note: result['note'] as String?,
+                noteProvided: true,
+              );
+              await _loadExistingCart();
+            } else {
+              selectedMenus.value = Map.of(selectedMenus.value)
+                ..[menuId] = result['qty'];
+              selectedAddons[menuId] = List<int>.from(result['addonIds'] ?? []);
+              final rNote = (result['note'] as String?)?.trim();
+              if (rNote != null && rNote.isNotEmpty) {
+                selectedNotes[menuId] = rNote;
+              } else {
+                selectedNotes.remove(menuId);
+              }
+              await _addOrUpdateCart(
+                menuId: menuId,
+                qty: result['qty'],
+                addonIds: selectedAddons[menuId]!,
+                note: result['note'] as String?,
+                noteProvided: true,
+              );
+              await _loadExistingCart();
+            }
+          } else {
+            final updated = Map.of(selectedMenus.value);
+            updated.remove(menuId);
+            selectedMenus.value = updated;
+            selectedAddons.remove(menuId);
+            selectedNotes.remove(menuId);
+            await _addOrUpdateCart(
+              menuId: menuId,
+              qty: 0,
+              note: result['note'] as String?,
+              noteProvided: true,
+            );
+            await _loadExistingCart();
+          }
+        }
+        return;
+      }
+    }
+    if (hasAddon) {
+      final result = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (_) => MenuDetailPage(
+          menu: m,
+          initialQty: creatingVariant ? 0 : currentQty,
+          initialAddonIds: creatingVariant ? const [] : selectedAddons[menuId],
+          initialNote: creatingVariant ? '' : selectedNotes[menuId],
+        ),
+      );
+      if (result != null) {
+        if (result['addonOptions'] != null) {
+          m['addonOptions'] = result['addonOptions'];
+        }
+        if (result['qty'] > 0) {
+          if (creatingVariant) {
+            await _addOrUpdateCart(
+              menuId: menuId,
+              qty: result['qty'],
+              addonIds: List<int>.from(result['addonIds'] ?? []),
+              note: result['note'] as String?,
+              noteProvided: true,
+            );
+            await _loadExistingCart();
+          } else {
             selectedMenus.value = Map.of(selectedMenus.value)
               ..[menuId] = result['qty'];
             selectedAddons[menuId] = List<int>.from(result['addonIds'] ?? []);
+            final rNote = (result['note'] as String?)?.trim();
+            if (rNote != null && rNote.isNotEmpty) {
+              selectedNotes[menuId] = rNote;
+            } else {
+              selectedNotes.remove(menuId);
+            }
             await _addOrUpdateCart(
               menuId: menuId,
               qty: result['qty'],
@@ -278,65 +556,33 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
               note: result['note'] as String?,
               noteProvided: true,
             );
-          } else {
-            final updated = Map.of(selectedMenus.value);
-            updated.remove(menuId);
-            selectedMenus.value = updated;
-            selectedAddons.remove(menuId);
-            await _addOrUpdateCart(
-              menuId: menuId,
-              qty: 0,
-              note: result['note'] as String?,
-              noteProvided: true,
-            );
+            await _loadExistingCart();
           }
-        }
-        return;
-      }
-    }
-    if (hasAddon) {
-      // Sudah diketahui punya addon => buka detail
-      final result = await showModalBottomSheet<Map<String, dynamic>>(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        builder: (_) => MenuDetailPage(menu: m, initialQty: currentQty),
-      );
-      if (result != null) {
-        if (result['addonOptions'] != null) {
-          m['addonOptions'] = result['addonOptions'];
-        }
-        if (result['qty'] > 0) {
-          selectedMenus.value = Map.of(selectedMenus.value)
-            ..[menuId] = result['qty'];
-          selectedAddons[menuId] = List<int>.from(result['addonIds'] ?? []);
-          await _addOrUpdateCart(
-            menuId: menuId,
-            qty: result['qty'],
-            addonIds: selectedAddons[menuId]!,
-            note: result['note'] as String?,
-            noteProvided: true,
-          );
         } else {
           final updated = Map.of(selectedMenus.value);
           updated.remove(menuId);
           selectedMenus.value = updated;
           selectedAddons.remove(menuId);
+          selectedNotes.remove(menuId);
           await _addOrUpdateCart(
             menuId: menuId,
             qty: 0,
             note: result['note'] as String?,
             noteProvided: true,
           );
+          await _loadExistingCart();
         }
       }
     } else {
-      // Tidak ada addon: langsung tambah qty 1
-      final newQty = currentQty + 1;
-      selectedMenus.value = Map.of(selectedMenus.value)..[menuId] = newQty;
-      await _addOrUpdateCart(menuId: menuId, qty: newQty);
+      final newQty = creatingVariant ? 1 : currentQty + 1;
+      if (creatingVariant) {
+        await _addOrUpdateCart(menuId: menuId, qty: newQty);
+        await _loadExistingCart();
+      } else {
+        selectedMenus.value = Map.of(selectedMenus.value)..[menuId] = newQty;
+        await _addOrUpdateCart(menuId: menuId, qty: newQty);
+        await _loadExistingCart();
+      }
     }
   }
 
@@ -783,7 +1029,9 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                           builder: (_) {
                                             final hasAddon =
                                                 _menuHasAddon[menuId] == true;
-                                            if (qty > 0) {
+                                            final multi = _multiVariantMenus
+                                                .contains(menuId);
+                                            if (qty > 0 && !multi) {
                                               return GestureDetector(
                                                 behavior:
                                                     HitTestBehavior.opaque,
@@ -901,7 +1149,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                               child: SizedBox(
                                                 width: 32,
                                                 height: 32,
-                                                child: qty > 0
+                                                child: (qty > 0 && !multi)
                                                     ? Center(
                                                         child: Text(
                                                           '$qty',
@@ -976,7 +1224,8 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                           ),
                           child: Stack(
                             children: [
-                              if (qty > 0)
+                              if (qty > 0 &&
+                                  !_multiVariantMenus.contains(menuId))
                                 Positioned(
                                   left: 0,
                                   top: 8,
@@ -1076,7 +1325,9 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                       builder: (_) {
                                         final hasAddon =
                                             _menuHasAddon[menuId] == true;
-                                        if (qty > 0) {
+                                        final multi = _multiVariantMenus
+                                            .contains(menuId);
+                                        if (qty > 0 && !multi) {
                                           return GestureDetector(
                                             behavior: HitTestBehavior.opaque,
                                             onTap:
@@ -1172,22 +1423,11 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                         return SizedBox(
                                           width: 36,
                                           height: 36,
-                                          child: qty > 0
-                                              ? Center(
-                                                  child: Text(
-                                                    '$qty',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Color(0xFFD53D3D),
-                                                    ),
-                                                  ),
-                                                )
-                                              : CustomButtonOval(
-                                                  text: "+",
-                                                  onPressed: () =>
-                                                      _handleAddPressed(m, qty),
-                                                ),
+                                          child: CustomButtonOval(
+                                            text: "+",
+                                            onPressed: () =>
+                                                _handleAddPressed(m, qty),
+                                          ),
                                         );
                                       },
                                     ),
@@ -1361,25 +1601,29 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
             valueListenable: selectedMenus,
             builder: (context, selected, _) {
               final totalQty = selected.values.fold<int>(0, (a, b) => a + b);
-              final totalPrice = selected.entries.fold<int>(0, (a, e) {
-                final menuId = e.key;
-                final qty = e.value;
-                final menu = menuMap[menuId];
-                if (menu == null) return a;
-                int basePrice = int.tryParse(menu['price'].toString()) ?? 0;
-                int addonTotal = 0;
-                final addonIds = selectedAddons[menuId] ?? [];
-                for (final addonId in addonIds) {
-                  final opt = (menu['addonOptions'] as List?)?.firstWhere(
-                    (o) => o['id'] == addonId,
-                    orElse: () => <String, Object>{},
-                  );
-                  if (opt != null && opt.isNotEmpty) {
-                    addonTotal += int.tryParse(opt['price'].toString()) ?? 0;
+              int totalPrice = _cartTotalPrice;
+              // Fallback kalkulasi lokal jika server total belum ada
+              if (totalPrice == 0 && selected.isNotEmpty) {
+                totalPrice = selected.entries.fold<int>(0, (a, e) {
+                  final menuId = e.key;
+                  final qty = e.value;
+                  final menu = menuMap[menuId];
+                  if (menu == null) return a;
+                  int basePrice = int.tryParse(menu['price'].toString()) ?? 0;
+                  int addonTotal = 0;
+                  final addonIds = selectedAddons[menuId] ?? [];
+                  for (final addonId in addonIds) {
+                    final opt = (menu['addonOptions'] as List?)?.firstWhere(
+                      (o) => o['id'] == addonId,
+                      orElse: () => <String, Object>{},
+                    );
+                    if (opt != null && opt.isNotEmpty) {
+                      addonTotal += int.tryParse(opt['price'].toString()) ?? 0;
+                    }
                   }
-                }
-                return a + (basePrice + addonTotal) * qty;
-              });
+                  return a + (basePrice + addonTotal) * qty;
+                });
+              }
               if (totalQty == 0) return const SizedBox.shrink();
               return Container(
                 // Hapus margin bottom agar putih full sampai bawah
@@ -1410,8 +1654,8 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(24),
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => const CheckoutPage(),
@@ -1420,6 +1664,10 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                               ),
                             ),
                           );
+                          // Setelah kembali dari checkout, refresh cart agar qty/addon sesuai DB
+                          await _loadExistingCart();
+                          // Optional: jika ingin juga segarkan detail resto (misal harga berubah), aktifkan baris berikut
+                          // await _fetchDetail();
                         },
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
