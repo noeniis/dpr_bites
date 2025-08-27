@@ -305,7 +305,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.monetization_on, color: Colors.black),
+                  leading: const Icon(Icons.store_mall_directory, color: Colors.black),
                   title: const Text("Kelola Gerai"),
                   onTap: () {
                     Navigator.push(

@@ -26,7 +26,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
     const uploadPreset = 'dpr_bites';
     final url = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
     final request = http.MultipartRequest('POST', url)
-      ..fields['upload_preset'] = uploadPreset
+  ..fields['upload_preset'] = 'dpr_bites'
       ..files.add(await http.MultipartFile.fromPath('file', imagePath));
     final response = await request.send();
     if (response.statusCode == 200) {

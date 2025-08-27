@@ -114,6 +114,7 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
       final response = await http.post(
         Uri.parse('http://10.0.2.2/dpr_bites_api/delete_etalase.php'),
         body: {'id_etalase': id},
+        
       );
       if (response.statusCode == 200) {
         final resJson = jsonDecode(response.body);
