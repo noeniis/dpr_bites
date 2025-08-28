@@ -1,3 +1,4 @@
+import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
@@ -127,7 +128,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
 Future<Map<String, dynamic>> verifyOtpApi(String email, String otp) async {
   final response = await http.post(
-    Uri.parse('http://10.0.2.2/dpr_bites_api/verify_otp.php'),
+    Uri.parse('${getBaseUrl()}/verify_otp.php'),
     body: jsonEncode({'email': email, 'otp': otp}),
     headers: {'Content-Type': 'application/json'},
   );

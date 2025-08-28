@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
+import 'package:dpr_bites/common/utils/base_url.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -79,16 +80,19 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       // Jika menggunakan emulator Android, ganti 'localhost' dengan '10.0.2.2'
       final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/register.php'),
+        Uri.parse('${getBaseUrl()}/register.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
+      print(data);
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         if (result is Map && result.containsKey('success')) {
           return result['success'];
         } else {
-          debugPrint('Response JSON tidak mengandung kunci success: \\${response.body}');
+          debugPrint(
+            'Response JSON tidak mengandung kunci success: \\${response.body}',
+          );
           return false;
         }
       } else {
@@ -239,50 +243,53 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   CustomButtonKotak(
                     text: "Registrasi",
-                      onPressed: () async {
-                        final data = {
-                          "nama_lengkap": fullNameController.text,
-                          "username": usernameController.text,
-                          "email": emailController.text,
-                          "no_hp": phoneController.text,
-                          "password": passwordController.text,
-                          "role": selectedRole.toLowerCase(), // 'pegawai' atau 'penjual'
-                        };
+                    onPressed: () async {
+                      final data = {
+                        "nama_lengkap": fullNameController.text,
+                        "username": usernameController.text,
+                        "email": emailController.text,
+                        "no_hp": phoneController.text,
+                        "password": passwordController.text,
+                        "role": selectedRole
+                            .toLowerCase(), // 'pegawai' atau 'penjual'
+                      };
 
-                        final success = await registerUser(data);
-                        if (success) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text("Registrasi Berhasil"),
-                              content: Text("Silakan login dengan akun Anda."),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context); // tutup dialog
-                                    Navigator.pop(context); // kembali ke login
-                                  },
-                                  child: Text("OK"),
-                                ),
-                              ],
+                      final success = await registerUser(data);
+                      if (success) {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: Text("Registrasi Berhasil"),
+                            content: Text("Silakan login dengan akun Anda."),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context); // tutup dialog
+                                  Navigator.pop(context); // kembali ke login
+                                },
+                                child: Text("OK"),
+                              ),
+                            ],
+                          ),
+                        );
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: Text("Registrasi Gagal"),
+                            content: Text(
+                              "Cek kembali data Anda atau coba lagi nanti.",
                             ),
-                          );
-                        } else {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text("Registrasi Gagal"),
-                              content: Text("Cek kembali data Anda atau coba lagi nanti."),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text("OK"),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text("OK"),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
