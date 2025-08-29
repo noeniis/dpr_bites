@@ -17,6 +17,10 @@ class TransactionDetailModel {
   final String? qrisPath;
   final String? lokasiPengantaran;
   final List<DetailOrderModel> items;
+  // New fields for delivery address
+  final String? alamatPengantaranDetail;
+  final double? alamatPengantaranLat;
+  final double? alamatPengantaranLng;
 
   TransactionDetailModel({
     required this.idTransaksi,
@@ -33,9 +37,13 @@ class TransactionDetailModel {
     this.qrisPath,
     this.lokasiPengantaran,
     required this.items,
+    this.alamatPengantaranDetail,
+    this.alamatPengantaranLat,
+    this.alamatPengantaranLng,
   });
 
   factory TransactionDetailModel.fromJson(Map<String, dynamic> json) {
+    final alamatPengantaran = json['alamat_pengantaran'] ?? {};
     return TransactionDetailModel(
       idTransaksi: json['id_transaksi'].toString(),
       bookingId: json['booking_id'].toString(),
@@ -51,6 +59,9 @@ class TransactionDetailModel {
       qrisPath: json['qris_path']?.toString(),
       lokasiPengantaran: json['lokasi_pengantaran']?.toString(),
       items: (json['items'] as List<dynamic>?)?.map((e) => DetailOrderModel.fromJson(e)).toList() ?? [],
+      alamatPengantaranDetail: alamatPengantaran['detail']?.toString(),
+      alamatPengantaranLat: alamatPengantaran['latitude'] != null ? double.tryParse(alamatPengantaran['latitude'].toString()) : null,
+      alamatPengantaranLng: alamatPengantaran['longitude'] != null ? double.tryParse(alamatPengantaran['longitude'].toString()) : null,
     );
   }
 

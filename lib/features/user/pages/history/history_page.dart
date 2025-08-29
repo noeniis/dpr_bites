@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_orders.dart';
+// import 'package:dpr_bites/common/data/dummy_orders.dart'; // replaced by live API
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
-
 
 class HistoryPage extends StatefulWidget {
   final String? initialFilter;
@@ -19,16 +20,58 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late String filter;
+  final int _userId = 1; // TODO: ganti dengan user id dari auth
+  List<Map<String, dynamic>> _orders = [];
+  bool _loading = false;
+  String? _error;
+
+  static const _progressStatuses = [
+    'konfirmasi_ketersediaan',
+    'konfirmasi_pembayaran',
+    'disiapkan',
+    'diantar',
+    'pickup',
+  ];
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      final uri = Uri.parse(
+        'http://10.0.2.2/dpr_bites_api/get_user_transactions.php?user_id=$_userId',
+      );
+      final resp = await http.get(
+        uri,
+        headers: const {'Accept': 'application/json'},
+      );
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      final j = jsonDecode(resp.body);
+      if (j is! Map || j['success'] != true)
+        throw Exception(
+          j is Map ? (j['message'] ?? 'Gagal') : 'Respon tidak valid',
+        );
+      final data = j['data'];
+      if (data is List) {
+        _orders = data
+            .map<Map<String, dynamic>>(
+              (e) => Map<String, dynamic>.from(e as Map),
+            )
+            .toList();
+      }
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+    }
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
 
   List<Map<String, dynamic>> get filteredOrders {
-    return dummyOrders.where((o) {
-      if (filter == 'berlangsung') {
-        return o['status'] == 'berlangsung';
-      } else if (filter == 'selesai') {
-        return o['status'] == 'selesai';
-      } else {
-        return o['status'] == 'dibatalkan';
-      }
+    return _orders.where((o) {
+      final status = (o['status'] ?? '').toString();
+      if (filter == 'berlangsung') return _progressStatuses.contains(status);
+      if (filter == 'selesai') return status == 'selesai';
+      return status == 'dibatalkan';
     }).toList();
   }
 
@@ -36,6 +79,7 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     filter = widget.initialFilter ?? 'berlangsung';
+    _fetch();
   }
 
   @override
@@ -46,7 +90,15 @@ class _HistoryPageState extends State<HistoryPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          automaticallyImplyLeading: false,
+          automaticallyImplyLeading: true,
+          leading: Navigator.of(context).canPop()
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFFB03056)),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                )
+              : null,
           title: const Text(
             'Riwayat Pemesanan',
             style: TextStyle(
@@ -91,11 +143,18 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: filteredOrders.isEmpty
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filteredOrders.isEmpty
                     ? Center(
                         child: Text(
-                          'Tidak ada riwayat pesanan.',
-                          style: TextStyle(fontSize: 16, color: Colors.black54),
+                          _error != null
+                              ? 'Error: $_error'
+                              : 'Tidak ada riwayat pesanan.',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                          ),
                         ),
                       )
                     : ListView.separated(

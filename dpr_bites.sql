@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 29, 2025 at 03:20 PM
+-- Generation Time: Aug 29, 2025 at 03:25 PM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- PHP Version: 8.0.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -220,7 +220,37 @@ INSERT INTO `keranjang` (`id_keranjang`, `id_users`, `id_gerai`, `status`, `tota
 (18, 1, 3, 'checkout', 0, 0, '2025-08-29 10:26:51', '2025-08-29 10:26:55'),
 (19, 1, 3, 'checkout', 0, 0, '2025-08-29 10:31:54', '2025-08-29 10:31:56'),
 (20, 1, 3, 'checkout', 0, 0, '2025-08-29 10:35:06', '2025-08-29 10:35:11'),
-(21, 1, 3, 'checkout', 0, 0, '2025-08-29 10:48:21', '2025-08-29 10:48:24');
+(21, 1, 3, 'checkout', 0, 0, '2025-08-29 10:48:21', '2025-08-29 10:48:24'),
+(22, 1, 3, 'checkout', 0, 0, '2025-08-29 12:20:51', '2025-08-29 12:20:54'),
+(23, 1, 3, 'checkout', 0, 0, '2025-08-29 12:21:02', '2025-08-29 12:21:23'),
+(24, 1, 3, 'checkout', 0, 0, '2025-08-29 12:23:17', '2025-08-29 12:23:20'),
+(25, 1, 3, 'checkout', 0, 0, '2025-08-29 12:26:00', '2025-08-29 12:26:02'),
+(26, 1, 3, 'checkout', 0, 0, '2025-08-29 12:28:05', '2025-08-29 12:28:08'),
+(27, 1, 3, 'checkout', 0, 0, '2025-08-29 12:29:31', '2025-08-29 12:29:34'),
+(28, 1, 3, 'checkout', 0, 0, '2025-08-29 12:41:12', '2025-08-29 12:41:15'),
+(29, 1, 3, 'checkout', 0, 0, '2025-08-29 13:34:18', '2025-08-29 13:34:32'),
+(30, 1, 3, 'checkout', 0, 0, '2025-08-29 13:43:27', '2025-08-29 13:43:29'),
+(31, 1, 3, 'checkout', 0, 0, '2025-08-29 13:51:48', '2025-08-29 13:51:54'),
+(32, 1, 3, 'checkout', 0, 0, '2025-08-29 14:41:28', '2025-08-29 14:41:32'),
+(33, 1, 3, 'checkout', 0, 0, '2025-08-29 18:29:01', '2025-08-29 18:43:43'),
+(34, 1, 3, 'checkout', 0, 0, '2025-08-29 18:48:20', '2025-08-29 18:48:27'),
+(35, 1, 3, 'checkout', 0, 0, '2025-08-29 18:49:10', '2025-08-29 18:49:33'),
+(36, 1, 3, 'checkout', 0, 0, '2025-08-29 18:52:08', '2025-08-29 19:03:27'),
+(37, 1, 3, 'checkout', 0, 0, '2025-08-29 19:04:04', '2025-08-29 19:04:10'),
+(38, 1, 3, 'checkout', 0, 0, '2025-08-29 19:07:44', '2025-08-29 19:07:50'),
+(39, 1, 3, 'checkout', 0, 0, '2025-08-29 19:09:44', '2025-08-29 19:09:48'),
+(40, 1, 3, 'checkout', 0, 0, '2025-08-29 19:11:39', '2025-08-29 19:11:43'),
+(41, 1, 3, 'checkout', 0, 0, '2025-08-29 19:16:25', '2025-08-29 19:16:29'),
+(42, 1, 3, 'checkout', 0, 0, '2025-08-29 19:18:37', '2025-08-29 19:18:40'),
+(43, 1, 3, 'checkout', 0, 0, '2025-08-29 19:21:29', '2025-08-29 19:21:33'),
+(44, 1, 3, 'checkout', 0, 0, '2025-08-29 19:26:32', '2025-08-29 19:26:36'),
+(45, 1, 3, 'checkout', 0, 0, '2025-08-29 19:32:44', '2025-08-29 19:34:50'),
+(46, 1, 3, 'checkout', 0, 0, '2025-08-29 19:39:09', '2025-08-29 19:39:15'),
+(47, 1, 3, 'checkout', 0, 0, '2025-08-29 19:45:22', '2025-08-29 19:45:28'),
+(48, 1, 3, 'checkout', 0, 0, '2025-08-29 20:18:07', '2025-08-29 20:18:10'),
+(49, 1, 3, 'checkout', 0, 0, '2025-08-29 20:19:46', '2025-08-29 20:19:49'),
+(50, 1, 3, 'checkout', 0, 0, '2025-08-29 20:22:18', '2025-08-29 20:22:27'),
+(51, 1, 3, 'checkout', 0, 0, '2025-08-29 20:23:50', '2025-08-29 20:23:56');
 
 -- --------------------------------------------------------
 
@@ -362,6 +392,7 @@ CREATE TABLE `transaksi` (
   `booking_id` varchar(50) NOT NULL,
   `id_users` int(11) NOT NULL,
   `id_gerai` int(11) NOT NULL,
+  `id_alamat` int(11) DEFAULT NULL,
   `STATUS` enum('konfirmasi_ketersediaan','konfirmasi_pembayaran','disiapkan','diantar','pickup','selesai','dibatalkan') DEFAULT 'konfirmasi_ketersediaan',
   `metode_pembayaran` enum('qris','cash') NOT NULL,
   `total_harga` int(11) NOT NULL,
@@ -377,19 +408,10 @@ CREATE TABLE `transaksi` (
 -- Dumping data for table `transaksi`
 --
 
-INSERT INTO `transaksi` (`id_transaksi`, `booking_id`, `id_users`, `id_gerai`, `STATUS`, `metode_pembayaran`, `total_harga`, `biaya_pengantaran`, `jenis_pengantaran`, `catatan_pembatalan`, `bukti_pembayaran`, `created_at`, `updated_at`) VALUES
-(11, 'F-AF298F', 1, 3, 'konfirmasi_ketersediaan', 'cash', 36000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-27 20:36:36', '2025-08-27 20:36:36'),
-(12, 'F-10BF62', 1, 3, 'selesai', 'qris', 39000, 0, 'pickup', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756301788/kmcbk8d5zavr0exydkkz.jpg', '2025-08-27 20:37:15', '2025-08-29 18:08:02'),
-(13, 'F-53F770', 1, 3, 'dibatalkan', 'qris', 67000, 5000, 'pengantaran', 'Menu habis', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-29 09:51:44', '2025-08-29 17:00:49'),
-(14, 'F-19927D', 1, 3, 'disiapkan', 'cash', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:09:23', '2025-08-29 17:32:29'),
-(15, 'F-DB5E95', 1, 3, 'diantar', 'cash', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:11:29', '2025-08-29 18:10:05'),
-(16, 'F-E09815', 1, 3, 'konfirmasi_pembayaran', 'qris', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:24:11', '2025-08-29 10:24:26'),
-(17, 'F-356F0D', 1, 3, 'dibatalkan', 'qris', 30000, 5000, 'pengantaran', 'pembayaran dibatalkan', '', '2025-08-29 10:25:56', '2025-08-29 10:26:39'),
-(18, 'F-3DD7E4', 1, 3, 'dibatalkan', 'qris', 30000, 5000, 'pengantaran', 'Menu Kosong', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756437998/bukti_pembayaran/mozuoznq40rrgrugdue5.jpg', '2025-08-29 10:26:55', '2025-08-29 17:02:34'),
-(19, 'F-017842', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756438306/bukti_pembayaran/wvxyvhxoltdbwhzp3fsl.jpg', '2025-08-29 10:31:56', '2025-08-29 18:07:18'),
-(20, 'F-D2FA41', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756438519/bukti_pembayaran/v66xhiamhqyz9lhsaue4.jpg', '2025-08-29 10:35:11', '2025-08-29 10:45:48'),
-(21, 'F-2CAA08', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756439292/bukti_pembayaran/mo9glkvsaxg3geaiowlv.jpg', '2025-08-29 10:48:24', '2025-08-29 10:49:42'),
-(22, 'F-AF290F', 1, 3, 'konfirmasi_ketersediaan', 'cash', 36000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-29 20:36:36', '2025-08-29 20:36:36');
+INSERT INTO `transaksi` (`id_transaksi`, `booking_id`, `id_users`, `id_gerai`, `id_alamat`, `STATUS`, `metode_pembayaran`, `total_harga`, `biaya_pengantaran`, `jenis_pengantaran`, `catatan_pembatalan`, `bukti_pembayaran`, `created_at`, `updated_at`) VALUES
+(49, 'F-9C347E', 1, 3, 4, 'konfirmasi_ketersediaan', 'qris', 44000, 5000, 'pengantaran', NULL, '', '2025-08-29 20:19:49', '2025-08-29 20:19:49'),
+(50, 'F-6D9BA7', 1, 3, NULL, 'selesai', 'qris', 39000, 0, 'pickup', NULL, '', '2025-08-29 20:22:27', '2025-08-29 20:23:33'),
+(51, 'F-315329', 1, 3, 3, 'dibatalkan', 'qris', 36000, 5000, 'pengantaran', 'Dibatalkan Penjual Karena Pembayaran Tidak Sesuai', '', '2025-08-29 20:23:56', '2025-08-29 20:24:42');
 
 -- --------------------------------------------------------
 
@@ -412,17 +434,9 @@ CREATE TABLE `transaksi_item` (
 --
 
 INSERT INTO `transaksi_item` (`id_transaksi_item`, `id_transaksi`, `id_menu`, `jumlah`, `harga_satuan`, `subtotal`, `note`) VALUES
-(11, 11, 4, 1, 31000, 31000, ''),
-(12, 12, 4, 1, 39000, 39000, ''),
-(13, 13, 4, 2, 31000, 62000, 'pedas'),
-(14, 14, 4, 1, 25000, 25000, ''),
-(15, 15, 4, 1, 25000, 25000, ''),
-(16, 16, 4, 1, 25000, 25000, ''),
-(17, 17, 4, 1, 25000, 25000, ''),
-(18, 18, 4, 1, 25000, 25000, ''),
-(19, 19, 4, 1, 25000, 25000, ''),
-(20, 20, 4, 1, 25000, 25000, ''),
-(21, 21, 4, 1, 25000, 25000, '');
+(50, 49, 4, 1, 39000, 39000, 'pedas'),
+(51, 50, 4, 1, 39000, 39000, ''),
+(52, 51, 4, 1, 31000, 31000, '');
 
 -- --------------------------------------------------------
 
@@ -441,10 +455,11 @@ CREATE TABLE `transaksi_item_addon` (
 --
 
 INSERT INTO `transaksi_item_addon` (`id_transaksi_item_addon`, `id_transaksi_item`, `id_addon`) VALUES
-(11, 11, 7),
-(12, 12, 7),
-(13, 12, 15),
-(14, 13, 7);
+(44, 50, 7),
+(45, 50, 15),
+(46, 51, 7),
+(47, 51, 15),
+(48, 52, 7);
 
 -- --------------------------------------------------------
 
@@ -607,7 +622,8 @@ ALTER TABLE `transaksi`
   ADD PRIMARY KEY (`id_transaksi`),
   ADD UNIQUE KEY `booking_id` (`booking_id`),
   ADD KEY `id_users` (`id_users`),
-  ADD KEY `id_gerai` (`id_gerai`);
+  ADD KEY `id_gerai` (`id_gerai`),
+  ADD KEY `idx_transaksi_id_alamat` (`id_alamat`);
 
 --
 -- Indexes for table `transaksi_item`
@@ -685,19 +701,19 @@ ALTER TABLE `gerai_profil`
 -- AUTO_INCREMENT for table `keranjang`
 --
 ALTER TABLE `keranjang`
-  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item`
 --
 ALTER TABLE `keranjang_item`
-  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
+  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=104;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item_addon`
 --
 ALTER TABLE `keranjang_item_addon`
-  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=115;
+  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=151;
 
 --
 -- AUTO_INCREMENT for table `menu`
@@ -727,19 +743,19 @@ ALTER TABLE `penjual_info`
 -- AUTO_INCREMENT for table `transaksi`
 --
 ALTER TABLE `transaksi`
-  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item`
 --
 ALTER TABLE `transaksi_item`
-  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item_addon`
 --
 ALTER TABLE `transaksi_item_addon`
-  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- AUTO_INCREMENT for table `ulasan`
@@ -840,6 +856,7 @@ ALTER TABLE `penjual_info`
 -- Constraints for table `transaksi`
 --
 ALTER TABLE `transaksi`
+  ADD CONSTRAINT `fk_transaksi_alamat` FOREIGN KEY (`id_alamat`) REFERENCES `alamat_pengantaran` (`id_alamat`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `transaksi_ibfk_1` FOREIGN KEY (`id_users`) REFERENCES `users` (`id_users`),
   ADD CONSTRAINT `transaksi_ibfk_2` FOREIGN KEY (`id_gerai`) REFERENCES `gerai` (`id_gerai`);
 

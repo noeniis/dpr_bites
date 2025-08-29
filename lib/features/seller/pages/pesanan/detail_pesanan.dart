@@ -7,6 +7,7 @@ import 'package:dpr_bites/models/order_api_model.dart';
 import 'package:dpr_bites/models/transaction_detail_model.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
+import 'delivery_map_page.dart';
 class DetailPesananPage extends StatefulWidget {
   final OrderApiModel order;
 
@@ -721,9 +722,33 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                                             const Icon(Icons.location_on, size: 20, color: Colors.black),
                                             const SizedBox(width: 4),
                                             Expanded(
-                                              child: Text(
-                                                detail!.lokasiPengantaran ?? '-',
-                                                style: const TextStyle(fontSize: 14, color: Color(0xFF50555C)),
+                                              child: GestureDetector(
+                                                onTap: (detail!.alamatPengantaranLat != null && detail!.alamatPengantaranLng != null)
+                                                    ? () {
+                                                        Navigator.push(
+                                                          context,
+                                                          MaterialPageRoute(
+                                                            builder: (_) => DeliveryMapPage(
+                                                              lat: detail!.alamatPengantaranLat!,
+                                                              lng: detail!.alamatPengantaranLng!,
+                                                              address: detail!.alamatPengantaranDetail,
+                                                            ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    : null,
+                                                child: Text(
+                                                  detail!.alamatPengantaranDetail ?? '-',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: (detail!.alamatPengantaranLat != null && detail!.alamatPengantaranLng != null)
+                                                        ? Color(0xFF4A90E2)
+                                                        : Color(0xFF50555C),
+                                                    decoration: (detail!.alamatPengantaranLat != null && detail!.alamatPengantaranLng != null)
+                                                        ? TextDecoration.underline
+                                                        : TextDecoration.none,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ],

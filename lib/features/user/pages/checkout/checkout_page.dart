@@ -17,7 +17,6 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-
   List<Map<String, dynamic>> items = [];
   int deliveryFee = 0;
   String restaurantName = '';
@@ -271,11 +270,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
           if (addr is Map) {
             selectedAddress = Map<String, dynamic>.from(addr);
             // Set id alamat jika tersedia
-            final dynamic rawId = addr['id'] ?? addr['address_id'];
+            // Tangkap berbagai kemungkinan nama key id alamat dari API
+            final dynamic rawId =
+                addr['id_alamat'] ?? addr['id'] ?? addr['address_id'];
             if (rawId != null) {
               final parsed = int.tryParse(rawId.toString());
               if (parsed != null) {
                 selectedAddressId = parsed;
+                debugPrint(
+                  '[CHECKOUT] Set selectedAddressId from API address=$selectedAddressId',
+                );
               }
             }
           }
@@ -1680,7 +1684,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     child: CustomFilterChip(
                       label: 'Pengantaran',
                       selected: isDelivery,
-                      onTap: () => setState(() => isDelivery = true),
+                      onTap: () => setState(() {
+                        isDelivery = true; // pengantaran boleh cash/qris
+                      }),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1688,7 +1694,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     child: CustomFilterChip(
                       label: 'Pickup',
                       selected: !isDelivery,
-                      onTap: () => setState(() => isDelivery = false),
+                      onTap: () => setState(() {
+                        isDelivery = false; // pickup: hilangkan opsi cash
+                        if (selectedPayment == 'cash') {
+                          selectedPayment = 'qris';
+                        }
+                      }),
                     ),
                   ),
                 ],
@@ -1871,6 +1882,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
               // Pembayaran (QRIS & Tunai)
               InkWell(
                 onTap: () async {
+                  // Jika pickup, paksa tetap qris (non tunai)
+                  if (!isDelivery && selectedPayment != 'qris') {
+                    setState(() => selectedPayment = 'qris');
+                  }
                   await showModalBottomSheet(
                     context: context,
                     shape: const RoundedRectangleBorder(
@@ -1879,6 +1894,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       ),
                     ),
                     builder: (ctx) {
+                      final bool pickup = !isDelivery;
                       return AnimatedPadding(
                         duration: const Duration(milliseconds: 200),
                         padding: MediaQuery.of(ctx).viewInsets,
@@ -1919,27 +1935,42 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   Navigator.of(ctx).pop();
                                 },
                               ),
-                              ListTile(
-                                leading: const Icon(
-                                  Icons.money,
-                                  color: Color(0xFFD53D3D),
-                                  size: 32,
+                              if (!pickup) // hanya tampilkan Tunai jika pengantaran
+                                ListTile(
+                                  leading: const Icon(
+                                    Icons.money,
+                                    color: Color(0xFFD53D3D),
+                                    size: 32,
+                                  ),
+                                  title: const Text(
+                                    'Tunai',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  trailing: selectedPayment == 'cash'
+                                      ? const Icon(
+                                          Icons.check,
+                                          color: Colors.green,
+                                        )
+                                      : null,
+                                  onTap: () {
+                                    setState(() => selectedPayment = 'cash');
+                                    Navigator.of(ctx).pop();
+                                  },
                                 ),
-                                title: const Text(
-                                  'Tunai',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                              if (pickup)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    'Pembayaran tunai tidak tersedia untuk pickup.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black54,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
                                 ),
-                                trailing: selectedPayment == 'cash'
-                                    ? const Icon(
-                                        Icons.check,
-                                        color: Colors.green,
-                                      )
-                                    : null,
-                                onTap: () {
-                                  setState(() => selectedPayment = 'cash');
-                                  Navigator.of(ctx).pop();
-                                },
-                              ),
                               const SizedBox(height: 8),
                             ],
                           ),
@@ -1986,7 +2017,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          selectedPayment == 'qris' ? 'Qris' : 'Tunai',
+                          selectedPayment == 'qris' ? 'QRIS' : 'Tunai',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -2032,7 +2063,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   onPressed: () async {
                     try {
                       final itemsPayload = items.map((it) {
-                        final addonLabels = (it['addon'] as List?)?.whereType<String>().toList() ?? [];
+                        final addonLabels =
+                            (it['addon'] as List?)
+                                ?.whereType<String>()
+                                .toList() ??
+                            [];
                         final addonIds = <int>[];
                         final opts = (it['addonOptions'] as List?) ?? [];
                         for (final lab in addonLabels) {
@@ -2047,12 +2082,16 @@ class _CheckoutPageState extends State<CheckoutPage> {
                             }
                           } catch (_) {}
                         }
-                        final cartItemId = it['id_keranjang_item'] ?? it['cartItemId'];
+                        final cartItemId =
+                            it['id_keranjang_item'] ?? it['cartItemId'];
                         return {
                           'id_menu': it['menu_id'] ?? it['menuId'],
                           'jumlah': it['qty'],
                           'harga_satuan': it['harga_satuan'] ?? it['price'],
-                          'subtotal': it['subtotal'] ?? ((it['price'] ?? 0) + _addonTotalFor(it)) * (it['qty'] ?? 1),
+                          'subtotal':
+                              it['subtotal'] ??
+                              ((it['price'] ?? 0) + _addonTotalFor(it)) *
+                                  (it['qty'] ?? 1),
                           'note': it['note'] ?? '',
                           'addons': addonIds,
                           if (cartItemId != null) 'cart_item_id': cartItemId,
@@ -2063,37 +2102,80 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         'id_gerai': _geraiId,
                         'total_harga': total,
                         'is_delivery': isDelivery,
-                        'jenis_pengantaran': isDelivery ? 'pengantaran' : 'pickup',
-                        'metode_pembayaran': selectedPayment, // 'qris' atau 'cash'
+                        'jenis_pengantaran': isDelivery
+                            ? 'pengantaran'
+                            : 'pickup',
+                        'metode_pembayaran':
+                            (!isDelivery && selectedPayment == 'cash')
+                            ? 'qris'
+                            : selectedPayment,
                         'biaya_pengantaran': isDelivery ? deliveryFee : 0,
                         'items': itemsPayload,
                       };
+                      // Pastikan id_alamat ikut terkirim otomatis jika mode pengantaran
+                      if (isDelivery) {
+                        int? finalAddressId = selectedAddressId;
+                        // Jika belum terisi, coba derive dari selectedAddress map (mungkin belum trigger listener)
+                        if (finalAddressId == null && selectedAddress != null) {
+                          final cand =
+                              selectedAddress!['id_alamat'] ??
+                              selectedAddress!['id'] ??
+                              selectedAddress!['address_id'];
+                          if (cand != null) {
+                            final parsed = int.tryParse(cand.toString());
+                            if (parsed != null) finalAddressId = parsed;
+                          }
+                          if (finalAddressId != null) {
+                            selectedAddressId =
+                                finalAddressId; // cache agar konsisten
+                          }
+                        }
+                        if (finalAddressId != null && finalAddressId > 0) {
+                          map['id_alamat'] = finalAddressId;
+                        } else {
+                          debugPrint(
+                            '[CHECKOUT] WARNING: isDelivery tetapi id_alamat belum tersedia – tidak dikirim',
+                          );
+                        }
+                      }
+                      debugPrint(
+                        '[CHECKOUT] Creating transaction payload has id_alamat=' +
+                            (map['id_alamat']?.toString() ?? 'NONE'),
+                      );
                       final resp = await http.post(
-                        Uri.parse('http://10.0.2.2/dpr_bites_api/create_transaction.php'),
-                        headers: const {'Accept':'application/json','Content-Type':'application/json'},
+                        Uri.parse(
+                          'http://10.0.2.2/dpr_bites_api/create_transaction.php',
+                        ),
+                        headers: const {
+                          'Accept': 'application/json',
+                          'Content-Type': 'application/json',
+                        },
                         body: jsonEncode(map),
                       );
                       String? bookingId;
-                      if(resp.statusCode==200){
+                      if (resp.statusCode == 200) {
                         try {
                           final body = jsonDecode(resp.body);
-                          if(body is Map && body['success']==true){
+                          if (body is Map && body['success'] == true) {
                             bookingId = body['data']['booking_id'];
                           }
-                        } catch(_){ }
+                        } catch (_) {}
                       }
-                      if(mounted){
+                      if (mounted) {
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (_) => CheckoutProcessPage(bookingId: bookingId),
+                            builder: (_) =>
+                                CheckoutProcessPage(bookingId: bookingId),
                           ),
                         );
                       }
-                    } catch(e){
+                    } catch (e) {
                       debugPrint('[CHECKOUT] create transaksi gagal: $e');
-                      if(mounted){
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Gagal membuat transaksi.')),
+                          const SnackBar(
+                            content: Text('Gagal membuat transaksi.'),
+                          ),
                         );
                       }
                     }
@@ -2118,6 +2200,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
         'detail_pengantaran': a.detailPengantaran,
         'no_hp': a.noHp,
       };
+      // Simpan juga id alamat terpilih agar bisa dikirim saat create_transaction
+      try {
+        // Beberapa implementasi Address belum punya id; abaikan kalau tidak ada
+        final dynamic aid = (a as dynamic).id;
+        if (aid != null) {
+          final parsed = int.tryParse(aid.toString());
+          if (parsed != null) selectedAddressId = parsed;
+        }
+      } catch (_) {
+        // ignore jika properti id tidak tersedia
+      }
     });
   }
 

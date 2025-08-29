@@ -227,7 +227,6 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
                                   children: [
                                     Text(_nama.isNotEmpty ? _nama : '-', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
-                                    Text('Peran: ${_role.isNotEmpty ? _role : 'Owner'}', style: const TextStyle(fontSize: 15, color: Colors.grey)),
                                   ],
                                 ),
                               ),

@@ -4,6 +4,7 @@ class OrderApiModel {
   final String status;
   final String idUsers;
   final String namaPemesan;
+  final String metodePembayaran;
   final String? buktiPembayaran;
 
   OrderApiModel({
@@ -12,6 +13,7 @@ class OrderApiModel {
     required this.status,
     required this.idUsers,
     required this.namaPemesan,
+    required this.metodePembayaran,
     this.buktiPembayaran,
   });
 
@@ -22,6 +24,7 @@ class OrderApiModel {
       status: json['status']?.toString() ?? '',
       idUsers: json['id_users']?.toString() ?? '',
       namaPemesan: json['nama_lengkap']?.toString() ?? '',
+      metodePembayaran: json['metode_pembayaran']?.toString() ?? '',
       buktiPembayaran: json['bukti_pembayaran']?.toString(),
     );
   }

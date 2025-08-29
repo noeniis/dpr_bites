@@ -92,9 +92,9 @@ class _PesananPageState extends State<PesananPage> {
       isLoading = true;
     });
 
-    // NOTE: kalau pakai device fisik, ganti host jadi IP LAN PC kamu.
+    
     final host = '10.0.2.2'; // emulator Android → host PC
-    final port = 80; // ganti ke 8080 kalau Apache-mu di 8080
+    final port = 80; 
     final authority = port == 80 ? host : '$host:$port';
 
     final params = {'id_gerai': idGerai!};
@@ -109,12 +109,16 @@ class _PesananPageState extends State<PesananPage> {
     );
 
     try {
-      // Debug opsional:
-      // print('DEBUG URI: $uri');
       final response = await http.get(uri).timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        // DEBUG: print seluruh data pesanan dari API
+        if (data is Map && data['pesanan'] is List) {
+          for (final e in data['pesanan']) {
+            print('[DEBUG PESANAN] id_transaksi: \\${e['id_transaksi']} | status: \\${e['status']} | metode: \\${e['metode_pembayaran']} | bukti: \\${e['bukti_pembayaran']}');
+          }
+        }
 
         if (data is Map && data['success'] == true && data['pesanan'] is List) {
           final list = (data['pesanan'] as List)
@@ -160,12 +164,33 @@ class _PesananPageState extends State<PesananPage> {
   }
 
   List<OrderApiModel> get filteredPesananList {
-    if (_selectedFilter == 'Semua') return pesananList;
+    if (_selectedFilter == 'Semua') {
+      // Saring pesanan QRIS status konfirmasi_pembayaran tanpa bukti_pembayaran (null/empty string, case-insensitive)
+      return pesananList.where((p) {
+        final metode = p.metodePembayaran.toLowerCase().trim();
+        final status = p.status.toLowerCase().trim();
+        final bukti = (p.buktiPembayaran ?? '').trim();
+        if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
+          return bukti.isNotEmpty;
+        }
+        return true;
+      }).toList();
+    }
     switch (_selectedFilter) {
       case 'Konfirmasi Ketersediaan':
         return pesananList.where((p) => p.status == 'konfirmasi_ketersediaan').toList();
       case 'Konfirmasi Pembayaran':
-        return pesananList.where((p) => p.status == 'konfirmasi_pembayaran' && p.buktiPembayaran != null && p.buktiPembayaran!.isNotEmpty).toList();
+        return pesananList.where((p) {
+          final metode = p.metodePembayaran.toLowerCase().trim();
+          final status = p.status.toLowerCase().trim();
+          final bukti = (p.buktiPembayaran ?? '').trim();
+          if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
+            // QRIS harus ada bukti pembayaran (tidak null/kosong)
+            return bukti.isNotEmpty;
+          } else {
+            return status == 'konfirmasi_pembayaran';
+          }
+        }).toList();
       case 'Disiapkan':
         return pesananList.where((p) => p.status == 'disiapkan').toList();
       case 'Diantar':
