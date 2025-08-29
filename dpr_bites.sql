@@ -3,9 +3,9 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 27, 2025 at 03:38 PM
+-- Generation Time: Aug 29, 2025 at 03:20 PM
 -- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- PHP Version: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -212,7 +212,15 @@ INSERT INTO `keranjang` (`id_keranjang`, `id_users`, `id_gerai`, `status`, `tota
 (10, 1, 3, 'checkout', 0, 0, '2025-08-27 20:26:04', '2025-08-27 20:26:17'),
 (11, 1, 3, 'checkout', 0, 0, '2025-08-27 20:26:40', '2025-08-27 20:27:01'),
 (12, 1, 3, 'checkout', 0, 0, '2025-08-27 20:34:10', '2025-08-27 20:37:15'),
-(13, 1, 3, 'aktif', 97000, 3, '2025-08-27 20:37:33', '2025-08-27 20:37:43');
+(13, 1, 3, 'checkout', 0, 0, '2025-08-27 20:37:33', '2025-08-29 09:51:44'),
+(14, 1, 3, 'checkout', 0, 0, '2025-08-29 10:09:14', '2025-08-29 10:09:23'),
+(15, 1, 3, 'checkout', 0, 0, '2025-08-29 10:11:26', '2025-08-29 10:11:29'),
+(16, 1, 3, 'checkout', 0, 0, '2025-08-29 10:24:09', '2025-08-29 10:24:11'),
+(17, 1, 3, 'checkout', 0, 0, '2025-08-29 10:25:53', '2025-08-29 10:25:56'),
+(18, 1, 3, 'checkout', 0, 0, '2025-08-29 10:26:51', '2025-08-29 10:26:55'),
+(19, 1, 3, 'checkout', 0, 0, '2025-08-29 10:31:54', '2025-08-29 10:31:56'),
+(20, 1, 3, 'checkout', 0, 0, '2025-08-29 10:35:06', '2025-08-29 10:35:11'),
+(21, 1, 3, 'checkout', 0, 0, '2025-08-29 10:48:21', '2025-08-29 10:48:24');
 
 -- --------------------------------------------------------
 
@@ -232,14 +240,6 @@ CREATE TABLE `keranjang_item` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `keranjang_item`
---
-
-INSERT INTO `keranjang_item` (`id_keranjang_item`, `id_keranjang`, `id_menu`, `qty`, `harga_satuan`, `subtotal`, `note`, `created_at`, `updated_at`) VALUES
-(63, 13, 4, 1, 31000, 31000, '', '2025-08-27 20:37:33', '2025-08-27 20:37:33'),
-(64, 13, 4, 2, 33000, 66000, '', '2025-08-27 20:37:43', '2025-08-27 20:37:43');
-
 -- --------------------------------------------------------
 
 --
@@ -252,14 +252,6 @@ CREATE TABLE `keranjang_item_addon` (
   `id_addon` int(11) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `keranjang_item_addon`
---
-
-INSERT INTO `keranjang_item_addon` (`id_keranjang_item_addon`, `id_keranjang_item`, `id_addon`, `created_at`) VALUES
-(103, 63, 7, '2025-08-27 20:37:33'),
-(104, 64, 15, '2025-08-27 20:37:43');
 
 -- --------------------------------------------------------
 
@@ -387,7 +379,17 @@ CREATE TABLE `transaksi` (
 
 INSERT INTO `transaksi` (`id_transaksi`, `booking_id`, `id_users`, `id_gerai`, `STATUS`, `metode_pembayaran`, `total_harga`, `biaya_pengantaran`, `jenis_pengantaran`, `catatan_pembatalan`, `bukti_pembayaran`, `created_at`, `updated_at`) VALUES
 (11, 'F-AF298F', 1, 3, 'konfirmasi_ketersediaan', 'cash', 36000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-27 20:36:36', '2025-08-27 20:36:36'),
-(12, 'F-10BF62', 1, 3, 'konfirmasi_ketersediaan', 'qris', 39000, 0, 'pickup', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756301788/kmcbk8d5zavr0exydkkz.jpg', '2025-08-27 20:37:15', '2025-08-27 20:37:15');
+(12, 'F-10BF62', 1, 3, 'selesai', 'qris', 39000, 0, 'pickup', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756301788/kmcbk8d5zavr0exydkkz.jpg', '2025-08-27 20:37:15', '2025-08-29 18:08:02'),
+(13, 'F-53F770', 1, 3, 'dibatalkan', 'qris', 67000, 5000, 'pengantaran', 'Menu habis', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-29 09:51:44', '2025-08-29 17:00:49'),
+(14, 'F-19927D', 1, 3, 'disiapkan', 'cash', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:09:23', '2025-08-29 17:32:29'),
+(15, 'F-DB5E95', 1, 3, 'diantar', 'cash', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:11:29', '2025-08-29 18:10:05'),
+(16, 'F-E09815', 1, 3, 'konfirmasi_pembayaran', 'qris', 30000, 5000, 'pengantaran', NULL, '', '2025-08-29 10:24:11', '2025-08-29 10:24:26'),
+(17, 'F-356F0D', 1, 3, 'dibatalkan', 'qris', 30000, 5000, 'pengantaran', 'pembayaran dibatalkan', '', '2025-08-29 10:25:56', '2025-08-29 10:26:39'),
+(18, 'F-3DD7E4', 1, 3, 'dibatalkan', 'qris', 30000, 5000, 'pengantaran', 'Menu Kosong', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756437998/bukti_pembayaran/mozuoznq40rrgrugdue5.jpg', '2025-08-29 10:26:55', '2025-08-29 17:02:34'),
+(19, 'F-017842', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756438306/bukti_pembayaran/wvxyvhxoltdbwhzp3fsl.jpg', '2025-08-29 10:31:56', '2025-08-29 18:07:18'),
+(20, 'F-D2FA41', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756438519/bukti_pembayaran/v66xhiamhqyz9lhsaue4.jpg', '2025-08-29 10:35:11', '2025-08-29 10:45:48'),
+(21, 'F-2CAA08', 1, 3, 'selesai', 'qris', 30000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756439292/bukti_pembayaran/mo9glkvsaxg3geaiowlv.jpg', '2025-08-29 10:48:24', '2025-08-29 10:49:42'),
+(22, 'F-AF290F', 1, 3, 'konfirmasi_ketersediaan', 'cash', 36000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', '2025-08-29 20:36:36', '2025-08-29 20:36:36');
 
 -- --------------------------------------------------------
 
@@ -411,7 +413,16 @@ CREATE TABLE `transaksi_item` (
 
 INSERT INTO `transaksi_item` (`id_transaksi_item`, `id_transaksi`, `id_menu`, `jumlah`, `harga_satuan`, `subtotal`, `note`) VALUES
 (11, 11, 4, 1, 31000, 31000, ''),
-(12, 12, 4, 1, 39000, 39000, '');
+(12, 12, 4, 1, 39000, 39000, ''),
+(13, 13, 4, 2, 31000, 62000, 'pedas'),
+(14, 14, 4, 1, 25000, 25000, ''),
+(15, 15, 4, 1, 25000, 25000, ''),
+(16, 16, 4, 1, 25000, 25000, ''),
+(17, 17, 4, 1, 25000, 25000, ''),
+(18, 18, 4, 1, 25000, 25000, ''),
+(19, 19, 4, 1, 25000, 25000, ''),
+(20, 20, 4, 1, 25000, 25000, ''),
+(21, 21, 4, 1, 25000, 25000, '');
 
 -- --------------------------------------------------------
 
@@ -432,7 +443,8 @@ CREATE TABLE `transaksi_item_addon` (
 INSERT INTO `transaksi_item_addon` (`id_transaksi_item_addon`, `id_transaksi_item`, `id_addon`) VALUES
 (11, 11, 7),
 (12, 12, 7),
-(13, 12, 15);
+(13, 12, 15),
+(14, 13, 7);
 
 -- --------------------------------------------------------
 
@@ -462,7 +474,7 @@ CREATE TABLE `users` (
   `email` varchar(100) NOT NULL,
   `no_hp` varchar(30) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
-  `role` enum('pegawai','penjual','koperasi') NOT NULL,
+  `role` enum('0','1','2') NOT NULL,
   `photo_path` varchar(255) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -476,12 +488,15 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `password_hash`, `role`, `photo_path`, `created_at`, `updated_at`, `step1`, `step2`, `step3`) VALUES
-(1, 'Noeni', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756292863/df2watlencv0kfjzwr6n.jpg', '2025-08-20 08:46:39', '2025-08-27 18:09:04', 0, 0, 0),
-(2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', 'penjual', NULL, '2025-08-20 08:47:38', '2025-08-20 08:47:38', 0, 0, 0),
-(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$XQ9KWkzRj93mCXrBuGjJrOormPrL7CSXfzHGoouFHNKiQIDhq5yCu', 'pegawai', NULL, '2025-08-20 08:56:09', '2025-08-21 07:57:36', 0, 0, 0),
-(4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', 'pegawai', NULL, '2025-08-20 11:06:08', '2025-08-20 12:23:52', 0, 0, 0),
-(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '08571992783', '$2y$10$4.HpLPSVqRmbFzHKQ7qlieSNYMChEl8Ym0XPVuOXFqxAaX775XNqm', 'penjual', NULL, '2025-08-21 07:55:43', '2025-08-27 09:13:52', 1, 1, 1),
-(7, 'azriel', 'azriel', 'azriel@gmail.com', '08138526372', '$2y$10$rFKakE92te.GsMN5yl/3ruX.WUd0AUET3iWI8BqyxXlGOV/3lN0Zq', 'pegawai', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-27 18:24:35', '2025-08-27 18:24:35', 0, 0, 0);
+(1, 'Noeni Indah', 'noeniis', 'noeni@gmail.com', '0868373984', '$2y$10$Ypn7F39UBtO4peSt2GPc4.ZKhuDVde31qxgsf4VI.Zzu3mKBSoezO', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756292863/df2watlencv0kfjzwr6n.jpg', '2025-08-20 08:46:39', '2025-08-28 08:12:45', 0, 0, 0),
+(2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', '1', NULL, '2025-08-20 08:47:38', '2025-08-28 07:31:00', 0, 0, 0),
+(3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$XQ9KWkzRj93mCXrBuGjJrOormPrL7CSXfzHGoouFHNKiQIDhq5yCu', '0', NULL, '2025-08-20 08:56:09', '2025-08-28 07:31:00', 0, 0, 0),
+(4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', '0', NULL, '2025-08-20 11:06:08', '2025-08-28 07:31:00', 0, 0, 0),
+(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '08571992783', '$2y$10$4.HpLPSVqRmbFzHKQ7qlieSNYMChEl8Ym0XPVuOXFqxAaX775XNqm', '1', NULL, '2025-08-21 07:55:43', '2025-08-28 07:31:00', 1, 1, 1),
+(7, 'azriel', 'azriel', 'azriel@gmail.com', '08138526372', '$2y$10$rFKakE92te.GsMN5yl/3ruX.WUd0AUET3iWI8BqyxXlGOV/3lN0Zq', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-27 18:24:35', '2025-08-28 07:31:00', 0, 0, 0),
+(8, 'Budi', 'budi', 'budi@gmail.com', '09893424835', '$2y$10$FGc4fcDrKG81ub0AM33hD.NDevoqxhoHubGrllfnO5TJYaE0j.Rdm', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:36:01', '2025-08-28 07:36:01', 0, 0, 0),
+(9, 'ayu', 'ayu', 'ayu@gmail.com', '081378237138', '$2y$10$8eJeX6VisRYEV7IWpr.80Olz0n.qWIS.BhtlEDdg8VWWpU4BpB28O', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:39:08', '2025-08-28 07:39:08', 0, 0, 0),
+(10, 'ida', 'ida', 'ida@gmail.com', '0813628283', '$2y$10$aM1iS5gFom60tvN1tzqBKeNMzOGTw05XLtClHxwRk0yAG.5NqZGz.', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:40:21', '2025-08-28 07:40:21', 0, 0, 0);
 
 --
 -- Indexes for dumped tables
@@ -670,19 +685,19 @@ ALTER TABLE `gerai_profil`
 -- AUTO_INCREMENT for table `keranjang`
 --
 ALTER TABLE `keranjang`
-  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id_keranjang` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item`
 --
 ALTER TABLE `keranjang_item`
-  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=65;
+  MODIFY `id_keranjang_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
 
 --
 -- AUTO_INCREMENT for table `keranjang_item_addon`
 --
 ALTER TABLE `keranjang_item_addon`
-  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=105;
+  MODIFY `id_keranjang_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=115;
 
 --
 -- AUTO_INCREMENT for table `menu`
@@ -712,19 +727,19 @@ ALTER TABLE `penjual_info`
 -- AUTO_INCREMENT for table `transaksi`
 --
 ALTER TABLE `transaksi`
-  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item`
 --
 ALTER TABLE `transaksi_item`
-  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item_addon`
 --
 ALTER TABLE `transaksi_item_addon`
-  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `ulasan`
@@ -736,7 +751,7 @@ ALTER TABLE `ulasan`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Constraints for dumped tables

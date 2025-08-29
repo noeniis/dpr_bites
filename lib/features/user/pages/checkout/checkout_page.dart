@@ -5,9 +5,7 @@ import 'package:dpr_bites/common/data/dummy_checkout.dart'; // tetap dipakai utk
 import 'package:dpr_bites/common/data/address_store.dart';
 import 'package:dpr_bites/features/user/pages/address/address_page.dart';
 import 'package:http/http.dart' as http;
-import 'pembayaran_qris_dialog.dart';
-import '../history/history_page.dart';
-import 'package:dpr_bites/features/user/pages/home/home_page.dart';
+import 'checkout_process_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 
@@ -19,26 +17,6 @@ class CheckoutPage extends StatefulWidget {
 }
 
 class _CheckoutPageState extends State<CheckoutPage> {
-  Future<bool> _showCancelConfirmDialog() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Batalkan Pesanan'),
-        content: const Text('Anda ingin membatalkan pesanan?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Tidak'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Iya'),
-          ),
-        ],
-      ),
-    );
-    return result == true;
-  }
 
   List<Map<String, dynamic>> items = [];
   int deliveryFee = 0;
@@ -408,10 +386,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         final cid = int.tryParse(cartItemId.toString());
         if (cid != null && cid > 0) payload['item_id'] = cid;
       }
-      // Hanya kirim 'addons' jika kita punya daftar id valid (agar server tidak menghapus saat qty update)
-      if (derivedAddonIds.isNotEmpty) {
-        payload['addons'] = derivedAddonIds;
-      }
+      // Selalu kirim 'addons', meskipun kosong, agar backend tahu user ingin menghapus semua addon
+      payload['addons'] = derivedAddonIds;
       await http
           .post(
             Uri.parse(
@@ -1008,10 +984,58 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   }
                                 }
                               }
+                              // Mapping id -> label untuk tampilan
+                              final chosenIdSet = chosenIds.toSet();
+                              final chosenLabels = <String>[];
+                              for (final opt in addonOptions) {
+                                if (opt is Map &&
+                                    opt['id'] != null &&
+                                    chosenIdSet.contains(
+                                      int.tryParse(opt['id'].toString()) ?? -1,
+                                    )) {
+                                  final lbl = opt['label']?.toString() ?? '';
+                                  if (lbl.isNotEmpty) chosenLabels.add(lbl);
+                                }
+                              }
+                              // Recalculate unit & subtotal locally (optimistic UI) sebelum sinkron server
+                              final currentQty = (() {
+                                final q = menu['qty'] ?? items[index]['qty'];
+                                if (q is num) return q.toInt();
+                                final qi = int.tryParse(q?.toString() ?? '');
+                                return qi ?? 1;
+                              })();
+                              // Cari base price (tanpa addon). Prioritas: field 'base_price' kalau ada, else harga_satuan - addonPrice lama, else price
+                              int basePrice = 0;
+                              if (items[index]['base_price'] is num) {
+                                basePrice = (items[index]['base_price'] as num)
+                                    .toInt();
+                              } else if (menu['base_price'] is num) {
+                                basePrice = (menu['base_price'] as num).toInt();
+                              } else if (items[index]['harga_satuan'] is num &&
+                                  items[index]['addonPrice'] is num) {
+                                basePrice =
+                                    (items[index]['harga_satuan'] as num)
+                                        .toInt() -
+                                    (items[index]['addonPrice'] as num).toInt();
+                              } else if (menu['price'] is num) {
+                                basePrice = (menu['price'] as num).toInt();
+                              } else if (items[index]['price'] is num) {
+                                basePrice = (items[index]['price'] as num)
+                                    .toInt();
+                              }
+                              final newUnitPrice = basePrice + totalAddonPrice;
+                              final newSubtotal = newUnitPrice * currentQty;
                               setState(() {
                                 items[index]['note'] = noteController.text;
-                                items[index]['addon'] = selectedAddons;
+                                items[index]['addon'] =
+                                    chosenLabels; // labels utk tampilan
+                                items[index]['addonIds'] = List<int>.from(
+                                  chosenIds,
+                                );
                                 items[index]['addonPrice'] = totalAddonPrice;
+                                items[index]['base_price'] = basePrice;
+                                items[index]['harga_satuan'] = newUnitPrice;
+                                items[index]['subtotal'] = newSubtotal;
                               });
                               // Sinkron ke server (add_or_update_cart_item.php)
                               try {
@@ -1026,27 +1050,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                     menu['id_keranjang_item'] ??
                                     menu['cartItemId'] ??
                                     items[index]['id_keranjang_item'];
-                                final prevAddons = (menu['addon'] is List)
-                                    ? List<String>.from(menu['addon'])
-                                    : <String>[];
+                                final prevAddonsDynamic =
+                                    (menu['addon'] is List)
+                                    ? List.from(menu['addon'])
+                                    : <dynamic>[];
                                 final prevOptions =
                                     (menu['addonOptions'] as List?) ??
                                     addonOptions;
-                                // Turunkan prev addon IDs
+                                // Turunkan prev addon IDs (support label atau id tersimpan)
                                 final prevIds = <int>{};
                                 for (final opt in prevOptions) {
-                                  if (opt is Map &&
-                                      prevAddons.contains(opt['label'])) {
-                                    final pid = int.tryParse(
-                                      opt['id']?.toString() ?? '',
-                                    );
-                                    if (pid != null) prevIds.add(pid);
+                                  if (opt is! Map) continue;
+                                  final pid = int.tryParse(
+                                    opt['id']?.toString() ?? '',
+                                  );
+                                  if (pid == null) continue;
+                                  final lbl = opt['label']?.toString();
+                                  if (prevAddonsDynamic.contains(lbl) ||
+                                      prevAddonsDynamic.contains(pid)) {
+                                    prevIds.add(pid);
                                   }
                                 }
-                                final newIds = chosenIds.toSet();
-                                final addonsChanged =
-                                    newIds.length != prevIds.length ||
-                                    !newIds.containsAll(prevIds);
                                 final mapPayload = <String, dynamic>{
                                   'user_id': _userId,
                                   'gerai_id': _geraiId,
@@ -1061,21 +1085,52 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                   if (cid != null && cid > 0)
                                     mapPayload['item_id'] = cid;
                                 }
-                                if (addonsChanged) {
-                                  mapPayload['addons'] =
-                                      chosenIds; // kirim hanya jika berubah
-                                }
+                                // Selalu kirim addons (termasuk kosong) agar backend bisa menghapus bila perlu
+                                mapPayload['addons'] = chosenIds;
                                 final payload = jsonEncode(mapPayload);
-                                await http.post(
-                                  Uri.parse(
-                                    'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-                                  ),
-                                  headers: {
-                                    'Accept': 'application/json',
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: payload,
-                                );
+                                try {
+                                  final resp = await http.post(
+                                    Uri.parse(
+                                      'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
+                                    ),
+                                    headers: const {
+                                      'Accept': 'application/json',
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: payload,
+                                  );
+                                  if (resp.statusCode == 200) {
+                                    try {
+                                      final body = jsonDecode(resp.body);
+                                      if (body is Map &&
+                                          body['success'] == true) {
+                                        final data = body['data'];
+                                        if (data is Map &&
+                                            data['item'] is Map) {
+                                          final it = Map<String, dynamic>.from(
+                                            data['item'],
+                                          );
+                                          setState(() {
+                                            if (it['harga_satuan'] is num) {
+                                              items[index]['harga_satuan'] =
+                                                  (it['harga_satuan'] as num)
+                                                      .toInt();
+                                            }
+                                            if (it['subtotal'] is num) {
+                                              items[index]['subtotal'] =
+                                                  (it['subtotal'] as num)
+                                                      .toInt();
+                                            }
+                                          });
+                                        }
+                                      }
+                                    } catch (_) {}
+                                  }
+                                } catch (e) {
+                                  debugPrint(
+                                    '[CHECKOUT] edit sync http error: $e',
+                                  );
+                                }
                                 _cartDirty =
                                     true; // ensure cart reloads when popping back
                               } catch (e) {
@@ -1975,232 +2030,70 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 child: CustomButtonOval(
                   text: 'Pesan',
                   onPressed: () async {
-                    bool batal = false;
-                    if (selectedPayment == 'qris') {
-                      // Tampilkan dialog QRIS
-                      await showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (ctx) {
-                          return WillPopScope(
-                            onWillPop: () async {
-                              final confirm = await _showCancelConfirmDialog();
-                              if (confirm) {
-                                Navigator.of(ctx).pop();
-                                batal = true;
-                              }
-                              return false;
-                            },
-                            child: PembayaranQrisDialog(
-                              qrisImageUrl: qrisPath,
-                              onKonfirmasi: (bukti) async {
-                                Navigator.of(ctx).pop();
-                                // Kirim transaksi ke server
-                                try {
-                                  final itemsPayload = items.map((it) {
-                                    final addonLabels =
-                                        (it['addon'] as List?)
-                                            ?.whereType<String>()
-                                            .toList() ??
-                                        [];
-                                    final addonIds = <int>[];
-                                    final opts =
-                                        (it['addonOptions'] as List?) ?? [];
-                                    for (final lab in addonLabels) {
-                                      try {
-                                        final match = opts.firstWhere(
-                                          (o) => o is Map && o['label'] == lab,
-                                          orElse: () => null,
-                                        );
-                                        if (match is Map &&
-                                            match['id'] != null) {
-                                          final pid = int.tryParse(
-                                            match['id'].toString(),
-                                          );
-                                          if (pid != null) addonIds.add(pid);
-                                        }
-                                      } catch (_) {}
-                                    }
-                                    final cartItemId =
-                                        it['id_keranjang_item'] ??
-                                        it['cartItemId'];
-                                    return {
-                                      'id_menu': it['menu_id'] ?? it['menuId'],
-                                      'jumlah': it['qty'],
-                                      'harga_satuan':
-                                          it['harga_satuan'] ?? it['price'],
-                                      'subtotal':
-                                          it['subtotal'] ??
-                                          ((it['price'] ?? 0) +
-                                                  _addonTotalFor(it)) *
-                                              (it['qty'] ?? 1),
-                                      'note': it['note'] ?? '',
-                                      'addons': addonIds,
-                                      if (cartItemId != null)
-                                        'cart_item_id': cartItemId,
-                                    };
-                                  }).toList();
-                                  final map = {
-                                    'id_users': _userId,
-                                    'id_gerai': _geraiId,
-                                    'total_harga': total,
-                                    // kirim flag boolean juga sbg fallback server
-                                    'is_delivery': isDelivery,
-                                    'jenis_pengantaran': isDelivery
-                                        ? 'pengantaran'
-                                        : 'pickup',
-                                    'metode_pembayaran': 'qris',
-                                    'biaya_pengantaran': isDelivery
-                                        ? deliveryFee
-                                        : 0,
-                                    'items': itemsPayload,
-                                  };
-                                  debugPrint(
-                                    '[CHECKOUT][POST][QRIS] payload=' +
-                                        map.toString(),
-                                  );
-                                  // convert bukti to base64
-                                  try {
-                                    final bytes = await bukti.readAsBytes();
-                                    final b64 = base64Encode(bytes);
-                                    map['bukti_base64'] =
-                                        'data:image/${bukti.path.toLowerCase().endsWith('.png') ? 'png' : 'jpg'};base64,' +
-                                        b64;
-                                  } catch (_) {}
-                                  await http.post(
-                                    Uri.parse(
-                                      'http://10.0.2.2/dpr_bites_api/create_transaction.php',
-                                    ),
-                                    headers: const {
-                                      'Accept': 'application/json',
-                                      'Content-Type': 'application/json',
-                                    },
-                                    body: jsonEncode(map),
-                                  );
-                                } catch (e) {
-                                  debugPrint('[CHECKOUT] transaksi gagal: $e');
-                                }
-                                if (mounted) {
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(
-                                      builder: (_) => const HomePage(),
-                                    ),
-                                    (route) => false,
-                                  );
-                                }
-                              },
-                              onBatal: () {
-                                // hanya tutup dialog tanpa redirect
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    } else {
-                      // Pembayaran tunai: langsung kirim transaksi tanpa popup tambahan
-                      try {
-                        final itemsPayload = items.map((it) {
-                          final addonLabels =
-                              (it['addon'] as List?)
-                                  ?.whereType<String>()
-                                  .toList() ??
-                              [];
-                          final addonIds = <int>[];
-                          final opts = (it['addonOptions'] as List?) ?? [];
-                          for (final lab in addonLabels) {
-                            try {
-                              final match = opts.firstWhere(
-                                (o) => o is Map && o['label'] == lab,
-                                orElse: () => null,
-                              );
-                              if (match is Map && match['id'] != null) {
-                                final pid = int.tryParse(
-                                  match['id'].toString(),
-                                );
-                                if (pid != null) addonIds.add(pid);
-                              }
-                            } catch (_) {}
-                          }
-                          final cartItemId =
-                              it['id_keranjang_item'] ?? it['cartItemId'];
-                          return {
-                            'id_menu': it['menu_id'] ?? it['menuId'],
-                            'jumlah': it['qty'],
-                            'harga_satuan': it['harga_satuan'] ?? it['price'],
-                            'subtotal':
-                                it['subtotal'] ??
-                                ((it['price'] ?? 0) + _addonTotalFor(it)) *
-                                    (it['qty'] ?? 1),
-                            'note': it['note'] ?? '',
-                            'addons': addonIds,
-                            if (cartItemId != null) 'cart_item_id': cartItemId,
-                          };
-                        }).toList();
-                        final map = {
-                          'id_users': _userId,
-                          'id_gerai': _geraiId,
-                          'total_harga': total,
-                          'is_delivery': isDelivery, // fallback di backend
-                          'jenis_pengantaran': isDelivery
-                              ? 'pengantaran'
-                              : 'pickup',
-                          'metode_pembayaran': 'cash',
-                          'biaya_pengantaran': isDelivery ? deliveryFee : 0,
-                          'items': itemsPayload,
-                        };
-                        debugPrint(
-                          '[CHECKOUT][POST][CASH] payload=' + map.toString(),
-                        );
-                        final resp = await http.post(
-                          Uri.parse(
-                            'http://10.0.2.2/dpr_bites_api/create_transaction.php',
-                          ),
-                          headers: const {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                          },
-                          body: jsonEncode(map),
-                        );
-                        debugPrint(
-                          '[CHECKOUT][POST][CASH] status=${resp.statusCode} body=${resp.body}',
-                        );
-                        bool success = false;
-                        if (resp.statusCode == 200) {
+                    try {
+                      final itemsPayload = items.map((it) {
+                        final addonLabels = (it['addon'] as List?)?.whereType<String>().toList() ?? [];
+                        final addonIds = <int>[];
+                        final opts = (it['addonOptions'] as List?) ?? [];
+                        for (final lab in addonLabels) {
                           try {
-                            final body = jsonDecode(resp.body);
-                            if (body is Map && body['success'] == true)
-                              success = true;
+                            final match = opts.firstWhere(
+                              (o) => o is Map && o['label'] == lab,
+                              orElse: () => null,
+                            );
+                            if (match is Map && match['id'] != null) {
+                              final pid = int.tryParse(match['id'].toString());
+                              if (pid != null) addonIds.add(pid);
+                            }
                           } catch (_) {}
                         }
-                        if (mounted) {
-                          if (success) {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              MaterialPageRoute(
-                                builder: (_) => const HomePage(),
-                              ),
-                              (r) => false,
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Gagal membuat transaksi tunai. Lihat log untuk detail.',
-                                ),
-                              ),
-                            );
+                        final cartItemId = it['id_keranjang_item'] ?? it['cartItemId'];
+                        return {
+                          'id_menu': it['menu_id'] ?? it['menuId'],
+                          'jumlah': it['qty'],
+                          'harga_satuan': it['harga_satuan'] ?? it['price'],
+                          'subtotal': it['subtotal'] ?? ((it['price'] ?? 0) + _addonTotalFor(it)) * (it['qty'] ?? 1),
+                          'note': it['note'] ?? '',
+                          'addons': addonIds,
+                          if (cartItemId != null) 'cart_item_id': cartItemId,
+                        };
+                      }).toList();
+                      final map = {
+                        'id_users': _userId,
+                        'id_gerai': _geraiId,
+                        'total_harga': total,
+                        'is_delivery': isDelivery,
+                        'jenis_pengantaran': isDelivery ? 'pengantaran' : 'pickup',
+                        'metode_pembayaran': selectedPayment, // 'qris' atau 'cash'
+                        'biaya_pengantaran': isDelivery ? deliveryFee : 0,
+                        'items': itemsPayload,
+                      };
+                      final resp = await http.post(
+                        Uri.parse('http://10.0.2.2/dpr_bites_api/create_transaction.php'),
+                        headers: const {'Accept':'application/json','Content-Type':'application/json'},
+                        body: jsonEncode(map),
+                      );
+                      String? bookingId;
+                      if(resp.statusCode==200){
+                        try {
+                          final body = jsonDecode(resp.body);
+                          if(body is Map && body['success']==true){
+                            bookingId = body['data']['booking_id'];
                           }
-                        }
-                      } catch (e) {
-                        debugPrint('[CHECKOUT] transaksi tunai gagal: $e');
+                        } catch(_){ }
                       }
-                    }
-                    if (batal) {
-                      if (mounted) {
+                      if(mounted){
                         Navigator.of(context).pushReplacement(
                           MaterialPageRoute(
-                            builder: (_) =>
-                                HistoryPage(initialFilter: 'dibatalkan'),
+                            builder: (_) => CheckoutProcessPage(bookingId: bookingId),
                           ),
+                        );
+                      }
+                    } catch(e){
+                      debugPrint('[CHECKOUT] create transaksi gagal: $e');
+                      if(mounted){
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Gagal membuat transaksi.')),
                         );
                       }
                     }

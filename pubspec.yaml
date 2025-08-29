@@ -31,6 +31,8 @@ dependencies:
   camera: ^0.10.5+9
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   geocoding: ^2.1.0
 
   # The following adds the Cupertino Icons font to your application.
@@ -52,6 +54,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.13.0
   pin_code_fields: ^8.0.1
   url_launcher: ^6.3.2
+  month_picker_dialog: ^6.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

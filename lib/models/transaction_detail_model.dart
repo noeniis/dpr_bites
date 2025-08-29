@@ -1,0 +1,70 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'detail_order_model.dart';
+
+class TransactionDetailModel {
+  final String idTransaksi;
+  final String bookingId;
+  final String status;
+  final String jenisPengantaran;
+  final String idUsers;
+  final String idGerai;
+  final String metodePembayaran;
+  final String? buktiPembayaran;
+  final String? catatanPembatalan;
+  final String? namaGerai;
+  final String? detailAlamat;
+  final String? qrisPath;
+  final String? lokasiPengantaran;
+  final List<DetailOrderModel> items;
+
+  TransactionDetailModel({
+    required this.idTransaksi,
+    required this.bookingId,
+    required this.status,
+    required this.jenisPengantaran,
+    required this.idUsers,
+    required this.idGerai,
+    required this.metodePembayaran,
+    this.buktiPembayaran,
+    this.catatanPembatalan,
+    this.namaGerai,
+    this.detailAlamat,
+    this.qrisPath,
+    this.lokasiPengantaran,
+    required this.items,
+  });
+
+  factory TransactionDetailModel.fromJson(Map<String, dynamic> json) {
+    return TransactionDetailModel(
+      idTransaksi: json['id_transaksi'].toString(),
+      bookingId: json['booking_id'].toString(),
+      status: json['status'].toString(),
+      jenisPengantaran: json['jenis_pengantaran'].toString(),
+      idUsers: json['id_users'].toString(),
+      idGerai: json['id_gerai'].toString(),
+      metodePembayaran: json['metode_pembayaran'].toString(),
+      buktiPembayaran: json['bukti_pembayaran']?.toString(),
+      catatanPembatalan: json['catatan_pembatalan']?.toString(),
+      namaGerai: json['nama_gerai']?.toString(),
+      detailAlamat: json['detail_alamat']?.toString(),
+      qrisPath: json['qris_path']?.toString(),
+      lokasiPengantaran: json['lokasi_pengantaran']?.toString(),
+      items: (json['items'] as List<dynamic>?)?.map((e) => DetailOrderModel.fromJson(e)).toList() ?? [],
+    );
+  }
+
+  static Future<TransactionDetailModel?> fetchByBookingId(String bookingId) async {
+    final uri = Uri.http('10.0.2.2', '/dpr_bites_api/get_transaction_detail.php', {
+      'booking_id': bookingId,
+    });
+    final response = await http.get(uri);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true && data['data'] != null) {
+        return TransactionDetailModel.fromJson(data['data']);
+      }
+    }
+    return null;
+  }
+}

@@ -11,6 +11,7 @@ import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/kelola_gerai.dart';
 import 'package:dpr_bites/features/auth/pages/login_page.dart';
+import 'rekap_pesanan_seller_page.dart';
 
 class SellerDashboardPage extends StatefulWidget {
   const SellerDashboardPage({super.key});
@@ -23,47 +24,132 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
   String? _namaGerai;
   bool _loadingGerai = true;
 
+  int pesananBaru = 0;
+  int sedangDisiapkan = 0;
+  int selfPickup = 0;
+  int pesananAntar = 0;
+  int totalSaldo = 0;
+  bool _loadingRekap = true;
+
+  String? _idGerai;
+  DateTime? _selectedDate;
+
   @override
   void initState() {
     super.initState();
+    _selectedDate = DateTime.now();
     _fetchNamaGerai();
   }
 
   Future<void> _fetchNamaGerai() async {
     final prefs = await SharedPreferences.getInstance();
     final idUser = prefs.getString('id_users');
-    print('DEBUG id_users (dashboard): $idUser');
+
     if (idUser == null) {
+      if (!mounted) return;
       setState(() { _namaGerai = '-'; _loadingGerai = false; });
       return;
     }
-    final response = await http.post(
-      Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
-      body: {'id_users': idUser},
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      print('DEBUG response get_gerai_by_user: $data');
-      if (data['success'] == true && data['nama_gerai'] != null) {
-        setState(() {
-          _namaGerai = data['nama_gerai'] ?? '-';
-          _loadingGerai = false;
-        });
-        return;
+
+    try {
+      final res = await http.post(
+        Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+        body: {'id_users': idUser},
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+  final idGerai = data['id_gerai']?.toString();
+        if (data['success'] == true && data['nama_gerai'] != null) {
+          final idGerai = data['id_gerai']?.toString();
+          if (idGerai != null && idGerai.isNotEmpty) {
+            await prefs.setString('id_gerai', idGerai);
+            if (!mounted) return;
+            setState(() {
+              _idGerai = idGerai;
+              _namaGerai = data['nama_gerai'] ?? '-';
+              _loadingGerai = false;
+            });
+            await _fetchRekapPesanan(); 
+            return;
+          }
+        }
       }
-    }
+    } catch (_) {}
+
+    if (!mounted) return;
     setState(() { _namaGerai = '-'; _loadingGerai = false; });
+  }
+
+  Future<void> _fetchRekapPesanan() async {
+    if (!mounted) return;
+    setState(() { _loadingRekap = true; });
+
+    final prefs = await SharedPreferences.getInstance();
+    final idGerai = _idGerai ?? prefs.getString('id_gerai');
+    if (idGerai == null) {
+      if (!mounted) return;
+      setState(() { _loadingRekap = false; });
+      return;
+    }
+
+    // Gunakan tanggal dari _selectedDate, default hari ini jika null
+    final date = _selectedDate ?? DateTime.now();
+    final tanggal = "${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
+
+    final uri = Uri.parse('${getBaseUrl()}/get_rekap_pesanan_seller.php')
+        .replace(queryParameters: {'id_gerai': idGerai, 'tanggal': tanggal});
+
+    try {
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          if (!mounted) return;
+          setState(() {
+            pesananBaru     = (data['pesanan_baru'] ?? 0) as int;
+            sedangDisiapkan = (data['sedang_disiapkan'] ?? 0) as int;
+            selfPickup      = (data['pickup'] ?? 0) as int;
+            pesananAntar    = (data['diantar'] ?? 0) as int;
+            totalSaldo      = (data['total_saldo'] ?? 0) as int;
+            _loadingRekap   = false;
+          });
+        } else {
+          if (!mounted) return;
+          setState(() { _loadingRekap = false; });
+        }
+      } else {
+        if (!mounted) return;
+        setState(() { _loadingRekap = false; });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _loadingRekap = false; });
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 1),
+      locale: const Locale('id', 'ID'),
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      await _fetchRekapPesanan();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Dummy data, bisa diganti provider
-    final saldo = 50000;
-    final pesananBaru = 2;
-    final sedangDisiapkan = 1;
-    final selfPickup = 0;
-    final pesananAntar = 1;
-    DateTime? selectedDate; // tidak dipakai, dihapus agar tidak error
+    String tanggalLabel = _selectedDate == null
+        ? "Pilih Tanggal"
+        : "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
 
     return GradientBackground(
       child: Scaffold(
@@ -105,27 +191,28 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("Filter Isi Saldo & Ringkasan Pesanan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const Text("Ringkasan Pesanan dan Saldo", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
                               child: GestureDetector(
-                                onTap: () {
-                                  // Fungsi pilih tanggal tidak perlu jalan, hanya UI
-                                },
+                                onTap: _pickDate,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.grey.shade300),
+                                    border: Border.all(color: Color(0xFFD53D3D), width: 1.2),
                                     borderRadius: BorderRadius.circular(8),
-                                    color: Colors.grey.shade100,
+                                    color: Colors.white,
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      const Text("Pilih Tanggal", style: TextStyle(fontSize: 14, color: Colors.black54)),
-                                      Icon(Icons.calendar_today, size: 18, color: Colors.grey.shade600),
+                                      Text(
+                                        tanggalLabel,
+                                        style: const TextStyle(fontSize: 14, color: Color(0xFF602829), fontWeight: FontWeight.w500),
+                                      ),
+                                      Icon(Icons.calendar_today, size: 18, color: Color(0xFFD53D3D)),
                                     ],
                                   ),
                                 ),
@@ -134,89 +221,111 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        // Ringkasan dummy
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: const [
-                            Text("Total Saldo Masuk:", style: TextStyle(fontSize: 14)),
-                            Text("Rp 50.000", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          children: [
+                            Text(_selectedDate == null ? "Saldo hari ini:" : "Saldo tanggal:", style: const TextStyle(fontSize: 14)),
+                            _loadingRekap
+                                ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                : Text("Rp $totalSaldo", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFD53D3D))),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: const [
-                            Text("Total Pesanan:", style: TextStyle(fontSize: 14)),
-                            Text("4", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          children: [
+                            const Text("Total Pesanan:", style: TextStyle(fontSize: 14)),
+                            _loadingRekap
+                                ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                : Text("${pesananBaru + sedangDisiapkan + selfPickup + pesananAntar}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                // TOP ROW: Saldo (full width)
-                CustomEmptyCard(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: const [
-                            Icon(Icons.currency_exchange, color: Colors.green, size: 22),
-                            SizedBox(width: 6),
-                            Text("Saldo", style: TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Rp $saldo",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFD53D3D),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            icon: const Icon(Icons.table_chart),
+                            label: const Text("Lihat Rekap Pesanan Seller"),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const RekapPesananSellerPage(),
+                                ),
+                              );
+                            },
                           ),
                         ),
+
                       ],
                     ),
                   ),
                 ),
 
-                // ROW: Pesanan
+
+                // ROW 1: Pesanan Baru & Disiapkan (klik → PesananPage dengan filter)
                 Row(
                   children: [
                     Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(right: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                          child: Column(
-                            children: [
-                              const Text(
-                                "Pesanan Baru",
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 2),
-                              Text("$pesananBaru", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ],
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PesananPage(initialFilter: 'Konfirmasi Ketersediaan'),
+                            ),
+                          );
+                        },
+                        child: CustomEmptyCard(
+                          margin: const EdgeInsets.only(right: 10, bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                            child: Column(
+                              children: [
+                                const Text("Pesanan Baru", style: TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(height: 2),
+                                _loadingRekap
+                                    ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                    : Text("$pesananBaru", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                     Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(left: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                          child: Column(
-                            children: [
-                              const Text(
-                                "Sedang Disiapkan",
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 2),
-                              Text("$sedangDisiapkan", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ],
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PesananPage(initialFilter: 'Disiapkan'),
+                            ),
+                          );
+                        },
+                        child: CustomEmptyCard(
+                          margin: const EdgeInsets.only(left: 10, bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                            child: Column(
+                              children: [
+                                const Text("Sedang Disiapkan", style: TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(height: 2),
+                                _loadingRekap
+                                    ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                    : Text("$sedangDisiapkan", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -224,41 +333,61 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   ],
                 ),
 
-                // ROW: Self Pickup & Pesan Antar
+                // ROW 2: Pickup & Diantar
                 Row(
                   children: [
                     Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(right: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                          child: Column(
-                            children: [
-                              const Text(
-                                "Self Pickup",
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 2),
-                              Text("$selfPickup", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ],
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PesananPage(initialFilter: 'Pickup'),
+                            ),
+                          );
+                        },
+                        child: CustomEmptyCard(
+                          margin: const EdgeInsets.only(right: 10, bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                            child: Column(
+                              children: [
+                                const Text("Self Pickup", style: TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(height: 2),
+                                _loadingRekap
+                                    ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                    : Text("$selfPickup", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                     Expanded(
-                      child: CustomEmptyCard(
-                        margin: const EdgeInsets.only(left: 10, bottom: 16),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-                          child: Column(
-                            children: [
-                              const Text(
-                                "Pesan Antar",
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 2),
-                              Text("$pesananAntar", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            ],
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PesananPage(initialFilter: 'Diantar'),
+                            ),
+                          );
+                        },
+                        child: CustomEmptyCard(
+                          margin: const EdgeInsets.only(left: 10, bottom: 16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                            child: Column(
+                              children: [
+                                const Text("Pesan Antar", style: TextStyle(fontWeight: FontWeight.w500)),
+                                const SizedBox(height: 2),
+                                _loadingRekap
+                                    ? const SizedBox(width: 24, height: 16, child: LinearProgressIndicator())
+                                    : Text("$pesananAntar", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -275,10 +404,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   leading: const Icon(Icons.person_outline, color: Colors.black),
                   title: const Text("Profil penjual"),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilSellerPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilSellerPage()));
                   },
                 ),
                 ListTile(
@@ -286,10 +412,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   leading: const Icon(Icons.menu_book, color: Colors.black),
                   title: const Text("Menu Gerai"),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MenuRestoPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MenuRestoPage()));
                   },
                 ),
                 ListTile(
@@ -297,10 +420,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   leading: const Icon(Icons.star_border, color: Colors.black),
                   title: const Text("Ulasan"),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const UlasanPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const UlasanPage()));
                   },
                 ),
                 ListTile(
@@ -308,25 +428,15 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   leading: const Icon(Icons.store_mall_directory, color: Colors.black),
                   title: const Text("Kelola Gerai"),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const KelolaProfilGeraiPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const KelolaProfilGeraiPage()));
                   },
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.logout, color: Color(0xFFD53D3D)),
-                  title: const Text(
-                    "Keluar",
-                    style: TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w600),
-                  ),
+                  title: const Text("Keluar", style: TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w600)),
                   onTap: () {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()),
-                      (route) => false,
-                    );
+                    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false);
                   },
                 ),
 
@@ -335,32 +445,24 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
             ),
           ),
         ),
-        // BOTTOM NAV BAR
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
           selectedItemColor: const Color(0xFFD53D3D),
           unselectedItemColor: Colors.black54,
-          currentIndex: 0, // branda (home)
+          currentIndex: 0, // beranda
           onTap: (i) {
             if (i == 1) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => PesananPage(),
+                  builder: (_) => const PesananPage(initialFilter: 'Konfirmasi Ketersediaan'),
                 ),
               );
             }
-            // Tab 0 (Beranda) does nothing since already here
           },
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: "Beranda",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment),
-              label: "Pesanan",
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
+            BottomNavigationBarItem(icon: Icon(Icons.assignment), label: "Pesanan"),
           ],
         ),
       ),

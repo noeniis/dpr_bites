@@ -81,13 +81,15 @@ class _LoginPageState extends State<LoginPage> {
         debugPrint('ID USERS LOGIN: ${result['id_users']}');
       }
       // Redirect sesuai role dari backend
-      if (result['role'] == 'user' || result['role'] == 'pegawai') {
+      final roleStr = result['role'].toString();
+      if (roleStr == '0') {
+        // Pegawai
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomePage()),
         );
-      } else if (result['role'] == 'penjual') {
-        // Pastikan step1, step2, step3 boolean
+      } else if (roleStr == '1') {
+        // Penjual
         final step1 = result['step1'] == true;
         final step2 = result['step2'] == true;
         final step3 = result['step3'] == true;
@@ -102,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
           );
         }
-      } else if (result['role'] == 'koperasi') {
+      } else if (roleStr == 'koperasi') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomepageKoperasi()),

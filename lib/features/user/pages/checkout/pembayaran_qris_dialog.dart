@@ -53,9 +53,58 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.black87),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    widget.onBatal();
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (c){
+                        return Dialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal:22, vertical:22),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline, size: 50, color: Color(0xFFB03056)),
+                                const SizedBox(height: 14),
+                                const Text('Batalkan Pesanan?', style: TextStyle(fontWeight: FontWeight.bold,fontSize:18,color: Color(0xFF602829))),
+                                const SizedBox(height: 8),
+                                const Text('Apakah yakin ingin membatalkan pesanan ini?', textAlign: TextAlign.center, style: TextStyle(fontSize:14,height:1.3)),
+                                const SizedBox(height: 22),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        onPressed: ()=>Navigator.pop(c,false),
+                                        style: TextButton.styleFrom(foregroundColor: const Color(0xFF602829)),
+                                        child: const Text('Tidak'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: ()=>Navigator.pop(c,true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFFB03056),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          padding: const EdgeInsets.symmetric(vertical:11),
+                                        ),
+                                        child: const Text('Ya, Batalkan'),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+                    );
+                    if(confirm==true){
+                      Navigator.of(context).pop();
+                      widget.onBatal();
+                    }
                   },
                   tooltip: 'Tutup',
                 ),
