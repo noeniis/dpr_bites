@@ -23,175 +23,228 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
   Widget _buildActionButtons(TransactionDetailModel detail) {
     final status = detail.status.toLowerCase();
       switch (status) {
-        case 'konfirmasi_ketersediaan':
-          return Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: CustomButtonKotak(
-                  text: 'Terima Pesanan',
-                  onPressed: () async {
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (context) => const Center(child: CircularProgressIndicator()),
+    case 'konfirmasi_ketersediaan':
+      return Column(
+        children: [
+          // === TERIMA PESANAN ===
+          SizedBox(
+            width: double.infinity,
+            child: CustomButtonKotak(
+              text: 'Terima Pesanan',
+              onPressed: () async {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+                try {
+                  final idTransaksi = detail.idTransaksi;
+
+                  // 1. Update stok & konfirmasi ketersediaan
+                  final stokRes = await http.post(
+                    Uri.parse('http://10.0.2.2/dpr_bites_api/auto_decide_availability.php'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: jsonEncode({
+                      "id_transaksi": idTransaksi,
+                      "available": true,
+                    }),
+                  );
+
+                  if (stokRes.statusCode == 200 && stokRes.body.contains('success')) {
+                    // 2. Tentukan next status
+                    final isCash = detail.metodePembayaran.toLowerCase().trim() == 'cash';
+                    final nextStatus = isCash ? 'disiapkan' : 'konfirmasi_pembayaran';
+
+                    final statusRes = await http.post(
+                      Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
+                      headers: {'Content-Type': 'application/json'},
+                      body: jsonEncode({
+                        "id_transaksi": idTransaksi,
+                        "new_status": nextStatus,
+                      }),
                     );
-                    try {
-                      final idTransaksi = detail.idTransaksi;
-                      final isCash = detail.metodePembayaran.toLowerCase().trim() == 'cash';
-                      final nextStatus = isCash ? 'disiapkan' : 'konfirmasi_pembayaran';
-                      final response = await http.post(
-                        Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                        headers: {'Content-Type': 'application/json'},
-                        body: jsonEncode({
-                          "id_transaksi": idTransaksi,
-                          "new_status": nextStatus
-                        }),
-                      );
-                      Navigator.of(context, rootNavigator: true).pop(); // close loading
-                      if (response.statusCode == 200 && response.body.contains('success')) {
-                        Navigator.pop(context, {'status': nextStatus});
-                      } else {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Gagal'),
-                            content: Text('Gagal mengubah status pesanan. Coba lagi.'),
-                            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      Navigator.of(context, rootNavigator: true).pop();
+
+                    Navigator.of(context, rootNavigator: true).pop(); // close loading
+
+                    if (statusRes.statusCode == 200 && statusRes.body.contains('success')) {
+                      Navigator.pop(context, {'status': nextStatus});
+                    } else {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Error'),
-                          content: Text('Terjadi error: $e'),
-                          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+                          title: const Text('Gagal'),
+                          content: const Text('Stok terupdate, tapi gagal update status pesanan.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                          ],
                         ),
                       );
                     }
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: CustomButtonKotak(
-                  text: 'Tolak Pesanan',
-                  backgroundColor: const Color(0xFF9E9595),
-                  onPressed: () async {
-                    String? alasan = await showDialog<String>(
+                  } else {
+                    Navigator.of(context, rootNavigator: true).pop();
+                    showDialog(
                       context: context,
-                      builder: (context) {
-                        String? selectedReason;
-                        TextEditingController alasanController = TextEditingController();
-                        String? errorText;
-                        return StatefulBuilder(
-                          builder: (context, setState) {
-                            return AlertDialog(
-                              title: const Text('Alasan Penolakan'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  DropdownButtonFormField<String>(
-                                    value: selectedReason,
-                                    hint: const Text('Pilih alasan'),
-                                    items: const [
-                                      DropdownMenuItem(value: 'Stok kosong', child: Text('Stok kosong')),
-                                      DropdownMenuItem(value: 'Menu habis', child: Text('Menu habis')),
-                                      DropdownMenuItem(value: 'Toko tutup', child: Text('Toko tutup')),
-                                      DropdownMenuItem(value: 'Lainnya', child: Text('Lainnya')),
-                                    ],
-                                    onChanged: (val) {
-                                      setState(() {
-                                        selectedReason = val;
-                                        if (val != 'Lainnya') {
-                                          alasanController.text = val ?? '';
-                                        } else {
-                                          alasanController.text = '';
-                                        }
-                                        errorText = null;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: 10),
-                                  TextField(
-                                    controller: alasanController,
-                                    enabled: selectedReason == 'Lainnya',
-                                    decoration: InputDecoration(
-                                      hintText: 'Alasan',
-                                      errorText: errorText,
-                                    ),
-                                  ),
+                      builder: (context) => AlertDialog(
+                        title: const Text('Gagal'),
+                        content: const Text('Gagal update stok/menu. Coba lagi.'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                        ],
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Error'),
+                      content: Text('Terjadi error: $e'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // === TOLAK PESANAN ===
+          SizedBox(
+            width: double.infinity,
+            child: CustomButtonKotak(
+              text: 'Tolak Pesanan',
+              backgroundColor: const Color(0xFF9E9595),
+              onPressed: () async {
+                String? alasan = await showDialog<String>(
+                  context: context,
+                  builder: (context) {
+                    String? selectedReason;
+                    TextEditingController alasanController = TextEditingController();
+                    String? errorText;
+
+                    return StatefulBuilder(
+                      builder: (context, setState) {
+                        return AlertDialog(
+                          title: const Text('Alasan Penolakan'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              DropdownButtonFormField<String>(
+                                value: selectedReason,
+                                hint: const Text('Pilih alasan'),
+                                items: const [
+                                  DropdownMenuItem(value: 'Stok kosong', child: Text('Stok kosong')),
+                                  DropdownMenuItem(value: 'Menu habis', child: Text('Menu habis')),
+                                  DropdownMenuItem(value: 'Toko tutup', child: Text('Toko tutup')),
+                                  DropdownMenuItem(value: 'Lainnya', child: Text('Lainnya')),
                                 ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Batal'),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    final alasanFinal = alasanController.text.isNotEmpty ? alasanController.text : selectedReason;
-                                    if (alasanFinal == null || alasanFinal.isEmpty) {
-                                      setState(() { errorText = 'Alasan wajib diisi'; });
-                                      return;
+                                onChanged: (val) {
+                                  setState(() {
+                                    selectedReason = val;
+                                    if (val != 'Lainnya') {
+                                      alasanController.text = val ?? '';
+                                    } else {
+                                      alasanController.text = '';
                                     }
-                                    Navigator.pop(context, alasanFinal);
-                                  },
-                                  child: const Text('Kirim'),
+                                    errorText = null;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: alasanController,
+                                enabled: selectedReason == 'Lainnya',
+                                decoration: InputDecoration(
+                                  hintText: 'Alasan',
+                                  errorText: errorText,
                                 ),
-                              ],
-                            );
-                          },
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Batal'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                final alasanFinal = alasanController.text.isNotEmpty
+                                    ? alasanController.text
+                                    : selectedReason;
+                                if (alasanFinal == null || alasanFinal.isEmpty) {
+                                  setState(() {
+                                    errorText = 'Alasan wajib diisi';
+                                  });
+                                  return;
+                                }
+                                Navigator.pop(context, alasanFinal);
+                              },
+                              child: const Text('Kirim'),
+                            ),
+                          ],
                         );
                       },
                     );
-                    if (alasan != null && alasan.isNotEmpty) {
+                  },
+                );
+
+                if (alasan != null && alasan.isNotEmpty) {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(child: CircularProgressIndicator()),
+                  );
+                  try {
+                    final idTransaksi = detail.idTransaksi;
+
+                    final response = await http.post(
+                      Uri.parse('http://10.0.2.2/dpr_bites_api/auto_decide_availability.php'),
+                      headers: {'Content-Type': 'application/json'},
+                      body: jsonEncode({
+                        "id_transaksi": idTransaksi,
+                        "available": false,
+                        "alasan": alasan,
+                      }),
+                    );
+
+                    Navigator.of(context, rootNavigator: true).pop(); // close loading
+
+                    if (response.statusCode == 200 && response.body.contains('success')) {
+                      Navigator.pop(context, {'status': 'canceled', 'alasan': alasan});
+                    } else {
                       showDialog(
                         context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const Center(child: CircularProgressIndicator()),
+                        builder: (context) => AlertDialog(
+                          title: const Text('Gagal'),
+                          content: const Text('Gagal menolak pesanan. Coba lagi.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                          ],
+                        ),
                       );
-                      try {
-                        final idTransaksi = detail.idTransaksi;
-                        final response = await http.post(
-                          Uri.parse('http://10.0.2.2/dpr_bites_api/auto_decide_availability.php'),
-                          headers: {'Content-Type': 'application/json'},
-                          body: '{"id_transaksi": "$idTransaksi", "available": false, "alasan": "${alasan.replaceAll('"', '\"')}"}',
-                        );
-                        Navigator.of(context, rootNavigator: true).pop(); // close loading
-                        if (response.statusCode == 200 && response.body.contains('success')) {
-                          Navigator.pop(context, {'status': 'canceled', 'alasan': alasan});
-                        } else {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Gagal'),
-                              content: Text('Gagal menolak pesanan. Coba lagi.'),
-                              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        Navigator.of(context, rootNavigator: true).pop();
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Error'),
-                            content: Text('Terjadi error: $e'),
-                            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-                          ),
-                        );
-                      }
                     }
-                  },
-                ),
-              ),
-            ],
-          );
+                  } catch (e) {
+                    Navigator.of(context, rootNavigator: true).pop();
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Error'),
+                        content: Text('Terjadi error: $e'),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))
+                        ],
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        ],
+      );
       case 'konfirmasi_pembayaran':
         return Column(
           children: [

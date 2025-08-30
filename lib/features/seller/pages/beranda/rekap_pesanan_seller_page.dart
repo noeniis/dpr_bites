@@ -163,7 +163,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
       }
     } catch (e) {
       setState(() {
-        _error = 'Terjadi kesalahan: $e';
+        _error = 'Belum Ada Data';
         _loading = false;
       });
     }

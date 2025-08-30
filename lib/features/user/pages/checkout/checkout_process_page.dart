@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
@@ -8,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:dpr_bites/features/user/pages/history/receipt_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/chat_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/pembayaran_qris_dialog.dart';
+import 'package:dpr_bites/features/user/pages/review/review_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CheckoutProcessPage extends StatefulWidget {
   final String? bookingId;
@@ -28,12 +31,14 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   bool _isPickup = false;
   late final String? _bookingId;
   late final int? _idTransaksi;
-  int _pollCount = 0;
+  Timer? _pollTimer; // periodic auto-refresh
+  bool _fetching = false; // prevent overlapping fetch
   String _metode = '';
   DateTime? _disiapkanStart; // waktu pertama kali masuk status disiapkan
   final Duration _prepDuration = const Duration(minutes: 15);
   Duration _remaining = const Duration(minutes: 15);
   bool _timerScheduled = false;
+  bool _overtime = false; // menandai jika sudah melewati estimasi
   DateTime?
   _selesaiAt; // waktu lokal ketika pertama kali status selesai terdeteksi (fallback jika backend belum kirim field khusus)
   DateTime?
@@ -43,6 +48,10 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _tx != null &&
       ['selesai', 'dibatalkan'].contains((_tx!['status'] ?? '').toString());
   bool _shownQris = false; // to avoid repeated dialog
+  bool _shownReview = false; // avoid multi open
+  String? _reviewOpenedAtStatus; // track status when review first opened
+  bool _reviewSubmitted = false; // track if user already submitted
+  bool _pushingReview = false; // guard against double push in same frame
   // Cache nama addon (id_addon -> nama_addon)
   final Map<int, String> _addonNameCache = {};
   int? _geraiId; // cache id gerai hasil resolve (backend mungkin belum kirim)
@@ -100,6 +109,8 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   }
 
   Future<void> _fetch() async {
+    if (_fetching) return; // avoid overlapping requests
+    _fetching = true;
     setState(() => _loading = true);
     try {
       final qp = <String, String>{};
@@ -133,6 +144,28 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _metode = (data['metode_pembayaran'] ?? '').toString();
       _tx = data;
       _items = List<Map<String, dynamic>>.from(data['items'] as List);
+      // Fallback isi id_users jika null supaya halaman ulasan bisa auto muncul
+      if ((_tx!['id_users'] == null || _tx!['id_users'].toString().isEmpty)) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          for (final k in ['id_users', 'id_user', 'user_id']) {
+            if (prefs.containsKey(k)) {
+              final v = prefs.get(k);
+              if (v != null) {
+                _tx!['id_users'] = v;
+                // ignore: avoid_print
+                print(
+                  '[ReviewTrigger] Inject id_users dari prefs key=$k val=$v',
+                );
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          // ignore: avoid_print
+          print('[ReviewTrigger] Gagal ambil id user prefs: $e');
+        }
+      }
       _firstFetchAt ??= DateTime.now();
       // Simpan created_at terformat sekali (format: dd-MM-yyyy HH.mm WIB)
       _bookingCreatedAtDisplay = _formatTanggalBooking(data);
@@ -173,11 +206,52 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
           '[WARN] id_gerai tidak tersedia sehingga addon tidak bisa di-resolve',
         );
       }
-      // Catat waktu mulai disiapkan untuk countdown
-      if (status == 'disiapkan' && _disiapkanStart == null) {
-        _disiapkanStart = DateTime.now();
-        _remaining = _prepDuration;
-        _scheduleCountdownTick();
+      // Catat / pulihkan waktu mulai disiapkan untuk countdown (pickup saja)
+      if (status == 'disiapkan' && _isPickup) {
+        final idTransaksi = data['id_transaksi'];
+        final key = idTransaksi == null
+            ? null
+            : 'prep_start_${idTransaksi.toString()}';
+        if (_disiapkanStart == null && key != null) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final saved = prefs.getString(key);
+            if (saved != null) {
+              final parsed = DateTime.tryParse(saved);
+              if (parsed != null) {
+                _disiapkanStart = parsed;
+              }
+            }
+            if (_disiapkanStart == null) {
+              _disiapkanStart = DateTime.now();
+              await prefs.setString(key, _disiapkanStart!.toIso8601String());
+            }
+          } catch (_) {
+            _disiapkanStart ??= DateTime.now();
+          }
+        }
+        if (_disiapkanStart != null) {
+          final elapsed = DateTime.now().difference(_disiapkanStart!);
+          final remaining = _prepDuration - elapsed;
+          if (remaining <= Duration.zero) {
+            _remaining = Duration.zero;
+            _overtime = true;
+          } else {
+            _remaining = remaining;
+          }
+          if (!_timerScheduled) _scheduleCountdownTick();
+        }
+      } else {
+        // Jika keluar dari status disiapkan (antar/pickup/selesai/dibatalkan) hapus key agar sesi baru dimulai wajar bila perlu.
+        if (_disiapkanStart != null) {
+          final idTransaksi = data['id_transaksi'];
+          if (idTransaksi != null) {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('prep_start_${idTransaksi.toString()}');
+            } catch (_) {}
+          }
+        }
       }
       // Catat waktu selesai lokal bila status selesai muncul pertama kali (gunakan field backend jika tersedia)
       if (status == 'selesai' && _selesaiAt == null) {
@@ -201,12 +275,15 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       }
       setState(() => _loading = false);
       _maybeShowQrisDialog();
-      if (!_finished) _schedulePoll();
+      _maybeShowReview(); // otomatis buka halaman ulasan saat status selesai
+      // _schedulePoll digantikan oleh Timer.periodic
     } catch (e) {
       setState(() {
         _error = e.toString();
         _loading = false;
       });
+    } finally {
+      _fetching = false;
     }
   }
 
@@ -457,13 +534,123 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     }
   }
 
-  void _schedulePoll() {
+  void _maybeShowReview({bool overrideShown = false}) {
     if (!mounted) return;
-    if (_finished) return;
-    if (_pollCount > 120) return; // ~10 menit kalau interval 5s
-    _pollCount++;
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) _fetch();
+    if (_tx == null) return;
+    final raw = (_tx!['status'] ?? '').toString();
+    final status = raw.trim().toLowerCase();
+    final debugPrefix = '[ReviewTrigger]';
+    // Only open at final status 'selesai'.
+    if (status != 'selesai') {
+      // ignore: avoid_print
+      print('$debugPrefix BATAL: status=$status (bukan selesai)');
+      return;
+    }
+    if (_reviewSubmitted) {
+      // ignore: avoid_print
+      print('$debugPrefix BATAL: sudah submit');
+      return;
+    }
+    if (_pushingReview) {
+      // ignore: avoid_print
+      print('$debugPrefix BATAL: masih pushing');
+      return;
+    }
+    if (_shownReview && _reviewOpenedAtStatus == 'selesai' && !overrideShown) {
+      // ignore: avoid_print
+      print('$debugPrefix BATAL: sudah pernah dibuka & overrideShown=false');
+      return;
+    }
+    // Require essential ids
+    final idTransaksi = _tx!['id_transaksi'];
+    final idGerai = _tx!['id_gerai'];
+    dynamic idUser = _tx!['id_users'];
+    if (idUser == null) {
+      // fallback: coba ambil dari SharedPreferences
+      try {
+        // ignore: avoid_print
+        print('$debugPrefix Fallback cari id_users di SharedPreferences');
+        // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+        SharedPreferences.getInstance().then((prefs) {
+          if (!mounted) return;
+          final candKeys = ['id_users', 'id_user', 'user_id'];
+          for (final k in candKeys) {
+            if (prefs.containsKey(k)) {
+              final v = prefs.get(k);
+              if (v != null) {
+                setState(() {
+                  _tx!['id_users'] = v;
+                });
+                // ignore: avoid_print
+                print('$debugPrefix Berhasil fallback idUser=$v via key=$k');
+                // Panggil ulang dengan override agar langsung buka.
+                _pushingReview = false; // reset guard
+                _maybeShowReview(overrideShown: true);
+                return;
+              }
+            }
+          }
+          // ignore: avoid_print
+          print('$debugPrefix Fallback gagal menemukan id user di prefs');
+        });
+      } catch (e) {
+        // ignore: avoid_print
+        print('$debugPrefix EXC fallback prefs: $e');
+      }
+    }
+    if (idTransaksi == null || idGerai == null || idUser == null) {
+      // ignore: avoid_print
+      print(
+        '$debugPrefix BATAL: id null (idTransaksi=$idTransaksi, idGerai=$idGerai, idUser=$idUser)',
+      );
+      return;
+    }
+    _pushingReview = true;
+    // Schedule after current frame to avoid setState/build conflicts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        _pushingReview = false;
+        return;
+      }
+      _shownReview = true;
+      _reviewOpenedAtStatus = 'selesai';
+      // ignore: avoid_print
+      print(
+        '$debugPrefix PUSH: membuka halaman ulasan (overrideShown=$overrideShown)',
+      );
+      // ignore: use_build_context_synchronously
+      Navigator.of(context)
+          .push(
+            ReviewSheetRoute(
+              ReviewPage(
+                idTransaksi: idTransaksi is int
+                    ? idTransaksi
+                    : int.tryParse(idTransaksi.toString()) ?? 0,
+                idGerai: idGerai is int
+                    ? idGerai
+                    : int.tryParse(idGerai.toString()) ?? 0,
+                idUser: idUser is int
+                    ? idUser
+                    : int.tryParse(idUser.toString()) ?? 0,
+                geraiName: (_tx!['restaurantName'] ?? '').toString(),
+                listingPath: (() {
+                  final v = _tx!['listing_path'] ?? _tx!['listingPath'];
+                  return v == null ? null : v.toString();
+                })(),
+              ),
+            ),
+          )
+          .then((value) {
+            if (value == true) {
+              _reviewSubmitted = true;
+              // ignore: avoid_print
+              print('$debugPrefix RESULT: submit berhasil');
+            } else {
+              // ignore: avoid_print
+              print('$debugPrefix RESULT: ditutup tanpa submit');
+            }
+            _pushingReview = false;
+          });
     });
   }
 
@@ -503,10 +690,15 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       final elapsed = DateTime.now().difference(_disiapkanStart!);
       final remaining = _prepDuration - elapsed;
       if (remaining <= Duration.zero) {
-        setState(() => _remaining = Duration.zero);
-        return false;
+        setState(() {
+          _remaining = Duration.zero;
+          _overtime = true;
+        });
+        return false; // stop timer
       }
-      setState(() => _remaining = remaining);
+      setState(() {
+        _remaining = remaining;
+      });
       await Future.delayed(const Duration(seconds: 1));
       return true;
     });
@@ -524,16 +716,16 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
         ),
         _StepProcess(
           icon: 'lib/assets/images/spatulaknife.png',
-          label: _isPickup
-              ? 'Makanan Siap untuk Diambil'
-              : 'Makanan Lagi Disiapin',
+          label: 'Makanan Lagi Disiapin',
           stateIndex: 1,
         ),
         _StepProcess(
           icon: _isPickup
               ? 'material:store'
               : 'lib/assets/images/iconDelivery.png',
-          label: _isPickup ? 'Pick Up' : 'Makanan Dalam Perjalanan',
+          label: _isPickup
+              ? 'Makanan Siap untuk Diambil'
+              : 'Makanan Dalam Perjalanan',
           stateIndex: 2,
         ),
       ];
@@ -548,16 +740,16 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _StepProcess(icon: '', label: 'Konfirmasi Pembayaran', stateIndex: 1),
       _StepProcess(
         icon: 'lib/assets/images/spatulaknife.png',
-        label: _isPickup
-            ? 'Makanan Siap untuk Diambil'
-            : 'Makanan Lagi Disiapin',
+        label: 'Makanan Lagi Disiapin',
         stateIndex: 2,
       ),
       _StepProcess(
         icon: _isPickup
             ? 'material:store'
             : 'lib/assets/images/iconDelivery.png',
-        label: _isPickup ? 'Pick Up' : 'Makanan Dalam Perjalanan',
+        label: _isPickup
+            ? 'Makanan Siap untuk Diambil'
+            : 'Makanan Dalam Perjalanan',
         stateIndex: 3,
       ),
     ];
@@ -620,7 +812,21 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     final b = _bookingId;
     if ((b != null && b.isNotEmpty) || _idTransaksi != null) {
       _fetch();
+      _pollTimer = Timer.periodic(const Duration(seconds: 5), (t) {
+        if (!mounted) return;
+        if (_finished) {
+          t.cancel();
+          return;
+        }
+        _fetch();
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -846,27 +1052,35 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                                               ? Duration.zero
                                               : _remaining,
                                         );
-                                        return SizedBox(
-                                          width: double.infinity,
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Estimasi',
-                                                style: titleStyleBase.copyWith(
-                                                  fontSize: narrow ? 14 : 16,
-                                                  height: 1.1,
+                                        if (statusNow == 'pickup') {
+                                          return SizedBox(
+                                            width: double.infinity,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'Pesanan Siap Untuk di Pick Up',
+                                                  textAlign: TextAlign.center,
+                                                  style: titleStyleBase
+                                                      .copyWith(
+                                                        fontSize: narrow
+                                                            ? 16
+                                                            : 18,
+                                                      ),
                                                 ),
-                                              ),
-                                              // Pastikan tidak membungkus: pakai FittedBox agar turun ukuran bila tetap overflow
-                                              FittedBox(
-                                                alignment: Alignment.centerLeft,
-                                                fit: BoxFit.scaleDown,
-                                                child: Text(
-                                                  'Pesanan Diterima',
-                                                  maxLines: 1,
-                                                  softWrap: false,
+                                              ],
+                                            ),
+                                          );
+                                        } else {
+                                          return SizedBox(
+                                            width: double.infinity,
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Estimasi',
                                                   style: titleStyleBase
                                                       .copyWith(
                                                         fontSize: narrow
@@ -875,31 +1089,114 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                                                         height: 1.1,
                                                       ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${_formatClock(eta)} WIB',
-                                                style: timeStyle,
-                                              ),
-                                            ],
-                                          ),
-                                        );
+                                                FittedBox(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  fit: BoxFit.scaleDown,
+                                                  child: Text(
+                                                    'Pesanan Diterima',
+                                                    maxLines: 1,
+                                                    softWrap: false,
+                                                    style: titleStyleBase
+                                                        .copyWith(
+                                                          fontSize: narrow
+                                                              ? 14
+                                                              : 16,
+                                                          height: 1.1,
+                                                        ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${_formatClock(eta)} WIB',
+                                                  style: timeStyle,
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }
                                       } else {
                                         return Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.end,
                                           children: [
-                                            Text(
-                                              'Diantar Dalam',
-                                              style: titleStyleBase.copyWith(
-                                                fontSize: narrow ? 16 : 18,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _formatRemaining(_remaining),
-                                              style: timeStyle,
-                                            ),
+                                            if (_overtime)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                      12,
+                                                      10,
+                                                      12,
+                                                      10,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    colors: [
+                                                      const Color(
+                                                        0xFFB03056,
+                                                      ).withOpacity(.12),
+                                                      const Color(
+                                                        0xFF602829,
+                                                      ).withOpacity(.08),
+                                                    ],
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFFB03056,
+                                                    ).withOpacity(.35),
+                                                    width: 1,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  'Mohon Maaf Pesanan Disiapkan Lebih Lama dari Perkiraan. Mohon Untuk Menunggu.',
+                                                  style: titleStyleBase
+                                                      .copyWith(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        height: 1.3,
+                                                        color: const Color(
+                                                          0xFF602829,
+                                                        ),
+                                                      ),
+                                                  textAlign: TextAlign.left,
+                                                ),
+                                              )
+                                            else ...[
+                                              if (_isPickup) ...[
+                                                Center(
+                                                  child: Text(
+                                                    'Pesanan Siap Untuk di Pick Up',
+                                                    textAlign: TextAlign.center,
+                                                    style: titleStyleBase
+                                                        .copyWith(
+                                                          fontSize: narrow
+                                                              ? 16
+                                                              : 18,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ] else ...[
+                                                Text(
+                                                  'Diantar Dalam',
+                                                  style: titleStyleBase
+                                                      .copyWith(
+                                                        fontSize: narrow
+                                                            ? 16
+                                                            : 18,
+                                                      ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  _formatRemaining(_remaining),
+                                                  style: timeStyle,
+                                                ),
+                                              ],
+                                            ],
                                           ],
                                         );
                                       }
@@ -1672,3 +1969,5 @@ class _DashedLinePainter extends CustomPainter {
 }
 
 // extension removed (unused)
+
+// (Removed legacy _ReviewPageRoute; now using ReviewSheetRoute from review_page.dart)

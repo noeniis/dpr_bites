@@ -7,6 +7,8 @@ import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/features/user/pages/checkout/checkout_process_page.dart';
+import 'package:dpr_bites/features/user/pages/review/review_page.dart'; // contains ReviewSheetRoute
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ReceiptPage extends StatefulWidget {
   final Map<String, dynamic>? order; // optional preloaded
@@ -22,6 +24,48 @@ class _ReceiptPageState extends State<ReceiptPage> {
   Map<String, dynamic>? _data;
   bool _loading = false;
   String? _error;
+  bool _hasReview = false;
+  Map<String, dynamic>? _reviewData; // rating & komentar
+  bool _reviewLoading = false;
+
+  Future<void> _checkReview() async {
+    try {
+      if (_data == null) return;
+      final idTrans = _data!['id_transaksi'];
+      if (idTrans == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      final idUsers = prefs.getString('id_users');
+      if (idUsers == null) return;
+      _reviewLoading = true;
+      if (mounted) setState(() {});
+      final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/get_ulasan.php')
+          .replace(
+            queryParameters: {
+              'id_transaksi': idTrans.toString(),
+              'id_users': idUsers,
+            },
+          );
+      final resp = await http.get(
+        uri,
+        headers: const {'Accept': 'application/json'},
+      );
+      if (resp.statusCode != 200) return;
+      final j = jsonDecode(resp.body);
+      if (j is Map && j['success'] == true) {
+        final d = j['data'];
+        if (d != null) {
+          _hasReview = true;
+          if (d is Map) _reviewData = Map<String, dynamic>.from(d);
+        } else {
+          _hasReview = false;
+          _reviewData = null;
+        }
+        if (mounted) setState(() {});
+      }
+    } catch (_) {}
+    _reviewLoading = false;
+    if (mounted) setState(() {});
+  }
 
   @override
   void initState() {
@@ -84,6 +128,7 @@ class _ReceiptPageState extends State<ReceiptPage> {
           _data!['items'] is List) {
         _data!['orderSummary'] = _data!['items'];
       }
+      await _checkReview();
     } catch (e) {
       _error = e.toString();
     }
@@ -145,6 +190,124 @@ class _ReceiptPageState extends State<ReceiptPage> {
     final alasanBatal = (status == 'dibatalkan')
         ? (d['catatan_pembatalan'] ?? '')
         : '';
+    final selesai = status == 'selesai';
+    final bool showProcessButton = isProgress;
+    final bool showReviewButton = selesai && !_hasReview;
+    final bool showAnyActionButtons = showProcessButton || showReviewButton;
+    final reviewWidget = (_hasReview && _reviewData != null)
+        ? Padding(
+            padding: const EdgeInsets.only(top: 14.0, bottom: 12.0),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.92),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE7E0E0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.06),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.reviews_rounded,
+                        color: Color(0xFFB03056),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Ulasan Kamu',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: Color(0xFF602829),
+                        ),
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            ReviewSheetRoute(
+                              ReviewPage(
+                                idTransaksi: d['id_transaksi'] ?? 0,
+                                idGerai: d['id_gerai'] ?? 0,
+                                idUser:
+                                    int.tryParse(
+                                      (_reviewData?['id_users'] ??
+                                              d['id_users'] ??
+                                              '')
+                                          .toString(),
+                                    ) ??
+                                    0,
+                                geraiName: restaurantName.toString(),
+                                listingPath: d['listing_path'] as String?,
+                                readOnly: true,
+                                initialRating: _reviewData?['rating'] as int?,
+                                initialKomentar:
+                                    _reviewData?['komentar'] as String?,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            'Lihat',
+                            style: TextStyle(
+                              color: Color(0xFFB03056),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: List.generate(5, (index) {
+                      final ratingVal = (_reviewData?['rating'] ?? 0) as int;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 3.5),
+                        child: Icon(
+                          index < ratingVal
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
+                          size: 20,
+                          color: Colors.amber,
+                        ),
+                      );
+                    }),
+                  ),
+                  if (((_reviewData?['komentar'] ?? '') as String)
+                      .trim()
+                      .isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      (_reviewData?['komentar'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        height: 1.35,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
 
     return GradientBackground(
       child: Scaffold(
@@ -169,6 +332,11 @@ class _ReceiptPageState extends State<ReceiptPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_loading) const LinearProgressIndicator(minHeight: 2),
+                if (_reviewLoading)
+                  const LinearProgressIndicator(
+                    minHeight: 2,
+                    color: Color(0xFFB03056),
+                  ),
                 const SizedBox(height: 6),
                 if (_error != null)
                   Padding(
@@ -902,7 +1070,9 @@ class _ReceiptPageState extends State<ReceiptPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 28),
+                // Relocated review widget appears here below order summary
+                reviewWidget,
+                SizedBox(height: showAnyActionButtons ? 14 : 8),
                 if (isProgress) ...[
                   SizedBox(
                     width: double.infinity,
@@ -919,15 +1089,51 @@ class _ReceiptPageState extends State<ReceiptPage> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                 ],
+                if (showReviewButton) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: CustomButtonKotak(
+                      text: 'Beri Ulasan',
+                      onPressed: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        final idUsers = prefs.getString('id_users');
+                        if (idUsers == null) return;
+                        final idTrans = d['id_transaksi'];
+                        if (idTrans == null) return;
+                        final idGeraiRaw = d['id_gerai'];
+                        final idGerai = idGeraiRaw is int
+                            ? idGeraiRaw
+                            : int.tryParse(idGeraiRaw?.toString() ?? '') ?? 0;
+                        final result = await Navigator.of(context).push(
+                          ReviewSheetRoute(
+                            ReviewPage(
+                              idTransaksi: idTrans is int
+                                  ? idTrans
+                                  : int.tryParse(idTrans.toString()) ?? 0,
+                              idGerai: idGerai,
+                              idUser: int.tryParse(idUsers) ?? 0,
+                              geraiName: restaurantName,
+                              listingPath: d['listing_path']?.toString(),
+                            ),
+                          ),
+                        );
+                        if (result == true) await _checkReview();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!showAnyActionButtons) const SizedBox(height: 6),
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: CustomButtonKotak(
                     text: 'Hubungi Kami',
                     onPressed: () {
-                      // Aksi button, tidak ada link
+                      // Aksi button
                     },
                   ),
                 ),

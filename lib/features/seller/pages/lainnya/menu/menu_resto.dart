@@ -37,6 +37,21 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
 
   List<Map<String, dynamic>> get _filteredMenus {
     List<Map<String, dynamic>> menus = List<Map<String, dynamic>>.from(_menus);
+    // Otomatis set tersedia = false jika stok habis
+    for (final m in menus) {
+      if ((m['id_menu'] != null && (m['jumlah_stok'] == 0 || m['jumlah_stok'] == '0')) ||
+          (m['id_addon'] != null && (m['stok'] == 0 || m['stok'] == '0'))) {
+        if (m['tersedia'] != 0 && m['tersedia'] != false) {
+          m['tersedia'] = 0;
+          // Update ke database juga
+          if (m['id_menu'] != null) {
+            MenuService.updateTersediaMenu(idMenu: m['id_menu'], tersedia: 0);
+          } else if (m['id_addon'] != null) {
+            MenuService.updateTersediaMenu(idAddon: m['id_addon'], tersedia: 0);
+          }
+        }
+      }
+    }
     if (_search.isNotEmpty) {
       menus = menus.where((m) => (m['nama_menu'] ?? m['nama_addon'] ?? '').toLowerCase().contains(_search.toLowerCase())).toList();
     }

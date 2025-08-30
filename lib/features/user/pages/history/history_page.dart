@@ -90,15 +90,8 @@ class _HistoryPageState extends State<HistoryPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          automaticallyImplyLeading: true,
-          leading: Navigator.of(context).canPop()
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Color(0xFFB03056)),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                )
-              : null,
+          automaticallyImplyLeading: false,
+          leading: null,
           title: const Text(
             'Riwayat Pemesanan',
             style: TextStyle(

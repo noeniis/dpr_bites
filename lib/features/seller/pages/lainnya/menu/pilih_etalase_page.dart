@@ -204,17 +204,14 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
                                 child: Row(
                                   children: [
                                     Expanded(
-                                      child: CheckboxListTile(
-                                        value: _selected.contains(e['nama_etalase']),
+                                      child: RadioListTile<String>(
+                                        value: e['nama_etalase'],
+                                        groupValue: _selected.isNotEmpty ? _selected.first : null,
                                         title: Text(e['nama_etalase'] ?? '-'),
-                                        controlAffinity: ListTileControlAffinity.leading,
                                         onChanged: (val) {
                                           setState(() {
-                                            if (val == true) {
-                                              _selected.add(e['nama_etalase']);
-                                            } else {
-                                              _selected.remove(e['nama_etalase']);
-                                            }
+                                            _selected.clear();
+                                            if (val != null) _selected.add(val);
                                           });
                                         },
                                       ),

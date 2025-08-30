@@ -67,6 +67,8 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                     'name': e['name'] ?? 'Pengguna',
                     'pesanan': e['pesanan'] ?? '',
                     'rating': e['rating'] ?? 0,
+                    'komentar': e['komentar'] ?? '',
+                    'photo': e['photo'],
                   },
                 )
                 .toList();
@@ -250,6 +252,9 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                           final name = r['name'] as String? ?? '';
                           final pesanan = r['pesanan'] as String? ?? '';
                           final rStar = r['rating'] as int? ?? 0;
+                          final komentar = (r['komentar'] as String? ?? '')
+                              .trim();
+                          final photo = r['photo'];
                           return CustomEmptyCard(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -265,15 +270,29 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                         backgroundColor: const Color(
                                           0xFFE6F7EC,
                                         ),
-                                        child: Text(
-                                          name.isNotEmpty
-                                              ? name[0].toUpperCase()
-                                              : '',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF3A3A3A),
-                                          ),
-                                        ),
+                                        backgroundImage:
+                                            photo != null &&
+                                                (photo as String).isNotEmpty
+                                            ? (photo.startsWith('http')
+                                                  ? NetworkImage(photo)
+                                                  : NetworkImage(
+                                                      'http://10.0.2.2/dpr_bites_api/' +
+                                                          photo,
+                                                    ))
+                                            : null,
+                                        child:
+                                            (photo == null ||
+                                                (photo as String).isEmpty)
+                                            ? Text(
+                                                name.isNotEmpty
+                                                    ? name[0].toUpperCase()
+                                                    : '',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Color(0xFF3A3A3A),
+                                                ),
+                                              )
+                                            : null,
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -310,6 +329,17 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                       color: Color(0xFF3A3A3A),
                                     ),
                                   ),
+                                  if (komentar.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      komentar,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        color: Colors.black87,
+                                        height: 1.3,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
