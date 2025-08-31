@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'dart:io';
 
 class ProfilGeraiPage extends StatefulWidget {
@@ -14,6 +15,56 @@ class ProfilGeraiPage extends StatefulWidget {
 }
 
 class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
+  // Fungsi untuk mendapatkan base URL
+  String getBaseUrl() {
+    return 'http://10.255.40.182:80/dpr_bites_api'; // Ganti dengan base URL yang sesuai
+  }
+
+  // Fungsi untuk mengirim data profil ke gerai_profil.php
+  Future<bool> saveProfilGerai(Map<String, dynamic> data) async {
+    try {
+      // Jika gambar ada, encode menjadi base64
+      if (_bannerImage != null) {
+        final bannerBytes = await _bannerImage!.readAsBytes();
+        data['banner'] = base64Encode(
+          bannerBytes,
+        ); // Mengirim gambar banner dalam format base64
+      }
+      if (_listingImage != null) {
+        final listingBytes = await _listingImage!.readAsBytes();
+        data['listing'] = base64Encode(
+          listingBytes,
+        ); // Mengirim gambar listing dalam format base64
+      }
+
+      final response = await http.post(
+        Uri.parse(
+          '${getBaseUrl()}/gerai_profil.php',
+        ), // Ganti dengan base URL yang sesuai
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data), // Kirim data dalam format JSON
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result is Map && result.containsKey('success')) {
+          return result['success']; // Mengembalikan status sukses
+        } else {
+          debugPrint(
+            'Response JSON tidak mengandung kunci success: ${response.body}',
+          );
+          return false;
+        }
+      } else {
+        debugPrint('HTTP error: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Exception saat save profil gerai: ${e.toString()}');
+      return false;
+    }
+  }
+
   // Hari buka (Senin-Minggu)
   final List<String> days = [
     'Senin',
@@ -136,8 +187,6 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ...existing code...
-
                   // Gambar banner & listing
                   const Text(
                     "Gambar banner & gambar listing",
@@ -214,7 +263,6 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 30),
 
                   // Menu masakan
@@ -266,6 +314,7 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                     }),
                   ),
                   const SizedBox(height: 20),
+
                   // Jam operasional
                   const Text(
                     "Jam operasional",
@@ -328,7 +377,6 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
                   ),
 
                   const SizedBox(height: 24),
-                  // ...existing code...
                 ],
               ),
             ),
@@ -341,13 +389,43 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
             child: CustomButtonKotak(
               text: "Simpan dan lanjutkan",
               onPressed: () async {
-                // Set card 2 selesai
-                await OnboardingChecklistStorage.setStatus(1, true);
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/onboarding_checklist',
-                  (route) => false,
-                );
+                final data = {
+                  "menu_masakan": menuController.text,
+                  "jam_buka": timeStartController?.text,
+                  "jam_tutup": timeEndController?.text,
+                  "hari_buka": selectedDays
+                      .asMap()
+                      .entries
+                      .where((entry) => entry.value)
+                      .map((entry) => days[entry.key])
+                      .toList(),
+                };
+
+                final success = await saveProfilGerai(data);
+
+                if (success) {
+                  if (!mounted) return;
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/onboarding_checklist',
+                    (route) => false,
+                  );
+                } else {
+                  if (!mounted) return;
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text("Gagal Menyimpan Profil"),
+                      content: Text("Coba lagi nanti."),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text("OK"),
+                        ),
+                      ],
+                    ),
+                  );
+                }
               },
             ),
           ),
