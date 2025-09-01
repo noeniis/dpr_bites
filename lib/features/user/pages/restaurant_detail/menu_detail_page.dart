@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/common/utils/prefs_helper.dart';
 
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
   final int initialQty;
-  const MenuDetailPage({super.key, required this.menu, this.initialQty = 0});
+  // Daftar ID addon yang sudah dipilih (saat edit)
+  final List<int>? initialAddonIds;
+  // Catatan awal (saat edit)
+  final String? initialNote;
+  const MenuDetailPage({
+    super.key,
+    required this.menu,
+    this.initialQty = 0,
+    this.initialAddonIds,
+    this.initialNote,
+  });
 
   @override
   State<MenuDetailPage> createState() => _MenuDetailPageState();
@@ -14,17 +28,264 @@ class MenuDetailPage extends StatefulWidget {
 class _MenuDetailPageState extends State<MenuDetailPage> {
   late int qty;
   final TextEditingController noteController = TextEditingController();
-  List<String> selectedAddons = [];
+  // Simpan ID addon (int)
+  List<int> selectedAddons = [];
+  int? _userId; // loaded from SharedPreferences
+  bool _favorited = false;
+  bool _favBusy = false;
+
+  // We'll keep original passed menu as fallback, and load fresh data (including addons) from API
+  Map<String, dynamic>?
+  _menuData; // will contain keys: id, name, desc, price, image, addonOptions[]
+  bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     qty = widget.initialQty > 0 ? widget.initialQty : 1;
+    _menuData = Map<String, dynamic>.from(widget.menu);
+
+    // 1. Isi selectedAddons dari parameter jika ada
+    if (widget.initialAddonIds != null) {
+      selectedAddons = List<int>.from(widget.initialAddonIds!);
+    } else {
+      // 2. Atau coba ambil dari map menu jika field-field standar tersedia
+      //    Mencari key umum: selectedAddons, addonIds, addons
+      final dynamic raw =
+          widget.menu['selectedAddons'] ??
+          widget.menu['addonIds'] ??
+          widget.menu['addons'];
+      if (raw is List) {
+        selectedAddons = raw
+            .where((e) => e != null)
+            .map((e) => int.tryParse(e.toString()))
+            .whereType<int>()
+            .toList();
+      }
+    }
+
+    // 3. Catatan awal
+    if (widget.initialNote != null && widget.initialNote!.isNotEmpty) {
+      noteController.text = widget.initialNote!;
+    } else if (widget.menu['note'] is String) {
+      noteController.text = widget.menu['note'];
+    }
+
+    // 4. Init user id then fetch detail & favorite status
+    final id = widget.menu['id'];
+    _init(id?.toString());
+  }
+
+  Future<void> _init(String? id) async {
+    // Ambil user id dengan helper, fallback ke string jika null
+    _userId = await Prefs.getUserIdInt();
+    if (_userId == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('id_users');
+      if (s != null) {
+        _userId = int.tryParse(s);
+      }
+    }
+    if (_userId == null) {
+      debugPrint('User id null di _init');
+    }
+    if (id != null) {
+      await _fetchMenuDetail(id);
+      await _loadFavoriteStatus(id);
+    }
+  }
+
+  Future<void> _loadFavoriteStatus(String id) async {
+    try {
+      if (_userId == null) {
+        setState(() => _favorited = false);
+        debugPrint('User id null di _loadFavoriteStatus');
+        return;
+      }
+      final uri = Uri.parse(
+        'http://10.0.2.2/dpr_bites_api/favorite.php?user_id=${_userId}&menu_id=$id',
+      );
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'X-User-Id': _userId.toString(),
+        },
+      );
+      debugPrint(
+        'favorite GET -> status: \\${res.statusCode}, body: \\${res.body}',
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['success'] == true) {
+          setState(() {
+            _favorited = body['favorited'] == true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error _loadFavoriteStatus: $e');
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_favBusy) return;
+    _favBusy = true;
+    final id = _menuData?['id'] ?? widget.menu['id'];
+    if (id == null) {
+      _favBusy = false;
+      return;
+    }
+    try {
+      // If we don't have a user id loaded yet, try to read it now.
+      if (_userId == null) {
+        _userId = await Prefs.getUserIdInt();
+        if (_userId == null) {
+          final prefs = await SharedPreferences.getInstance();
+          final s = prefs.getString('id_users');
+          if (s != null) {
+            _userId = int.tryParse(s);
+          }
+        }
+      }
+      if (_userId == null) {
+        debugPrint('User id null di _toggleFavorite');
+        _favBusy = false;
+        return;
+      }
+
+      // Optimistic UI: flip the local state first for snappy feedback.
+      final prev = _favorited;
+      setState(() => _favorited = !prev);
+
+      final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/favorite.php');
+      final Map<String, dynamic> payload = {
+        'user_id': _userId!,
+        'menu_id': int.tryParse(id.toString()) ?? id,
+        'action': 'toggle',
+      };
+      final res = await http.post(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-User-Id': _userId.toString(),
+        },
+        body: jsonEncode(payload),
+      );
+      debugPrint(
+        'favorite POST -> status: \\${res.statusCode}, body: \\${res.body}',
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['success'] == true) {
+          // trust server response; keep local state in sync
+          setState(() {
+            _favorited = body['favorited'] == true;
+          });
+        } else {
+          // server reported failure -> revert optimistic state
+          setState(() => _favorited = prev);
+          final msg = (body is Map && body['message'] != null)
+              ? body['message'].toString()
+              : 'Gagal update favorite';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
+        }
+      } else {
+        // HTTP failure -> revert optimistic state
+        setState(() => _favorited = prev);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('HTTP ${res.statusCode}')));
+      }
+    } catch (e) {
+      debugPrint('Error _toggleFavorite: $e');
+      // on exception, revert optimistic state
+      try {
+        setState(() => _favorited = !_favorited);
+      } catch (_) {}
+    } finally {
+      _favBusy = false;
+    }
+  }
+
+  Future<void> _fetchMenuDetail(String id) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final uri = Uri.parse(
+        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
+            Uri.encodeQueryComponent(id),
+      );
+      final res = await http.get(uri, headers: {'Accept': 'application/json'});
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        if (body is Map && body['success'] == true) {
+          final data = body['data'];
+          if (data is Map) {
+            final menu = Map<String, dynamic>.from(data);
+            // Normalize keys to match existing UI usage
+            _menuData = {
+              'id': menu['id'],
+              'name': menu['name'] ?? menu['nama_menu'],
+              'desc': menu['desc'] ?? menu['deskripsi_menu'] ?? '',
+              'price': menu['price'] ?? menu['harga'] ?? 0,
+              'image': menu['image'] ?? menu['gambar_menu'],
+              'addonOptions':
+                  (menu['addonOptions'] as List?)?.map((a) {
+                    final am = Map<String, dynamic>.from(a as Map);
+                    return {
+                      'id': am['id'] ?? am['id_addon'],
+                      'label': am['label'] ?? am['nama_addon'] ?? '',
+                      'price': am['price'] ?? am['harga'] ?? 0,
+                      'image': am['image'] ?? am['image_path'],
+                    };
+                  }).toList() ??
+                  [],
+            };
+            // Filter selectedAddons agar hanya ID yang masih ada
+            selectedAddons = selectedAddons
+                .where(
+                  (aid) => (_menuData!['addonOptions'] as List).any(
+                    (o) => o['id'] == aid,
+                  ),
+                )
+                .toList();
+          }
+          setState(() {
+            _loading = false;
+          });
+          return;
+        }
+        setState(() {
+          _error = 'Data tidak valid';
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Gagal memuat (${res.statusCode})';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error: $e';
+        _loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final menu = widget.menu;
+    final menu = _menuData ?? widget.menu;
+    final List addonOptions = menu['addonOptions'] is List
+        ? menu['addonOptions'] as List
+        : [];
     return Container(
       color: Colors.white,
       child: SafeArea(
@@ -50,10 +311,28 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                               borderRadius: BorderRadius.circular(18),
                               child: AspectRatio(
                                 aspectRatio: 1,
-                                child: Image.asset(
-                                  menu['image'],
-                                  fit: BoxFit.cover,
-                                ),
+                                child:
+                                    (menu['image'] is String &&
+                                        (menu['image'] as String).startsWith(
+                                          'http',
+                                        ))
+                                    ? Image.network(
+                                        menu['image'],
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          color: Colors.black12,
+                                          child: const Icon(
+                                            Icons.fastfood,
+                                            color: Colors.black38,
+                                          ),
+                                        ),
+                                      )
+                                    : Image.asset(
+                                        (menu['image'] ??
+                                                'assets/placeholder.png')
+                                            .toString(),
+                                        fit: BoxFit.cover,
+                                      ),
                               ),
                             ),
                           ),
@@ -99,7 +378,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  menu['name'],
+                                  (menu['name'] ?? '').toString(),
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -107,7 +386,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  menu['desc'],
+                                  (menu['desc'] ?? '').toString(),
                                   style: const TextStyle(
                                     fontSize: 15,
                                     color: Color(0xFFB0B0B0),
@@ -118,12 +397,17 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(
-                              Icons.favorite_border,
-                              color: Colors.pink,
+                            icon: Icon(
+                              _favorited
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: _favorited ? Colors.red : Colors.grey,
                               size: 30,
                             ),
-                            onPressed: () {},
+                            onPressed: _favBusy ? null : _toggleFavorite,
+                            tooltip: _favorited
+                                ? 'Hapus dari Favorit'
+                                : 'Tambah ke Favorit',
                           ),
                         ],
                       ),
@@ -136,8 +420,8 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                           fontSize: 20,
                         ),
                       ),
-                      if (menu['addonOptions'] != null &&
-                          (menu['addonOptions'] as List).isNotEmpty) ...[
+                      // Tampilkan section Add-on hanya jika ada addon
+                      if (addonOptions.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         const Text(
                           'Pilih Add-on:',
@@ -147,28 +431,70 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        ...List.generate((menu['addonOptions'] as List).length, (
-                          i,
-                        ) {
-                          final opt = (menu['addonOptions'] as List)[i];
+                        ...List.generate(addonOptions.length, (i) {
+                          final opt = addonOptions[i];
+                          final id = opt['id'];
                           final label = opt['label'] ?? '';
                           final price = opt['price'] ?? 0;
-                          final isSelected = selectedAddons.contains(label);
+                          final image = opt['image'];
+                          final isSelected = selectedAddons.contains(id);
                           return CheckboxListTile(
                             value: isSelected,
                             onChanged: (val) {
                               setState(() {
                                 if (val == true) {
-                                  selectedAddons.add(label);
+                                  selectedAddons.add(id);
                                 } else {
-                                  selectedAddons.remove(label);
+                                  selectedAddons.remove(id);
                                 }
                               });
                             },
-                            title: Text(
-                              price > 0
-                                  ? '$label (+Rp${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})'
-                                  : label,
+                            title: Row(
+                              children: [
+                                if (image != null &&
+                                    image.toString().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8.0),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child:
+                                          (image is String &&
+                                              image.startsWith('http'))
+                                          ? Image.network(
+                                              image,
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Container(
+                                                    width: 40,
+                                                    height: 40,
+                                                    color: Colors.black12,
+                                                    child: const Icon(
+                                                      Icons.image_not_supported,
+                                                      size: 18,
+                                                      color: Colors.black38,
+                                                    ),
+                                                  ),
+                                            )
+                                          : Image.asset(
+                                              (image ??
+                                                      'assets/placeholder.png')
+                                                  .toString(),
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                            ),
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    price > 0
+                                        ? '$label (+Rp${price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')})'
+                                        : label,
+                                  ),
+                                ),
+                              ],
                             ),
                             controlAffinity: ListTileControlAffinity.leading,
                             contentPadding: EdgeInsets.zero,
@@ -263,12 +589,56 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                   onPressed: () {
                     Navigator.pop(context, {
                       'qty': qty,
-                      'addons': List<String>.from(selectedAddons),
+                      'addonIds': List<int>.from(selectedAddons),
+                      'addonOptions': menu['addonOptions'] ?? [],
+                      'note': noteController.text,
                     });
                   },
                 ),
               ),
             ),
+            if (_loading)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.white.withOpacity(0.6),
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            if (_error != null && !_loading)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 90,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Material(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error, color: Colors.redAccent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _error!,
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              final id = menu['id'];
+                              if (id != null) _fetchMenuDetail(id.toString());
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

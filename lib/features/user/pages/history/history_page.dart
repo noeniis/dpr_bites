@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_orders.dart';
+// import 'package:dpr_bites/common/data/dummy_orders.dart'; // replaced by live API
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
-
 
 class HistoryPage extends StatefulWidget {
   final String? initialFilter;
@@ -19,16 +21,75 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late String filter;
+  int? _userId; // loaded from SharedPreferences
+  List<Map<String, dynamic>> _orders = [];
+  bool _loading = false;
+  String? _error;
+
+  static const _progressStatuses = [
+    'konfirmasi_ketersediaan',
+    'konfirmasi_pembayaran',
+    'disiapkan',
+    'diantar',
+    'pickup',
+  ];
+
+  Future<void> _fetch() async {
+    setState(() => _loading = true);
+    try {
+      if (_userId == null) {
+        // no logged-in user: show empty list and stop loading
+        if (mounted) {
+          setState(() {
+            _orders = [];
+            _error = null;
+            _loading = false;
+          });
+        }
+        return;
+      }
+      final uri = Uri.parse(
+        'http://10.0.2.2/dpr_bites_api/get_user_transactions.php?user_id=${_userId}',
+      );
+      final resp = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
+        },
+      );
+      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+      final j = jsonDecode(resp.body);
+      if (j is! Map || j['success'] != true)
+        throw Exception(
+          j is Map ? (j['message'] ?? 'Gagal') : 'Respon tidak valid',
+        );
+      final data = j['data'];
+      if (data is List) {
+        _orders = data
+            .map<Map<String, dynamic>>(
+              (e) => Map<String, dynamic>.from(e as Map),
+            )
+            .toList();
+      } else {
+        // No data from API — treat as empty list
+        _orders = [];
+      }
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+    }
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
 
   List<Map<String, dynamic>> get filteredOrders {
-    return dummyOrders.where((o) {
-      if (filter == 'berlangsung') {
-        return o['status'] == 'berlangsung';
-      } else if (filter == 'selesai') {
-        return o['status'] == 'selesai';
-      } else {
-        return o['status'] == 'dibatalkan';
-      }
+    return _orders.where((o) {
+      final status = (o['status'] ?? '').toString();
+      if (filter == 'berlangsung') return _progressStatuses.contains(status);
+      if (filter == 'selesai') return status == 'selesai';
+      return status == 'dibatalkan';
     }).toList();
   }
 
@@ -36,6 +97,17 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     filter = widget.initialFilter ?? 'berlangsung';
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getInt('id_users');
+    } catch (_) {
+      _userId = null;
+    }
+    await _fetch();
   }
 
   @override
@@ -47,6 +119,7 @@ class _HistoryPageState extends State<HistoryPage> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           automaticallyImplyLeading: false,
+          leading: null,
           title: const Text(
             'Riwayat Pemesanan',
             style: TextStyle(
@@ -91,11 +164,18 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
               const SizedBox(height: 18),
               Expanded(
-                child: filteredOrders.isEmpty
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : filteredOrders.isEmpty
                     ? Center(
                         child: Text(
-                          'Tidak ada riwayat pesanan.',
-                          style: TextStyle(fontSize: 16, color: Colors.black54),
+                          _error != null
+                              ? 'Error: $_error'
+                              : 'Belum ada Riwayat Pemesanan',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                          ),
                         ),
                       )
                     : ListView.separated(
@@ -177,14 +257,16 @@ class _HistoryPageState extends State<HistoryPage> {
                                     ),
                                     const SizedBox(height: 2),
                                     GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
+                                      onTap: () async {
+                                        await Navigator.push(
                                           context,
                                           MaterialPageRoute(
                                             builder: (_) =>
                                                 ReceiptPage(order: order),
                                           ),
                                         );
+                                        // Setelah kembali dari ReceiptPage, refresh history
+                                        await _fetch();
                                       },
                                       child: Row(
                                         children: [

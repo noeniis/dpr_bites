@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'address_add_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Data model yang mencerminkan struktur alamat dari API
 class ApiAddress {
@@ -42,7 +43,12 @@ class ApiAddress {
 
 class AddressPage extends StatefulWidget {
   final bool popOnPick; // if true, pop with result on pick (used by Checkout)
-  const AddressPage({super.key, this.popOnPick = false});
+  final int? selectedAddressId; // id alamat yang sudah terpilih (dari Checkout)
+  const AddressPage({
+    super.key,
+    this.popOnPick = false,
+    this.selectedAddressId,
+  });
 
   @override
   State<AddressPage> createState() => _AddressPageState();
@@ -80,8 +86,7 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<bool> _setDefaultOnServer(ApiAddress target) async {
-    // TODO: Ambil id_users dari session/login
-    const int idUsers = 1;
+    final int idUsers = await _getCurrentUserId();
     if (target.id == null) return false;
     final url = Uri.parse(
       'http://10.0.2.2/dpr_bites_api/set_default_address.php', // server should update alamat_utama
@@ -89,7 +94,10 @@ class _AddressPageState extends State<AddressPage> {
     try {
       final res = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': idUsers.toString(),
+        },
         body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
       );
       if (res.statusCode == 200) {
@@ -103,15 +111,22 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<void> _fetchAddresses() async {
-    // TODO: Ambil id_users dari session/login
-    const int idUsers = 1;
+    final int idUsers = await _getCurrentUserId();
+    if (idUsers <= 0) {
+      // tidak ada user login, kosongkan list
+      setState(() => _addresses = []);
+      return;
+    }
     final url = Uri.parse(
       'http://10.0.2.2/dpr_bites_api/get_user_addresses.php',
     );
     try {
       final res = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': idUsers.toString(),
+        },
         body: jsonEncode({'id_users': idUsers}),
       );
       if (res.statusCode == 200) {
@@ -122,10 +137,28 @@ class _AddressPageState extends State<AddressPage> {
             .toList();
         setState(() {
           _addresses = fetched;
-          _selected = _addresses
-              .where((a) => a.isDefault)
-              .cast<ApiAddress?>()
-              .firstOrNull;
+          // Prioritas: selectedAddressId -> default -> none
+          if (widget.selectedAddressId != null) {
+            _selected = _addresses.firstWhere(
+              (a) => a.id == widget.selectedAddressId,
+              orElse: () => _addresses.firstWhere(
+                (a) => a.isDefault,
+                orElse: () => _addresses.isNotEmpty
+                    ? _addresses.first
+                    : ApiAddress(
+                        namaPenerima: '',
+                        namaGedung: '',
+                        detailPengantaran: '',
+                        noHp: '',
+                      ),
+              ),
+            );
+          } else {
+            _selected = _addresses
+                .where((a) => a.isDefault)
+                .cast<ApiAddress?>()
+                .firstOrNull;
+          }
           _sortWithSelectedFirst();
         });
       } else {
@@ -168,14 +201,16 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<bool> _deleteOnServer(ApiAddress target) async {
-    // TODO: Ambil id_users dari session/login
-    const int idUsers = 1;
+    final int idUsers = await _getCurrentUserId();
     if (target.id == null) return false;
     final url = Uri.parse('http://10.0.2.2/dpr_bites_api/delete_address.php');
     try {
       final res = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': idUsers.toString(),
+        },
         body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
       );
       if (res.statusCode == 200) {
@@ -329,6 +364,21 @@ class _AddressPageState extends State<AddressPage> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<int> _getCurrentUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Cek dulu int, fallback ke string jika tidak ada
+      int? id = prefs.getInt('id_users');
+      if (id != null) return id;
+      final s = prefs.getString('id_users');
+      if (s == null) return 0;
+      final v = int.tryParse(s);
+      return v ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   @override

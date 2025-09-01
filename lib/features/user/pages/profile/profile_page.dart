@@ -1,5 +1,5 @@
+import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:flutter/material.dart';
-import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_users.dart';
@@ -39,34 +39,69 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> fetchUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    final idUsers = await Prefs.getUserIdString();
     if (idUsers == null) return; // Belum login
 
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_profile.php'),
-      body: jsonEncode({'id_users': idUsers}),
-      headers: {'Content-Type': 'application/json'},
-    );
-    // Upload foto ke Cloudinary, mengembalikan secure_url atau null jika gagal
-    final result = jsonDecode(response.body);
-    if (result['success'] == true) {
-      final data = result['data'];
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_profile.php'),
+        body: jsonEncode({'id_users': idUsers}),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint('fetchUserProfile: HTTP ${response.statusCode}');
+        return;
+      }
+
+      final result = jsonDecode(response.body);
+      if (result is! Map) {
+        debugPrint('fetchUserProfile: Unexpected JSON structure');
+        return;
+      }
+
+      if (result['success'] != true) {
+        debugPrint(
+          'fetchUserProfile: success == false -> ${result['message']}',
+        );
+        return;
+      }
+
+      // Backend PHP returns key 'user' (not 'data'). Support both for flexibility.
+      final data = result['user'] ?? result['data'];
+      if (data == null) {
+        debugPrint(
+          'fetchUserProfile: data/user key missing, full json: ${response.body}',
+        );
+        return;
+      }
+
+      // Some APIs may use different field names; map them defensively.
+      final String fullName = (data['nama_lengkap'] ?? data['nama'] ?? '')
+          .toString();
+      final String username = (data['username'] ?? '').toString();
+      final String phone = (data['no_hp'] ?? data['no_telp'] ?? '').toString();
+      final String email = (data['email'] ?? '').toString();
+      final String photo = (data['photo_path'] ?? data['photo'] ?? '')
+          .toString();
+
       setState(() {
         user = {
-          'name': data['nama_lengkap'] ?? '',
-          'username': data['username'] ?? '',
-          'phone': data['no_hp'] ?? '',
-          'email': data['email'] ?? '',
+          'name': fullName,
+          'username': username,
+          'phone': phone,
+          'email': email,
           'password': '********',
-          'photo': data['photo_path'] ?? '',
+          'photo': photo,
         };
-        nameController.text = user['name']!;
-        usernameController.text = user['username']!;
-        phoneController.text = user['phone']!;
-        emailController.text = user['email']!;
+        nameController.text = user['name'] ?? '';
+        usernameController.text = user['username'] ?? '';
+        phoneController.text = user['phone'] ?? '';
+        emailController.text = user['email'] ?? '';
         passwordController.text = '********';
       });
+    } catch (e, st) {
+      debugPrint('fetchUserProfile exception: $e\n$st');
     }
   }
 
@@ -112,7 +147,13 @@ class _ProfilePageState extends State<ProfilePage> {
       });
       // Simpan photo_path ke server bersama data lain yang wajib
       final prefs = await SharedPreferences.getInstance();
-      final idUsers = prefs.getString('id_users');
+      String? idUsers;
+      final idInt = prefs.getInt('id_users');
+      if (idInt != null) {
+        idUsers = idInt.toString();
+      } else {
+        idUsers = prefs.getString('id_users');
+      }
       if (idUsers != null) {
         final response = await http.post(
           Uri.parse('http://10.0.2.2/dpr_bites_api/edit_user_profile.php'),
@@ -161,6 +202,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> saveEdit() async {
+    // Validasi local sebelum mengubah state & kirim
+    if ((nameController.text).trim().isEmpty ||
+        (usernameController.text).trim().isEmpty ||
+        (phoneController.text).trim().isEmpty ||
+        (emailController.text).trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama, Username, No HP, dan Email wajib diisi'),
+        ),
+      );
+      return;
+    }
     setState(() {
       if (editingField == 'name') user['name'] = nameController.text;
       if (editingField == 'username')
@@ -177,7 +230,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
     // Kirim ke API edit profil
     final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    String? idUsers;
+    final idInt = prefs.getInt('id_users');
+    if (idInt != null) {
+      idUsers = idInt.toString();
+    } else {
+      idUsers = prefs.getString('id_users');
+    }
     if (idUsers == null) return;
     final Map<String, dynamic> body = {
       'id_users': idUsers,
@@ -185,6 +244,8 @@ class _ProfilePageState extends State<ProfilePage> {
       'username': user['username'],
       'no_hp': user['phone'],
       'email': user['email'],
+      // Sertakan photo_path agar tidak menjadi null di server jika tidak diubah
+      'photo_path': user['photo'],
     };
     // Jika password diisi dan bukan bintang, kirim ke API
     if (passwordController.text.isNotEmpty &&
@@ -201,6 +262,8 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Perubahan disimpan')));
+      // Refresh data dari server agar sinkron (misal password tak disimpan di sini, atau foto berubah di sisi lain)
+      fetchUserProfile();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

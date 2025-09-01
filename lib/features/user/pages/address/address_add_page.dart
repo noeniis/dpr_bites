@@ -5,6 +5,7 @@ import '../../../../app/app_theme.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart';
 import 'address_maps_page.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -53,16 +54,19 @@ class _AddressAddPageState extends State<AddressAddPage> {
 
   Future<void> _loadDetail() async {
     setState(() => _loadingDetail = true);
-    // TODO: Ganti id_users sesuai session user
-    const int idUsers = 1;
     final url = Uri.parse(
       'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_get_detail.php',
     );
     try {
+      final int idUsers = await _getCurrentUserId();
+      if (idUsers <= 0) throw Exception('User tidak terautentikasi');
       final res = await http.post(
         url,
-        body: jsonEncode({'id_users': idUsers, 'id_alamat': widget.idAlamat}),
-        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id_alamat': widget.idAlamat}),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': idUsers.toString(),
+        },
       );
       final data = jsonDecode(res.body);
       if (data['success'] == true && data['address'] != null) {
@@ -131,8 +135,14 @@ class _AddressAddPageState extends State<AddressAddPage> {
       return;
     }
     setState(() => _loading = true);
-    // TODO: Ganti id_users sesuai session user
-    const int idUsers = 1;
+    final int idUsers = await _getCurrentUserId();
+    if (idUsers <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User belum login')));
+      setState(() => _loading = false);
+      return;
+    }
     final isEdit = widget.idAlamat != null;
     final url = Uri.parse(
       isEdit
@@ -154,7 +164,10 @@ class _AddressAddPageState extends State<AddressAddPage> {
       final res = await http.post(
         url,
         body: jsonEncode(body),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': idUsers.toString(),
+        },
       );
       final data = jsonDecode(res.body);
       if (data['success'] == true) {
@@ -179,6 +192,19 @@ class _AddressAddPageState extends State<AddressAddPage> {
       );
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<int> _getCurrentUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      int? id = prefs.getInt('id_users');
+      if (id != null) return id;
+      final s = prefs.getString('id_users');
+      if (s == null) return 0;
+      return int.tryParse(s) ?? 0;
+    } catch (_) {
+      return 0;
     }
   }
 

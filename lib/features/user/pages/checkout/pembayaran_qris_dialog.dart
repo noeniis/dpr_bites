@@ -5,12 +5,14 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 class PembayaranQrisDialog extends StatefulWidget {
-  final VoidCallback onKonfirmasi;
-  final VoidCallback onBatal;
+  final void Function(XFile bukti) onKonfirmasi; // return bukti ke parent
+  final VoidCallback onBatal; // hanya tutup dialog
+  final String? qrisImageUrl; // URL atau path QRIS spesifik gerai
   const PembayaranQrisDialog({
     Key? key,
     required this.onKonfirmasi,
     required this.onBatal,
+    this.qrisImageUrl,
   }) : super(key: key);
 
   @override
@@ -21,21 +23,7 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
   XFile? _buktiPembayaran;
   bool _isLoading = false;
 
-  Future<void> _showMissingProofDialog() async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Informasi'),
-        content: const Text('bukti pembayaran belum di upload'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  bool get _canConfirm => _buktiPembayaran != null && !_isLoading;
 
   Future<void> _pickImage() async {
     setState(() {
@@ -65,8 +53,93 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.black87),
-                  onPressed: widget.onBatal,
-                  tooltip: 'Batal',
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (c) {
+                        return Dialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 22,
+                              vertical: 22,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  size: 50,
+                                  color: Color(0xFFB03056),
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'Batalkan Pesanan?',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Color(0xFF602829),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Apakah yakin ingin membatalkan pesanan ini?',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 14, height: 1.3),
+                                ),
+                                const SizedBox(height: 22),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(c, false),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: const Color(
+                                            0xFF602829,
+                                          ),
+                                        ),
+                                        child: const Text('Tidak'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => Navigator.pop(c, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFFB03056,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 11,
+                                          ),
+                                        ),
+                                        child: const Text('Ya, Batalkan'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                    if (confirm == true) {
+                      Navigator.of(context).pop();
+                      widget.onBatal();
+                    }
+                  },
+                  tooltip: 'Tutup',
                 ),
               ],
             ),
@@ -81,12 +154,7 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
             const SizedBox(height: 16),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'lib/assets/images/iconQR.png',
-                width: 180,
-                height: 180,
-                fit: BoxFit.cover,
-              ),
+              child: _buildQrisImage(widget.qrisImageUrl),
             ),
             const SizedBox(height: 18),
             // Input bukti pembayaran
@@ -133,20 +201,53 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
               ),
             ),
             const SizedBox(height: 24),
-            CustomButtonOval(
-              text: 'Konfirmasi',
-              onPressed: () async {
-                if (_buktiPembayaran == null) {
-                  await _showMissingProofDialog();
-                  return;
-                }
-                Navigator.of(context).pop();
-                widget.onKonfirmasi();
-              },
+            Opacity(
+              opacity: _canConfirm ? 1 : 0.55,
+              child: CustomButtonOval(
+                text: 'Konfirmasi',
+                onPressed: _canConfirm
+                    ? () {
+                        final bukti = _buktiPembayaran!;
+                        Navigator.of(context).pop();
+                        widget.onKonfirmasi(bukti);
+                      }
+                    : null,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+Widget _buildQrisFallback() => Image.asset(
+  'lib/assets/images/iconQR.png',
+  width: 180,
+  height: 180,
+  fit: BoxFit.cover,
+);
+
+Widget _buildQrisImage(String? url) {
+  if (url == null || url.isEmpty) return _buildQrisFallback();
+  // Jika bukan absolut, coba treat sebagai relatif ke folder API (uploads)
+  if (!url.startsWith('http')) {
+    final cleaned = url.startsWith('/') ? url.substring(1) : url;
+    final base = 'http://10.0.2.2/dpr_bites_api';
+    final full = '$base/$cleaned';
+    return Image.network(
+      full,
+      width: 180,
+      height: 180,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _buildQrisFallback(),
+    );
+  }
+  return Image.network(
+    url,
+    width: 180,
+    height: 180,
+    fit: BoxFit.cover,
+    errorBuilder: (_, __, ___) => _buildQrisFallback(),
+  );
 }

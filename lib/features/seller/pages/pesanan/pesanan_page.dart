@@ -1,91 +1,215 @@
 import 'package:flutter/material.dart';
-import 'package:dpr_bites/models/order_model.dart';
-import 'package:dpr_bites/common/data/dummy_pesanan.dart';
-import 'siap_diantar_page.dart'; // Halaman untuk siap diantar
-import 'pesanan_selesai_page.dart'; // Halaman untuk pesanan selesai
-import 'terima_pesanan_page.dart';
+import 'dart:convert';
+import 'dart:async';
+import 'package:http/http.dart' as http;
+
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
-import '../../../../common/widgets/custom_widgets.dart';
-import '../../../../app/gradient_background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/models/order_api_model.dart';
+import 'package:dpr_bites/common/widgets/custom_widgets.dart';
+import 'package:dpr_bites/features/seller/pages/pesanan/detail_pesanan.dart';
+import 'package:dpr_bites/app/gradient_background.dart';
 
 class PesananPage extends StatefulWidget {
-  const PesananPage({super.key});
+  final String? initialFilter;
+  const PesananPage({Key? key, this.initialFilter}) : super(key: key);
 
   @override
-  State<PesananPage> createState() => _PesananPageState();
+  _PesananPageState createState() => _PesananPageState();
 }
 
 class _PesananPageState extends State<PesananPage> {
-  late List<OrderModel> pesananList;
-  String _selectedFilter = 'Semua';
-  final List<String> _filters = [
+  Timer? _refreshTimer;
+  List<OrderApiModel> pesananList = [];
+  bool isLoading = true;
+  late String _selectedFilter;
+  String? idGerai;
+  DateTime? _selectedDate;
+
+  final List<String> _filters = const [
     'Semua',
-    'Masuk',
-    'Diterima',
-    'Ditolak',
+    'Konfirmasi Ketersediaan',
+    'Konfirmasi Pembayaran',
     'Disiapkan',
     'Diantar',
+    'Pickup',
     'Selesai',
+    'Dibatalkan',
   ];
 
   @override
   void initState() {
     super.initState();
-    pesananList = dummyPesanan.map((order) {
-      // Pastikan status selalu ada
-      if (order.status == '') {
-        order.status = '';
+    _selectedFilter = widget.initialFilter ?? 'Semua';
+    _selectedDate = DateTime.now();
+    loadIdGeraiAndFetch();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && idGerai != null && idGerai!.isNotEmpty) {
+        fetchPesanan();
       }
-      return order;
-    }).toList();
+    });
   }
 
-  List<OrderModel> get filteredPesananList {
-    if (_selectedFilter == 'Semua') return pesananList;
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> loadIdGeraiAndFetch() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = prefs.getString('id_gerai');
+
+      if (!mounted) return;
+      setState(() {
+        idGerai = id;
+      });
+
+      if (idGerai == null || idGerai!.isEmpty) {
+        // Jangan fetch, hentikan loading agar UI bisa tampil info
+        setState(() => isLoading = false);
+        return;
+      }
+
+      await fetchPesanan();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat id_gerai: $e')),
+      );
+    }
+  }
+
+  Future<void> fetchPesanan() async {
+    if (idGerai == null || idGerai!.isEmpty) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    
+    final host = '10.0.2.2'; // emulator Android → host PC
+    final port = 80; 
+    final authority = port == 80 ? host : '$host:$port';
+
+    final params = {'id_gerai': idGerai!};
+    if (_selectedDate != null) {
+      params['tanggal'] = "${_selectedDate!.year.toString().padLeft(4, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
+    }
+
+    final uri = Uri.http(
+      authority,
+      '/dpr_bites_api/get_pesanan_seller.php',
+      params,
+    );
+
+    try {
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        // DEBUG: print seluruh data pesanan dari API
+        if (data is Map && data['pesanan'] is List) {
+          for (final e in data['pesanan']) {
+            print('[DEBUG PESANAN] id_transaksi: \\${e['id_transaksi']} | status: \\${e['status']} | metode: \\${e['metode_pembayaran']} | bukti: \\${e['bukti_pembayaran']}');
+          }
+        }
+
+        if (data is Map && data['success'] == true && data['pesanan'] is List) {
+          final list = (data['pesanan'] as List)
+              .map((e) => OrderApiModel.fromJson(e))
+              .toList();
+          if (!mounted) return;
+          setState(() {
+            pesananList = list;
+          });
+        } else {
+          final msg = (data is Map ? data['message'] : null)?.toString() ??
+              'Gagal memuat data';
+          if (!mounted) return;
+          setState(() {
+            pesananList = [];
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        }
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('HTTP ${response.statusCode}: ${response.reasonPhrase ?? ''}')),
+        );
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Timeout menghubungi server')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  List<OrderApiModel> get filteredPesananList {
+    if (_selectedFilter == 'Semua') {
+      // Saring pesanan QRIS status konfirmasi_pembayaran tanpa bukti_pembayaran (null/empty string, case-insensitive)
+      return pesananList.where((p) {
+        final metode = p.metodePembayaran.toLowerCase().trim();
+        final status = p.status.toLowerCase().trim();
+        final bukti = (p.buktiPembayaran ?? '').trim();
+        if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
+          return bukti.isNotEmpty;
+        }
+        return true;
+      }).toList();
+    }
     switch (_selectedFilter) {
-      case 'Masuk':
-        return pesananList.where((p) => p.status == '').toList();
-      case 'Diterima':
-        return pesananList.where((p) => p.status == 'sedang disiapkan').toList();
-      case 'Ditolak':
-        return pesananList.where((p) => p.status == 'order cancel').toList();
+      case 'Konfirmasi Ketersediaan':
+        return pesananList.where((p) => p.status == 'konfirmasi_ketersediaan').toList();
+      case 'Konfirmasi Pembayaran':
+        return pesananList.where((p) {
+          final metode = p.metodePembayaran.toLowerCase().trim();
+          final status = p.status.toLowerCase().trim();
+          final bukti = (p.buktiPembayaran ?? '').trim();
+          if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
+            // QRIS harus ada bukti pembayaran (tidak null/kosong)
+            return bukti.isNotEmpty;
+          } else {
+            return status == 'konfirmasi_pembayaran';
+          }
+        }).toList();
       case 'Disiapkan':
-        return pesananList.where((p) => p.status == 'sedang disiapkan').toList();
+        return pesananList.where((p) => p.status == 'disiapkan').toList();
       case 'Diantar':
-        return pesananList.where((p) => p.status == 'pesanan diantar').toList();
+        return pesananList.where((p) => p.status == 'diantar').toList();
+      case 'Pickup':
+        return pesananList.where((p) => p.status == 'pickup').toList();
       case 'Selesai':
-        return pesananList.where((p) => p.status == 'pesanan selesai').toList();
+        return pesananList.where((p) => p.status == 'selesai').toList();
+      case 'Dibatalkan':
+        return pesananList.where((p) => p.status == 'dibatalkan').toList();
       default:
         return pesananList;
     }
   }
 
-  void _navigateToTerimaPesanan(OrderModel pesanan) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TerimaPesananPage(order: pesanan),
-      ),
-    );
-
-    if (result == 'accepted') {
-      setState(() {
-        pesanan.status = 'sedang disiapkan';
-      });
-    } else if (result is Map && result['status'] == 'canceled') {
-      setState(() {
-        pesanan.status = 'order cancel';
-        pesanan.keterangan = result['alasan'] ?? '';
-      });
-    } else if (result == 'delivered') {
-      setState(() {
-        pesanan.status = 'pesanan diantar';
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final showNoGerai = !isLoading && (idGerai == null || idGerai!.isEmpty);
+
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -106,179 +230,220 @@ class _PesananPageState extends State<PesananPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh, color: Color(0xFFD53D3D)),
-              tooltip: 'Reset pesanan',
-              onPressed: () {
-                setState(() {
-                  for (var pesanan in pesananList) {
-                    if (pesanan.status != 'order cancel') {
-                      pesanan.status = '';
-                    }
-                  }
-                });
-              },
+              tooltip: 'Refresh pesanan',
+              onPressed: fetchPesanan,
             ),
           ],
         ),
         body: SafeArea(
-          child: Column(
-            children: [
-              // Filter horizontal scrollable
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: List.generate(_filters.length, (i) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: CustomFilterChipKotak(
-                      label: _filters[i],
-                      selected: _selectedFilter == _filters[i],
-                      onTap: () => setState(() => _selectedFilter = _filters[i]),
-                    ),
-                  )),
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: filteredPesananList.length,
-                  itemBuilder: (context, index) {
-                    final pesanan = filteredPesananList[index];
-                    return CustomEmptyCard(
-                      margin: const EdgeInsets.only(bottom: 16),
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : showNoGerai
+                  ? Center(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              '${pesanan.jumlahPesanan} Pesanan untuk ${pesanan.namaPemesan}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF602829),
-                              ),
+                            const Text(
+                              'id_gerai belum tersedia.\nSilakan login sebagai seller atau pilih gerai dulu.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Color(0xFF50555C)),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Booking ID: ${pesanan.bookingId}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF50555C),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: pesanan.status == 'order cancel'
-                                  ? Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: null,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFFE57373),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            elevation: 2,
-                                          ),
-                                          child: const Text(
-                                            'Pesanan Dibatalkan',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        if ((pesanan.keterangan ?? '').isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 4.0),
-                                            child: Text(
-                                              'Alasan: ${pesanan.keterangan}',
-                                              style: const TextStyle(fontSize: 13, color: Colors.red),
-                                            ),
-                                          ),
-                                      ],
-                                    )
-                                  : ElevatedButton(
-                                      onPressed: (pesanan.status == 'pesanan selesai')
-                                          ? null
-                                          : () {
-                                              if (pesanan.status == 'sedang disiapkan') {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) => SiapDiantarPage(order: pesanan),
-                                                  ),
-                                                ).then((result) {
-                                                  if (result == 'delivered') {
-                                                    setState(() {
-                                                      pesanan.status = 'pesanan diantar';
-                                                    });
-                                                  }
-                                                });
-                                              } else if (pesanan.status == 'pesanan diantar') {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (context) => PesananSelesaiPage(order: pesanan),
-                                                  ),
-                                                ).then((result) {
-                                                  if (result == 'completed') {
-                                                    setState(() {
-                                                      pesanan.status = 'pesanan selesai';
-                                                    });
-                                                  }
-                                                });
-                                              } else {
-                                                _navigateToTerimaPesanan(pesanan);
-                                              }
-                                            },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: pesanan.status == 'sedang disiapkan'
-                                            ? const Color(0xFFD9F0D2)
-                                            : pesanan.status == 'pesanan diantar'
-                                                ? const Color(0xFFD3E3F9)
-                                                : pesanan.status == 'pesanan selesai'
-                                                    ? const Color(0xFFBDBDBD)
-                                                    : const Color(0xFFEFEFEF),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        elevation: 2,
-                                      ),
-                                      child: Text(
-                                        pesanan.status == 'sedang disiapkan'
-                                            ? 'Sedang Disiapkan'
-                                            : pesanan.status == 'pesanan diantar'
-                                                ? 'Pesanan Diantar'
-                                                : pesanan.status == 'pesanan selesai'
-                                                    ? 'Pesanan Selesai'
-                                                    : 'Cek Order',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                          color: pesanan.status == 'sedang disiapkan'
-                                              ? Colors.green[900]
-                                              : pesanan.status == 'pesanan diantar'
-                                                  ? Colors.blue[900]
-                                                  : pesanan.status == 'pesanan selesai'
-                                                      ? Colors.grey[600]
-                                                      : Colors.black.withAlpha(214),
-                                        ),
-                                      ),
-                                    ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.settings),
+                              label: const Text('Pergi ke Beranda Seller'),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SellerDashboardPage(),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+                    )
+                  : Column(
+                      children: [
+                        // Date picker di atas filter status
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.date_range, size: 18, color: Color(0xFFD53D3D)),
+                                  label: Text(
+                                    _selectedDate == null
+                                        ? 'Filter Tanggal'
+                                        : '${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}',
+                                    style: const TextStyle(color: Color(0xFF602829)),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Color(0xFFD53D3D)),
+                                    backgroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  onPressed: () async {
+                                    final now = DateTime.now();
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: _selectedDate ?? now,
+                                      firstDate: DateTime(now.year - 2),
+                                      lastDate: DateTime(now.year + 1),
+                                      locale: const Locale('id', 'ID'),
+                                    );
+                                    if (picked != null) {
+                                      setState(() { _selectedDate = picked; });
+                                      fetchPesanan();
+                                    }
+                                  },
+                                ),
+                              ),
+                              if (_selectedDate != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: IconButton(
+                                    icon: const Icon(Icons.clear, size: 18, color: Color(0xFFD53D3D)),
+                                    tooltip: 'Hapus filter tanggal',
+                                    onPressed: () {
+                                      setState(() { _selectedDate = null; });
+                                      fetchPesanan();
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        // Filter horizontal scrollable (status)
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            children: [
+                              ...List.generate(
+                                _filters.length,
+                                (i) => Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: CustomFilterChipKotak(
+                                    label: _filters[i],
+                                    selected: _selectedFilter == _filters[i],
+                                    onTap: () => setState(() => _selectedFilter = _filters[i]),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: filteredPesananList.isEmpty
+                              ? const Center(child: Text('Tidak ada pesanan'))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  itemCount: filteredPesananList.length,
+                                  itemBuilder: (context, index) {
+                                    final pesanan = filteredPesananList[index];
+                                    return CustomEmptyCard(
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Booking ID: ${pesanan.bookingId}',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF602829),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Pemesan: ${pesanan.namaPemesan}',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: Color(0xFF50555C),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: pesanan.status == 'konfirmasi_ketersediaan'
+                                                      ? const Color(0xFFEFEFEF)
+                                                      : pesanan.status == 'konfirmasi_pembayaran'
+                                                          ? Colors.yellow[200]
+                                                          : pesanan.status == 'disiapkan'
+                                                              ? Colors.green[200]
+                                                              : pesanan.status == 'diantar'
+                                                                  ? Colors.blue[200]
+                                                                  : pesanan.status == 'pickup'
+                                                                      ? Colors.purple[200]
+                                                                      : pesanan.status == 'selesai'
+                                                                          ? Colors.grey[400]
+                                                                          : pesanan.status == 'dibatalkan'
+                                                                              ? Colors.red[200]
+                                                                              : const Color(0xFFEFEFEF),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(20),
+                                                  ),
+                                                  elevation: 2,
+                                                ),
+                                                onPressed: () async {
+                                                  final result = await Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) => DetailPesananPage(order: pesanan),
+                                                    ),
+                                                  );
+                                                  if (result != null) {
+                                                    // Jika ada perubahan status, reload data
+                                                    fetchPesanan();
+                                                  }
+                                                },
+                                                child: Text(
+                                                  pesanan.status == 'konfirmasi_ketersediaan'
+                                                      ? 'Cek Order'
+                                                      : pesanan.status == 'konfirmasi_pembayaran'
+                                                          ? 'Konfirmasi Pembayaran'
+                                                          : pesanan.status == 'disiapkan'
+                                                              ? 'Disiapkan'
+                                                              : pesanan.status == 'diantar'
+                                                                  ? 'Diantar'
+                                                                  : pesanan.status == 'pickup'
+                                                                      ? 'Pickup'
+                                                                      : pesanan.status == 'selesai'
+                                                                          ? 'Selesai'
+                                                                          : pesanan.status == 'dibatalkan'
+                                                                              ? 'Dibatalkan'
+                                                                              : 'Cek Order',
+                                                  style: TextStyle(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: pesanan.status == 'dibatalkan'
+                                                        ? Colors.red[900]
+                                                        : pesanan.status == 'selesai'
+                                                            ? Colors.grey[800]
+                                                            : Colors.black.withAlpha(214),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
         ),
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
@@ -289,22 +454,13 @@ class _PesananPageState extends State<PesananPage> {
             if (i == 0) {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const SellerDashboardPage(),
-                ),
+                MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
               );
             }
-            // Tab 1 (Pesanan) does nothing since already here
           },
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: "Beranda",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.assignment),
-              label: "Pesanan",
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
+            BottomNavigationBarItem(icon: Icon(Icons.assignment), label: "Pesanan"),
           ],
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'features/seller/pages/beranda/dashboard_page.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/app_theme.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/user/pages/home/home_page.dart';
@@ -24,6 +25,15 @@ class MyApp extends StatelessWidget {
       title: 'DPR Bites',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.mainTheme,
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('id', 'ID'),
+        Locale('en', 'US'),
+      ],
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginPage(),

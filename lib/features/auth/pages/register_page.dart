@@ -244,32 +244,99 @@ class _RegisterPageState extends State<RegisterPage> {
                   CustomButtonKotak(
                     text: "Registrasi",
                     onPressed: () async {
+
+                      // Mapping role ke value enum string ('0', '1')
+                      String roleValue;
+                      if (selectedRole == "Pegawai") {
+                        roleValue = '0';
+                      } else if (selectedRole == "Penjual") {
+                        roleValue = '1';
+                      } else {
+                        roleValue = '0'; // default fallback
+                      }
+
                       final data = {
                         "nama_lengkap": fullNameController.text,
                         "username": usernameController.text,
                         "email": emailController.text,
                         "no_hp": phoneController.text,
                         "password": passwordController.text,
-                        "role": selectedRole
-                            .toLowerCase(), // 'pegawai' atau 'penjual'
+                        "role": roleValue,
                       };
+
 
                       final success = await registerUser(data);
                       if (success) {
                         showDialog(
                           context: context,
-                          builder: (_) => AlertDialog(
-                            title: Text("Registrasi Berhasil"),
-                            content: Text("Silakan login dengan akun Anda."),
-                            actions: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context); // tutup dialog
-                                  Navigator.pop(context); // kembali ke login
-                                },
-                                child: Text("OK"),
+
+                          barrierDismissible: false,
+                          builder: (_) => Dialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 32,
                               ),
-                            ],
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Colors.green,
+                                    size: 64,
+                                  ),
+                                  const SizedBox(height: 18),
+                                  const Text(
+                                    "Registrasi Berhasil!",
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    "Akun Anda berhasil dibuat.\nSilakan login untuk melanjutkan.",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Color(0xFFD53D3D),
+                                        foregroundColor:
+                                            Colors.white, // pastikan teks putih
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pop(context); // tutup dialog
+                                        Navigator.pop(
+                                          context,
+                                        ); // kembali ke login
+                                      },
+                                      child: const Text(
+                                        "Login Sekarang",
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         );
                       } else {
@@ -280,6 +347,7 @@ class _RegisterPageState extends State<RegisterPage> {
                             content: Text(
                               "Cek kembali data Anda atau coba lagi nanti.",
                             ),
+
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
