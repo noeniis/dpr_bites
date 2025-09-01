@@ -8,6 +8,7 @@ import 'package:dpr_bites/features/user/pages/checkout/checkout_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RestaurantDetailPage extends StatefulWidget {
   final String restaurantId;
@@ -40,22 +41,39 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
   int _cartTotalPrice = 0;
   // Cache apakah menu punya addon (menuId -> bool)
   final Map<String, bool> _menuHasAddon = {};
-  // (Sementara) user id statis - ganti dengan session/login user sebenarnya
-  final int _userId = 1; // TODO: ambil dari state auth
+  // user id dari SharedPreferences (dapat null jika belum login)
+  int? _userId;
 
   @override
   void initState() {
     super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getInt('id_users');
+    } catch (_) {
+      _userId = null;
+    }
     _fetchDetail();
-    _loadExistingCart();
+    await _loadExistingCart();
   }
 
   Future<void> _loadExistingCart() async {
     try {
+      if (_userId == null) return; // tidak ada user, skip
       final uri = Uri.parse(
         'http://10.0.2.2/dpr_bites_api/get_cart.php?user_id=$_userId&gerai_id=${widget.restaurantId}',
       );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
+        },
+      );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
@@ -161,8 +179,9 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                     'kategori': m['etalase_label'] ?? m['kategori'],
                     'recommended': m['recommended'] == true,
                     'orderCount': m['orderCount'] ?? 0,
-                    'addonOptions':
-                        m['addonOptions'] ?? [], // placeholder jika nanti ada
+                    'addonOptions': m['addonOptions'] ?? [],
+                    'jumlah_stok':
+                        m['jumlah_stok'] ?? m['stock'] ?? m['stok'] ?? 0,
                   };
                 })
                 .toList();
@@ -290,11 +309,11 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
         'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
       );
       final mapPayload = <String, dynamic>{
-        'user_id': _userId,
         'gerai_id': widget.restaurantId,
         'menu_id': int.tryParse(menuId) ?? menuId,
         'qty': qty,
       };
+      if (_userId != null) mapPayload['user_id'] = _userId;
       if (addonIds.isNotEmpty) mapPayload['addons'] = addonIds;
       if (noteProvided) mapPayload['note'] = note ?? '';
       final payload = jsonEncode(mapPayload);
@@ -303,6 +322,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
         },
         body: payload,
       );
@@ -574,14 +594,67 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
         }
       }
     } else {
-      final newQty = creatingVariant ? 1 : currentQty + 1;
-      if (creatingVariant) {
-        await _addOrUpdateCart(menuId: menuId, qty: newQty);
-        await _loadExistingCart();
-      } else {
-        selectedMenus.value = Map.of(selectedMenus.value)..[menuId] = newQty;
-        await _addOrUpdateCart(menuId: menuId, qty: newQty);
-        await _loadExistingCart();
+      // Selalu buka MenuDetailPage, baik ada addon atau tidak
+      final result = await showModalBottomSheet<Map<String, dynamic>>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (_) => MenuDetailPage(
+          menu: m,
+          initialQty: creatingVariant ? 0 : currentQty,
+          initialAddonIds: creatingVariant ? const [] : selectedAddons[menuId],
+          initialNote: creatingVariant ? '' : selectedNotes[menuId],
+        ),
+      );
+      if (result != null) {
+        if (result['addonOptions'] != null) {
+          m['addonOptions'] = result['addonOptions'];
+        }
+        if (result['qty'] > 0) {
+          if (creatingVariant) {
+            await _addOrUpdateCart(
+              menuId: menuId,
+              qty: result['qty'],
+              addonIds: List<int>.from(result['addonIds'] ?? []),
+              note: result['note'] as String?,
+              noteProvided: true,
+            );
+            await _loadExistingCart();
+          } else {
+            selectedMenus.value = Map.of(selectedMenus.value)
+              ..[menuId] = result['qty'];
+            selectedAddons[menuId] = List<int>.from(result['addonIds'] ?? []);
+            final rNote = (result['note'] as String?)?.trim();
+            if (rNote != null && rNote.isNotEmpty) {
+              selectedNotes[menuId] = rNote;
+            } else {
+              selectedNotes.remove(menuId);
+            }
+            await _addOrUpdateCart(
+              menuId: menuId,
+              qty: result['qty'],
+              addonIds: selectedAddons[menuId]!,
+              note: result['note'] as String?,
+              noteProvided: true,
+            );
+            await _loadExistingCart();
+          }
+        } else {
+          final updated = Map.of(selectedMenus.value);
+          updated.remove(menuId);
+          selectedMenus.value = updated;
+          selectedAddons.remove(menuId);
+          selectedNotes.remove(menuId);
+          await _addOrUpdateCart(
+            menuId: menuId,
+            qty: 0,
+            note: result['note'] as String?,
+            noteProvided: true,
+          );
+          await _loadExistingCart();
+        }
       }
     }
   }
@@ -1217,6 +1290,13 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                       ...kategoriMenus.map((m) {
                         final menuId = m['id'].toString();
                         final qty = selected[menuId] ?? 0;
+                        final stock = (m['jumlah_stok'] ?? 0) is int
+                            ? (m['jumlah_stok'] ?? 0) as int
+                            : int.tryParse(
+                                    (m['jumlah_stok'] ?? '0').toString(),
+                                  ) ??
+                                  0;
+                        final isDisabled = stock < 1;
                         return Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -1238,202 +1318,240 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                     ),
                                   ),
                                 ),
-                              Container(
-                                margin: const EdgeInsets.only(left: 0),
-                                child: CustomEmptyCard(
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    leading: Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                              0.13,
+                              Opacity(
+                                opacity: isDisabled ? 0.5 : 1.0,
+                                child: IgnorePointer(
+                                  ignoring: isDisabled,
+                                  child: Container(
+                                    margin: const EdgeInsets.only(left: 0),
+                                    child: CustomEmptyCard(
+                                      child: ListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 4,
                                             ),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child:
-                                            (m['image'] is String &&
-                                                (m['image'] as String)
-                                                    .startsWith('http'))
-                                            ? Image.network(
-                                                m['image'],
-                                                width: 64,
-                                                height: 64,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) =>
-                                                    Container(
-                                                      width: 64,
-                                                      height: 64,
-                                                      color: Colors.black12,
-                                                      child: const Icon(
-                                                        Icons.fastfood,
-                                                        color: Colors.black38,
-                                                      ),
-                                                    ),
-                                              )
-                                            : Image.asset(
-                                                (m['image'] ??
-                                                        'assets/placeholder.png')
-                                                    .toString(),
-                                                width: 64,
-                                                height: 64,
-                                                fit: BoxFit.cover,
+                                        leading: Container(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.13,
+                                                ),
+                                                blurRadius: 8,
+                                                offset: Offset(0, 2),
                                               ),
-                                      ),
-                                    ),
-                                    title: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          (m['name'] ?? '').toString(),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                            ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child:
+                                                (m['image'] is String &&
+                                                    (m['image'] as String)
+                                                        .startsWith('http'))
+                                                ? Image.network(
+                                                    m['image'],
+                                                    width: 64,
+                                                    height: 64,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder:
+                                                        (
+                                                          _,
+                                                          __,
+                                                          ___,
+                                                        ) => Container(
+                                                          width: 64,
+                                                          height: 64,
+                                                          color: Colors.black12,
+                                                          child: const Icon(
+                                                            Icons.fastfood,
+                                                            color:
+                                                                Colors.black38,
+                                                          ),
+                                                        ),
+                                                  )
+                                                : Image.asset(
+                                                    (m['image'] ??
+                                                            'assets/placeholder.png')
+                                                        .toString(),
+                                                    width: 64,
+                                                    height: 64,
+                                                    fit: BoxFit.cover,
+                                                  ),
                                           ),
                                         ),
-                                        if ((m['desc'] ?? '')
-                                            .toString()
-                                            .isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 2.0,
-                                            ),
-                                            child: Text(
-                                              (m['desc'] ?? '').toString(),
+                                        title: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              (m['name'] ?? '').toString(),
                                               style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF888888),
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    subtitle: Text("Rp ${m['price']}"),
-                                    trailing: Builder(
-                                      builder: (_) {
-                                        final hasAddon =
-                                            _menuHasAddon[menuId] == true;
-                                        final multi = _multiVariantMenus
-                                            .contains(menuId);
-                                        if (qty > 0 && !multi) {
-                                          return GestureDetector(
-                                            behavior: HitTestBehavior.opaque,
-                                            onTap:
-                                                () {}, // cegah tap propagasi ke ListTile.onTap
-                                            child: Container(
-                                              width: 90,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                color: Colors.pink.shade50,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                  ),
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  GestureDetector(
-                                                    behavior:
-                                                        HitTestBehavior.opaque,
-                                                    onTap: () {
-                                                      if (hasAddon) {
-                                                        _handleQtyAdjustWithAddon(
-                                                          menuId,
-                                                          qty - 1,
-                                                        );
-                                                      } else {
-                                                        _handleQtyAdjustNoAddon(
-                                                          menuId,
-                                                          qty - 1,
-                                                        );
-                                                      }
-                                                    },
-                                                    child: const Padding(
-                                                      padding: EdgeInsets.all(
-                                                        4.0,
-                                                      ),
-                                                      child: Icon(
-                                                        Icons.remove,
-                                                        size: 20,
-                                                        color: Color(
-                                                          0xFFD53D3D,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    '$qty',
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Color(0xFFD53D3D),
-                                                    ),
-                                                  ),
-                                                  GestureDetector(
-                                                    behavior:
-                                                        HitTestBehavior.opaque,
-                                                    onTap: () {
-                                                      if (hasAddon) {
-                                                        _handleQtyAdjustWithAddon(
-                                                          menuId,
-                                                          qty + 1,
-                                                        );
-                                                      } else {
-                                                        _handleQtyAdjustNoAddon(
-                                                          menuId,
-                                                          qty + 1,
-                                                        );
-                                                      }
-                                                    },
-                                                    child: const Padding(
-                                                      padding: EdgeInsets.all(
-                                                        4.0,
-                                                      ),
-                                                      child: Icon(
-                                                        Icons.add,
-                                                        size: 20,
-                                                        color: Color(
-                                                          0xFFD53D3D,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+                                                fontWeight: FontWeight.bold,
                                               ),
                                             ),
-                                          );
-                                        }
-                                        return SizedBox(
-                                          width: 36,
-                                          height: 36,
-                                          child: CustomButtonOval(
-                                            text: "+",
-                                            onPressed: () =>
-                                                _handleAddPressed(m, qty),
-                                          ),
-                                        );
-                                      },
+                                            if ((m['desc'] ?? '')
+                                                .toString()
+                                                .isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 2.0,
+                                                ),
+                                                child: Text(
+                                                  (m['desc'] ?? '').toString(),
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    color: Color(0xFF888888),
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        subtitle: Text("Rp ${m['price']}"),
+                                        trailing: Builder(
+                                          builder: (_) {
+                                            final hasAddon =
+                                                _menuHasAddon[menuId] == true;
+                                            final multi = _multiVariantMenus
+                                                .contains(menuId);
+                                            if (qty > 0 && !multi) {
+                                              return GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap:
+                                                    () {}, // cegah tap propagasi ke ListTile.onTap
+                                                child: Container(
+                                                  width: 90,
+                                                  height: 40,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.pink.shade50,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          20,
+                                                        ),
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                      ),
+                                                  child: Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .spaceBetween,
+                                                    children: [
+                                                      GestureDetector(
+                                                        behavior:
+                                                            HitTestBehavior
+                                                                .opaque,
+                                                        onTap: isDisabled
+                                                            ? null
+                                                            : () {
+                                                                if (hasAddon) {
+                                                                  _handleQtyAdjustWithAddon(
+                                                                    menuId,
+                                                                    qty - 1,
+                                                                  );
+                                                                } else {
+                                                                  _handleQtyAdjustNoAddon(
+                                                                    menuId,
+                                                                    qty - 1,
+                                                                  );
+                                                                }
+                                                              },
+                                                        child: const Padding(
+                                                          padding:
+                                                              EdgeInsets.all(
+                                                                4.0,
+                                                              ),
+                                                          child: Icon(
+                                                            Icons.remove,
+                                                            size: 20,
+                                                            color: Color(
+                                                              0xFFD53D3D,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        '$qty',
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: Color(
+                                                            0xFFD53D3D,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      GestureDetector(
+                                                        behavior:
+                                                            HitTestBehavior
+                                                                .opaque,
+                                                        onTap: isDisabled
+                                                            ? null
+                                                            : () {
+                                                                if (hasAddon) {
+                                                                  _handleQtyAdjustWithAddon(
+                                                                    menuId,
+                                                                    qty + 1,
+                                                                  );
+                                                                } else {
+                                                                  _handleQtyAdjustNoAddon(
+                                                                    menuId,
+                                                                    qty + 1,
+                                                                  );
+                                                                }
+                                                              },
+                                                        child: const Padding(
+                                                          padding:
+                                                              EdgeInsets.all(
+                                                                4.0,
+                                                              ),
+                                                          child: Icon(
+                                                            Icons.add,
+                                                            size: 20,
+                                                            color: Color(
+                                                              0xFFD53D3D,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            return SizedBox(
+                                              width: 36,
+                                              height: 36,
+                                              child: CustomButtonOval(
+                                                text: "+",
+                                                onPressed: isDisabled
+                                                    ? null
+                                                    : () async {
+                                                        await _handleAddPressed(
+                                                          m,
+                                                          qty,
+                                                        );
+                                                      },
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        onTap: isDisabled
+                                            ? null
+                                            : () async {
+                                                await _handleAddPressed(m, qty);
+                                              },
+                                      ),
                                     ),
-                                    onTap: () async {
-                                      await _handleAddPressed(m, qty);
-                                    },
                                   ),
                                 ),
                               ),

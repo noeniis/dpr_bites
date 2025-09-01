@@ -7,6 +7,7 @@ import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FavoritPage extends StatefulWidget {
   const FavoritPage({super.key});
@@ -16,7 +17,18 @@ class FavoritPage extends StatefulWidget {
 }
 
 class _FavoritPageState extends State<FavoritPage> {
-  final int _userId = 1; // TODO: dynamic auth user
+  // Group favorite menus by restaurantId
+  Map<String, List<Map<String, dynamic>>> get groupedFavorites {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final menu in favoriteMenus) {
+      final restoId = menu['restaurantId'] ?? '';
+      if (!grouped.containsKey(restoId)) grouped[restoId] = [];
+      grouped[restoId]!.add(menu);
+    }
+    return grouped;
+  }
+
+  int? _userId; // from SharedPreferences
   final Map<String, int> qtyMap = {};
   bool _loading = false;
   String? _error;
@@ -27,16 +39,38 @@ class _FavoritPageState extends State<FavoritPage> {
   @override
   void initState() {
     super.initState();
-    _fetchFavorites();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getInt('id_users');
+    } catch (_) {
+      _userId = null;
+    }
+    await _fetchFavorites();
   }
 
   Future<void> _fetchFavorites() async {
     setState(() => _loading = true);
     try {
+      if (_userId == null) {
+        // not logged in: treat as empty favorites (do not show login error)
+        _favorites = [];
+        _error = null;
+        return;
+      }
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_favorites.php?user_id=$_userId',
+        'http://10.0.2.2/dpr_bites_api/get_user_favorites.php?user_id=${_userId}',
       );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
+        },
+      );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
@@ -80,10 +114,17 @@ class _FavoritPageState extends State<FavoritPage> {
 
   Future<void> _fetchCartQuantities() async {
     try {
+      if (_userId == null) return;
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=$_userId',
+        'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=${_userId}',
       );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
+        },
+      );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
@@ -143,17 +184,18 @@ class _FavoritPageState extends State<FavoritPage> {
       final uri = Uri.parse(
         'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
       );
-      final payload = {
-        'user_id': _userId,
+      final Map<String, dynamic> payload = {
         'gerai_id': int.tryParse(geraiId) ?? geraiId,
         'menu_id': int.tryParse(menuId) ?? menuId,
         'qty': newQty,
       };
+      if (_userId != null) payload['user_id'] = _userId!;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
         },
         body: jsonEncode(payload),
       );
@@ -207,17 +249,19 @@ class _FavoritPageState extends State<FavoritPage> {
     });
     try {
       final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/favorite.php');
+      final Map<String, dynamic> bodyPayload = {
+        'menu_id': menuId,
+        'action': 'toggle',
+      };
+      if (_userId != null) bodyPayload['user_id'] = _userId!;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
         },
-        body: jsonEncode({
-          'user_id': _userId,
-          'menu_id': menuId,
-          'action': 'toggle',
-        }),
+        body: jsonEncode(bodyPayload),
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -299,10 +343,9 @@ class _FavoritPageState extends State<FavoritPage> {
                     context,
                     MaterialPageRoute(builder: (_) => const CartPage()),
                   );
-                  // Setelah kembali dari cart, segarkan qty keranjang favorit
                   if (mounted) {
                     await _fetchCartQuantities();
-                    setState(() {}); // paksa rebuild untuk qty terbaru
+                    setState(() {});
                   }
                 },
               ),
@@ -315,240 +358,436 @@ class _FavoritPageState extends State<FavoritPage> {
               : favoriteMenus.isEmpty
               ? Center(
                   child: Text(
-                    _error != null ? 'Error: ' + _error! : 'Belum ada favorit',
+                    _error != null
+                        ? 'Error: ' + _error!
+                        : 'Menu Favorite Masih Kosong',
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: () async {
                     await _fetchFavorites();
                   },
-                  child: ListView.builder(
+                  child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 0,
-                      vertical: 8,
+                      horizontal: 16,
+                      vertical: 16,
                     ),
-                    itemCount: favoriteMenus.length,
-                    itemBuilder: (context, idx) {
-                      final menu = favoriteMenus[idx];
-                      final resto = getRestaurant(menu['restaurantId']);
-                      // final qty = qtyMap[menu['id']] ?? 0; // reserved for future quantity handling
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 0,
-                              vertical: 0,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: Colors.transparent,
+                    children: [
+                      ...groupedFavorites.entries.map((entry) {
+                        final restoId = entry.key;
+                        final menus = entry.value;
+                        final resto = getRestaurant(restoId);
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.07),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 18,
                             ),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              resto?['name'] ?? '',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 17,
-                                              ),
-                                            ),
-                                            Text(
-                                              resto?['desc'] ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.black54,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Column(
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.end,
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.star,
-                                                color: Colors.amber,
-                                                size: 18,
-                                              ),
-                                              Text(
-                                                (resto?['rating'] ?? 0)
-                                                    .toString(),
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
+                                          Text(
+                                            resto?['name'] ?? '',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                              color: AppTheme.primaryColor,
+                                            ),
                                           ),
-                                          const SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.monetization_on,
-                                                color: Colors.amber,
-                                                size: 16,
+                                          if ((resto?['desc'] ?? '')
+                                              .toString()
+                                              .isNotEmpty)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 2,
                                               ),
-                                              Text(
-                                                _formatPriceRange(
-                                                  resto?['minPrice'],
-                                                  resto?['maxPrice'],
-                                                ),
+                                              child: Text(
+                                                resto?['desc'] ?? '',
                                                 style: const TextStyle(
                                                   fontSize: 13,
+                                                  color: Colors.black54,
                                                 ),
                                               ),
-                                            ],
-                                          ),
+                                            ),
                                         ],
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.star,
+                                          color: Colors.amber,
+                                          size: 18,
+                                        ),
+                                        Text(
+                                          (resto?['rating'] ?? 0).toString(),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Icon(
+                                          Icons.monetization_on,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                        Text(
+                                          _formatPriceRange(
+                                            resto?['minPrice'],
+                                            resto?['maxPrice'],
+                                          ),
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  height: 1,
-                                  color: const Color(0xFFD9D9D9),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                const SizedBox(height: 12),
+                                ...menus.map((menu) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                      horizontal: 0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Stack(
                                           children: [
-                                            Text(
-                                              menu['name'] ?? '',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15,
-                                              ),
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child:
+                                                  (menu['image'] is String &&
+                                                      (menu['image'] as String)
+                                                          .startsWith('http'))
+                                                  ? Image.network(
+                                                      menu['image'],
+                                                      width: 70,
+                                                      height: 70,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (
+                                                            _,
+                                                            __,
+                                                            ___,
+                                                          ) => Container(
+                                                            width: 70,
+                                                            height: 70,
+                                                            color:
+                                                                Colors.black12,
+                                                            child: const Icon(
+                                                              Icons.fastfood,
+                                                              color: Colors
+                                                                  .black45,
+                                                            ),
+                                                          ),
+                                                    )
+                                                  : Image.asset(
+                                                      (menu['image'] ??
+                                                              'assets/placeholder.png')
+                                                          .toString(),
+                                                      width: 70,
+                                                      height: 70,
+                                                      fit: BoxFit.cover,
+                                                    ),
                                             ),
-                                            Text(
-                                              menu['desc'] ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: Colors.black87,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              "${menu['price']}",
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            GestureDetector(
-                                              onTap: () =>
-                                                  toggleFavorite(menu['id']),
-                                              child: const Icon(
-                                                Icons.favorite,
-                                                color: AppTheme.primaryColor,
-                                                size: 24,
+                                            Positioned(
+                                              left: 4,
+                                              bottom: 4,
+                                              child: GestureDetector(
+                                                onTap: () async {
+                                                  // Only show confirmation if menu is already favorited (i.e., user wants to remove)
+                                                  final isFavorited =
+                                                      true; // always true in this list
+                                                  if (isFavorited) {
+                                                    final confirm = await showDialog<bool>(
+                                                      context: context,
+                                                      barrierDismissible: true,
+                                                      builder: (ctx) {
+                                                        return Dialog(
+                                                          backgroundColor:
+                                                              Colors.white,
+                                                          shape: RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  18,
+                                                                ),
+                                                          ),
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      24,
+                                                                  vertical: 28,
+                                                                ),
+                                                            child: Column(
+                                                              mainAxisSize:
+                                                                  MainAxisSize
+                                                                      .min,
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .center,
+                                                              children: [
+                                                                Container(
+                                                                  decoration: BoxDecoration(
+                                                                    color: AppTheme
+                                                                        .primaryColor
+                                                                        .withOpacity(
+                                                                          0.08,
+                                                                        ),
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                                  padding:
+                                                                      const EdgeInsets.all(
+                                                                        14,
+                                                                      ),
+                                                                  child: const Icon(
+                                                                    Icons
+                                                                        .favorite_border,
+                                                                    color: AppTheme
+                                                                        .primaryColor,
+                                                                    size: 36,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 18,
+                                                                ),
+                                                                const Text(
+                                                                  'Hapus dari Favorit?',
+                                                                  style: TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    fontSize:
+                                                                        17,
+                                                                    color: AppTheme
+                                                                        .primaryColor,
+                                                                  ),
+                                                                  textAlign:
+                                                                      TextAlign
+                                                                          .center,
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 10,
+                                                                ),
+                                                                const Text(
+                                                                  'Menu ini akan dihapus dari daftar favorit Anda.',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        14,
+                                                                    color: Colors
+                                                                        .black87,
+                                                                  ),
+                                                                  textAlign:
+                                                                      TextAlign
+                                                                          .center,
+                                                                ),
+                                                                const SizedBox(
+                                                                  height: 22,
+                                                                ),
+                                                                Row(
+                                                                  mainAxisAlignment:
+                                                                      MainAxisAlignment
+                                                                          .spaceEvenly,
+                                                                  children: [
+                                                                    Expanded(
+                                                                      child: TextButton(
+                                                                        style: TextButton.styleFrom(
+                                                                          backgroundColor:
+                                                                              Colors.grey[100],
+                                                                          foregroundColor:
+                                                                              AppTheme.primaryColor,
+                                                                          shape: RoundedRectangleBorder(
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              10,
+                                                                            ),
+                                                                          ),
+                                                                          padding: const EdgeInsets.symmetric(
+                                                                            vertical:
+                                                                                10,
+                                                                          ),
+                                                                        ),
+                                                                        onPressed: () =>
+                                                                            Navigator.of(
+                                                                              ctx,
+                                                                            ).pop(
+                                                                              false,
+                                                                            ),
+                                                                        child: const Text(
+                                                                          'Batal',
+                                                                          style: TextStyle(
+                                                                            fontWeight:
+                                                                                FontWeight.w600,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 14,
+                                                                    ),
+                                                                    Expanded(
+                                                                      child: TextButton(
+                                                                        style: TextButton.styleFrom(
+                                                                          backgroundColor:
+                                                                              AppTheme.primaryColor,
+                                                                          foregroundColor:
+                                                                              Colors.white,
+                                                                          shape: RoundedRectangleBorder(
+                                                                            borderRadius: BorderRadius.circular(
+                                                                              10,
+                                                                            ),
+                                                                          ),
+                                                                          padding: const EdgeInsets.symmetric(
+                                                                            vertical:
+                                                                                10,
+                                                                          ),
+                                                                        ),
+                                                                        onPressed: () =>
+                                                                            Navigator.of(
+                                                                              ctx,
+                                                                            ).pop(
+                                                                              true,
+                                                                            ),
+                                                                        child: const Text(
+                                                                          'Hapus',
+                                                                          style: TextStyle(
+                                                                            fontWeight:
+                                                                                FontWeight.w600,
+                                                                          ),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    );
+                                                    if (confirm == true) {
+                                                      toggleFavorite(
+                                                        menu['id'],
+                                                      );
+                                                    }
+                                                  } else {
+                                                    toggleFavorite(menu['id']);
+                                                  }
+                                                },
+                                                child: Container(
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white
+                                                        .withOpacity(0.85),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(
+                                                    2,
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.favorite,
+                                                    color:
+                                                        AppTheme.primaryColor,
+                                                    size: 22,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                      Column(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                            child:
-                                                (menu['image'] is String &&
-                                                    (menu['image'] as String)
-                                                        .startsWith('http'))
-                                                ? Image.network(
-                                                    menu['image'],
-                                                    width: 80,
-                                                    height: 80,
-                                                    fit: BoxFit.cover,
-                                                    errorBuilder:
-                                                        (
-                                                          _,
-                                                          __,
-                                                          ___,
-                                                        ) => Container(
-                                                          width: 80,
-                                                          height: 80,
-                                                          color: Colors.black12,
-                                                          child: const Icon(
-                                                            Icons.fastfood,
-                                                            color:
-                                                                Colors.black45,
-                                                          ),
-                                                        ),
-                                                  )
-                                                : Image.asset(
-                                                    (menu['image'] ??
-                                                            'assets/placeholder.png')
-                                                        .toString(),
-                                                    width: 80,
-                                                    height: 80,
-                                                    fit: BoxFit.cover,
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                menu['name'] ?? '',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                              if ((menu['desc'] ?? '')
+                                                  .toString()
+                                                  .isNotEmpty)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        top: 2,
+                                                      ),
+                                                  child: Text(
+                                                    menu['desc'] ?? '',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
+                                                ),
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    "Rp${_formatRupiah(_toInt(menu['price']) ?? 0)}",
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 14,
+                                                      color:
+                                                          AppTheme.primaryColor,
+                                                    ),
+                                                  ),
+                                                  const Spacer(),
+                                                  _buildQtySection(menu),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(height: 10),
-                                          _buildQtySection(menu),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Container(
-                                    width: 60,
-                                    height: 0.25,
-                                    color: const Color(0xFFD9D9D9),
-                                    margin: const EdgeInsets.only(right: 16),
-                                  ),
-                                ),
-                                Container(
-                                  height: 2,
-                                  color: const Color.fromARGB(
-                                    255,
-                                    199,
-                                    199,
-                                    199,
-                                  ),
-                                ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                               ],
                             ),
                           ),
-                        ],
-                      );
-                    },
+                        );
+                      }).toList(),
+                    ],
                   ),
                 ),
         ),
@@ -623,69 +862,92 @@ Widget _buildQtySection(Map<String, dynamic> menu) {
       final currentQty = state?.qtyMap[menuId] ?? 0;
       if (currentQty <= 0) {
         return SizedBox(
-          width: 89,
-          height: 22,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              side: const BorderSide(color: Color(0xFFB03056)),
+          height: 32,
+          child: TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.primaryColor,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(
+                  color: AppTheme.primaryColor,
+                  width: 1.2,
+                ),
               ),
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              elevation: 0,
             ),
             onPressed: () {
               if (state != null) {
                 state._setCartQty(menuId, geraiId, 1);
               }
             },
-            child: const Text(
-              'Tambah',
-              style: TextStyle(
-                color: Color(0xFFB03056),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
+            child: const Text('Tambah'),
           ),
         );
       }
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        height: 32,
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFB03056)),
-          borderRadius: BorderRadius.circular(14),
-          color: Colors.white.withOpacity(0.85),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppTheme.primaryColor, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
-              onTap: () {
+            IconButton(
+              icon: const Icon(
+                Icons.remove,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: () {
                 if (state != null) {
                   final next = currentQty - 1;
                   state._setCartQty(menuId, geraiId, next < 0 ? 0 : next);
                 }
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Icon(Icons.remove, size: 16, color: Color(0xFFB03056)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                currentQty.toString(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: AppTheme.primaryColor,
+                ),
               ),
             ),
-            Text(
-              currentQty.toString(),
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            GestureDetector(
-              onTap: () {
+            IconButton(
+              icon: const Icon(
+                Icons.add,
+                size: 18,
+                color: AppTheme.primaryColor,
+              ),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: () {
                 if (state != null) {
                   state._setCartQty(menuId, geraiId, currentQty + 1);
                 }
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                child: Icon(Icons.add, size: 16, color: Color(0xFFB03056)),
-              ),
             ),
           ],
         ),

@@ -69,6 +69,7 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                     'rating': e['rating'] ?? 0,
                     'komentar': e['komentar'] ?? '',
                     'photo': e['photo'],
+                    'tanggal': e['tanggal'] ?? '',
                   },
                 )
                 .toList();
@@ -198,7 +199,7 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                           widthFactor: count / maxBar,
                                           child: Container(
                                             decoration: BoxDecoration(
-                                              color: star >= 4
+                                              color: count > 0
                                                   ? const Color(0xFFFFD600)
                                                   : const Color(0xFFD3D3D3),
                                               borderRadius:
@@ -255,6 +256,17 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                           final komentar = (r['komentar'] as String? ?? '')
                               .trim();
                           final photo = r['photo'];
+                          final tanggalRaw = r['tanggal'] as String? ?? '';
+                          String tanggalFormatted = '';
+                          if (tanggalRaw.isNotEmpty) {
+                            try {
+                              final dt = DateTime.parse(tanggalRaw);
+                              tanggalFormatted =
+                                  '${dt.day.toString().padLeft(2, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.year}';
+                            } catch (_) {
+                              tanggalFormatted = tanggalRaw;
+                            }
+                          }
                           return CustomEmptyCard(
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -302,6 +314,7 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                             fontWeight: FontWeight.bold,
                                             fontSize: 15,
                                           ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
@@ -338,6 +351,22 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                         color: Colors.black87,
                                         height: 1.3,
                                       ),
+                                    ),
+                                  ],
+                                  // Tanggal di kanan bawah
+                                  if (tanggalFormatted.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          tanggalFormatted,
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ],

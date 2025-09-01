@@ -1,3 +1,4 @@
+import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
@@ -33,8 +34,7 @@ class _ReceiptPageState extends State<ReceiptPage> {
       if (_data == null) return;
       final idTrans = _data!['id_transaksi'];
       if (idTrans == null) return;
-      final prefs = await SharedPreferences.getInstance();
-      final idUsers = prefs.getString('id_users');
+      final idUsers = await Prefs.getUserIdString();
       if (idUsers == null) return;
       _reviewLoading = true;
       if (mounted) setState(() {});
@@ -1079,13 +1079,15 @@ class _ReceiptPageState extends State<ReceiptPage> {
                     height: 56,
                     child: CustomButtonKotak(
                       text: 'Lihat Proses Pesanan',
-                      onPressed: () {
-                        Navigator.of(context).push(
+                      onPressed: () async {
+                        await Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) =>
                                 CheckoutProcessPage(bookingId: bookingId),
                           ),
                         );
+                        // Setelah kembali dari checkout, refresh status
+                        await _fetch();
                       },
                     ),
                   ),
@@ -1099,7 +1101,8 @@ class _ReceiptPageState extends State<ReceiptPage> {
                       text: 'Beri Ulasan',
                       onPressed: () async {
                         final prefs = await SharedPreferences.getInstance();
-                        final idUsers = prefs.getString('id_users');
+                        final rawIdUsers = prefs.get('id_users');
+                        final idUsers = rawIdUsers?.toString();
                         if (idUsers == null) return;
                         final idTrans = d['id_transaksi'];
                         if (idTrans == null) return;

@@ -1,3 +1,5 @@
+import 'package:dpr_bites/features/user/pages/history/history_page.dart';
+import 'package:dpr_bites/features/user/pages/history/receipt_page.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -6,7 +8,6 @@ import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/dummy_checkout.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:dpr_bites/features/user/pages/history/receipt_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/chat_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/pembayaran_qris_dialog.dart';
 import 'package:dpr_bites/features/user/pages/review/review_page.dart';
@@ -25,8 +26,8 @@ class CheckoutProcessPage extends StatefulWidget {
 class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   Map<String, dynamic>? _tx;
   List<Map<String, dynamic>> _items = [];
-  bool _loading = true; // minimal usage via Offstage
-  String? _error; // minimal usage via Offstage
+  // bool _loading = true; // dihapus, tidak dipakai
+  // String? _error; // dihapus, tidak dipakai
   int _currentStep = 0; // 0..3
   bool _isPickup = false;
   late final String? _bookingId;
@@ -35,6 +36,8 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   bool _fetching = false; // prevent overlapping fetch
   String _metode = '';
   DateTime? _disiapkanStart; // waktu pertama kali masuk status disiapkan
+  DateTime?
+  _diantarStart; // waktu pertama kali status menjadi diantar (delivery)
   final Duration _prepDuration = const Duration(minutes: 15);
   Duration _remaining = const Duration(minutes: 15);
   bool _timerScheduled = false;
@@ -111,7 +114,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   Future<void> _fetch() async {
     if (_fetching) return; // avoid overlapping requests
     _fetching = true;
-    setState(() => _loading = true);
+    setState(() {});
     try {
       final qp = <String, String>{};
       final bId = _bookingId;
@@ -207,7 +210,35 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
         );
       }
       // Catat / pulihkan waktu mulai disiapkan untuk countdown (pickup saja)
-      if (status == 'disiapkan' && _isPickup) {
+      // dan waktu mulai diantar untuk ETA statis delivery
+      if (status == 'diantar') {
+        // Untuk delivery, simpan waktu pertama kali status menjadi 'diantar'
+        final idTransaksi = data['id_transaksi'];
+        final key = idTransaksi == null
+            ? null
+            : 'diantar_start_${idTransaksi.toString()}';
+        if (_diantarStart == null && key != null) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final saved = prefs.getString(key);
+            if (saved != null) {
+              final parsed = DateTime.tryParse(saved);
+              if (parsed != null) {
+                _diantarStart = parsed;
+              }
+            }
+            if (_diantarStart == null) {
+              _diantarStart = DateTime.now();
+              await prefs.setString(key, _diantarStart!.toIso8601String());
+            }
+          } catch (_) {
+            _diantarStart ??= DateTime.now();
+          }
+        }
+      } else if (status == 'disiapkan') {
+        // Countdown timer untuk disiapkan, baik pickup maupun pengantaran
+        _timerScheduled =
+            false; // reset agar timer bisa dijalankan ulang jika status berubah
         final idTransaksi = data['id_transaksi'];
         final key = idTransaksi == null
             ? null
@@ -242,6 +273,8 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
           if (!_timerScheduled) _scheduleCountdownTick();
         }
       } else {
+        _timerScheduled =
+            false; // reset agar timer bisa dijalankan ulang jika status berubah
         // Jika keluar dari status disiapkan (antar/pickup/selesai/dibatalkan) hapus key agar sesi baru dimulai wajar bila perlu.
         if (_disiapkanStart != null) {
           final idTransaksi = data['id_transaksi'];
@@ -251,6 +284,17 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
               await prefs.remove('prep_start_${idTransaksi.toString()}');
             } catch (_) {}
           }
+        }
+        // Jika keluar dari status diantar (selesai/dibatalkan/disiapkan/pickup) hapus key agar sesi baru dimulai wajar bila perlu.
+        if (_diantarStart != null && status != 'diantar') {
+          final idTransaksi = data['id_transaksi'];
+          if (idTransaksi != null) {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('diantar_start_${idTransaksi.toString()}');
+            } catch (_) {}
+          }
+          _diantarStart = null;
         }
       }
       // Catat waktu selesai lokal bila status selesai muncul pertama kali (gunakan field backend jika tersedia)
@@ -273,14 +317,14 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
         }
         _selesaiAt = backendDone ?? DateTime.now();
       }
-      setState(() => _loading = false);
+      setState(() {});
       _maybeShowQrisDialog();
       _maybeShowReview(); // otomatis buka halaman ulasan saat status selesai
       // _schedulePoll digantikan oleh Timer.periodic
     } catch (e) {
       setState(() {
-        _error = e.toString();
-        _loading = false;
+        // error diabaikan
+        // loading diabaikan
       });
     } finally {
       _fetching = false;
@@ -525,6 +569,14 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                 } catch (_) {}
                 if (mounted) {
                   Navigator.of(context).pop();
+                  // Navigate ke halaman history dengan filter dibatalkan, hapus semua halaman sebelumnya
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const HistoryPage(initialFilter: 'dibatalkan'),
+                    ),
+                    (route) => false,
+                  );
                 }
               }
             },
@@ -563,6 +615,10 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     }
     // Require essential ids
     final idTransaksi = _tx!['id_transaksi'];
+    // Inject _geraiId jika id_gerai masih null
+    if (_tx!['id_gerai'] == null && _geraiId != null) {
+      _tx!['id_gerai'] = _geraiId;
+    }
     final idGerai = _tx!['id_gerai'];
     dynamic idUser = _tx!['id_users'];
     if (idUser == null) {
@@ -865,17 +921,6 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     final cancellationNote = _tx != null
         ? (_tx!['catatan_pembatalan'] ?? '')
         : '';
-    // Offstage widgets to reference variables so not flagged unused (no visible layout impact)
-    final diagnostics = Offstage(
-      offstage: true,
-      child: Column(
-        children: [
-          if (_loading) const SizedBox.shrink(),
-          if (_error != null) Text(_error!),
-          if (cancelled) Text(cancellationNote),
-        ],
-      ),
-    );
 
     return GradientBackground(
       child: Scaffold(
@@ -1047,11 +1092,6 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                                         );
                                       } else if (statusNow == 'diantar' ||
                                           statusNow == 'pickup') {
-                                        final eta = DateTime.now().add(
-                                          _remaining.isNegative
-                                              ? Duration.zero
-                                              : _remaining,
-                                        );
                                         if (statusNow == 'pickup') {
                                           return SizedBox(
                                             width: double.infinity,
@@ -1073,6 +1113,13 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                                             ),
                                           );
                                         } else {
+                                          // Delivery: ETA statis, ambil dari _diantarStart + 15 menit
+                                          DateTime? eta;
+                                          if (_diantarStart != null) {
+                                            eta = _diantarStart!.add(
+                                              const Duration(minutes: 15),
+                                            );
+                                          }
                                           return SizedBox(
                                             width: double.infinity,
                                             child: Column(
@@ -1108,7 +1155,9 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  '${_formatClock(eta)} WIB',
+                                                  eta != null
+                                                      ? '${_formatClock(eta)} WIB'
+                                                      : '-',
                                                   style: timeStyle,
                                                 ),
                                               ],
@@ -1746,6 +1795,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // Tombol Detail Struk
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: SizedBox(
@@ -1829,7 +1879,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                   if ((_tx?['status'] == 'konfirmasi_pembayaran') &&
                       ((_tx?['bukti_pembayaran'] ?? '').toString().isNotEmpty))
                     const SizedBox(height: 16),
-                  diagnostics,
+                  //
                 ],
               ),
             ),

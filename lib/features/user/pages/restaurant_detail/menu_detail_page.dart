@@ -3,6 +3,8 @@ import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/common/utils/prefs_helper.dart';
 
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
@@ -28,7 +30,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   final TextEditingController noteController = TextEditingController();
   // Simpan ID addon (int)
   List<int> selectedAddons = [];
-  final int _userId = 1; // TODO: real user id from auth
+  int? _userId; // loaded from SharedPreferences
   bool _favorited = false;
   bool _favBusy = false;
 
@@ -70,20 +72,50 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
       noteController.text = widget.menu['note'];
     }
 
-    // 4. Fetch detail terbaru (mungkin memuat addonOptions) lalu filter selectedAddons agar valid
+    // 4. Init user id then fetch detail & favorite status
     final id = widget.menu['id'];
+    _init(id?.toString());
+  }
+
+  Future<void> _init(String? id) async {
+    // Ambil user id dengan helper, fallback ke string jika null
+    _userId = await Prefs.getUserIdInt();
+    if (_userId == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('id_users');
+      if (s != null) {
+        _userId = int.tryParse(s);
+      }
+    }
+    if (_userId == null) {
+      debugPrint('User id null di _init');
+    }
     if (id != null) {
-      _fetchMenuDetail(id.toString());
-      _loadFavoriteStatus(id.toString());
+      await _fetchMenuDetail(id);
+      await _loadFavoriteStatus(id);
     }
   }
 
   Future<void> _loadFavoriteStatus(String id) async {
     try {
+      if (_userId == null) {
+        setState(() => _favorited = false);
+        debugPrint('User id null di _loadFavoriteStatus');
+        return;
+      }
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/favorite.php?user_id=$_userId&menu_id=$id',
+        'http://10.0.2.2/dpr_bites_api/favorite.php?user_id=${_userId}&menu_id=$id',
       );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
+      final res = await http.get(
+        uri,
+        headers: {
+          'Accept': 'application/json',
+          'X-User-Id': _userId.toString(),
+        },
+      );
+      debugPrint(
+        'favorite GET -> status: \\${res.statusCode}, body: \\${res.body}',
+      );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
@@ -92,7 +124,9 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error _loadFavoriteStatus: $e');
+    }
   }
 
   Future<void> _toggleFavorite() async {
@@ -104,28 +138,75 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
       return;
     }
     try {
+      // If we don't have a user id loaded yet, try to read it now.
+      if (_userId == null) {
+        _userId = await Prefs.getUserIdInt();
+        if (_userId == null) {
+          final prefs = await SharedPreferences.getInstance();
+          final s = prefs.getString('id_users');
+          if (s != null) {
+            _userId = int.tryParse(s);
+          }
+        }
+      }
+      if (_userId == null) {
+        debugPrint('User id null di _toggleFavorite');
+        _favBusy = false;
+        return;
+      }
+
+      // Optimistic UI: flip the local state first for snappy feedback.
+      final prev = _favorited;
+      setState(() => _favorited = !prev);
+
       final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/favorite.php');
+      final Map<String, dynamic> payload = {
+        'user_id': _userId!,
+        'menu_id': int.tryParse(id.toString()) ?? id,
+        'action': 'toggle',
+      };
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'X-User-Id': _userId.toString(),
         },
-        body: jsonEncode({
-          'user_id': _userId,
-          'menu_id': id,
-          'action': 'toggle',
-        }),
+        body: jsonEncode(payload),
+      );
+      debugPrint(
+        'favorite POST -> status: \\${res.statusCode}, body: \\${res.body}',
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
+          // trust server response; keep local state in sync
           setState(() {
             _favorited = body['favorited'] == true;
           });
+        } else {
+          // server reported failure -> revert optimistic state
+          setState(() => _favorited = prev);
+          final msg = (body is Map && body['message'] != null)
+              ? body['message'].toString()
+              : 'Gagal update favorite';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         }
+      } else {
+        // HTTP failure -> revert optimistic state
+        setState(() => _favorited = prev);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('HTTP ${res.statusCode}')));
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error _toggleFavorite: $e');
+      // on exception, revert optimistic state
+      try {
+        setState(() => _favorited = !_favorited);
+      } catch (_) {}
     } finally {
       _favBusy = false;
     }
@@ -202,6 +283,9 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   @override
   Widget build(BuildContext context) {
     final menu = _menuData ?? widget.menu;
+    final List addonOptions = menu['addonOptions'] is List
+        ? menu['addonOptions'] as List
+        : [];
     return Container(
       color: Colors.white,
       child: SafeArea(
@@ -317,10 +401,10 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                               _favorited
                                   ? Icons.favorite
                                   : Icons.favorite_border,
-                              color: Colors.pink,
+                              color: _favorited ? Colors.red : Colors.grey,
                               size: 30,
                             ),
-                            onPressed: _toggleFavorite,
+                            onPressed: _favBusy ? null : _toggleFavorite,
                             tooltip: _favorited
                                 ? 'Hapus dari Favorit'
                                 : 'Tambah ke Favorit',
@@ -336,8 +420,8 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                           fontSize: 20,
                         ),
                       ),
-                      if (menu['addonOptions'] != null &&
-                          (menu['addonOptions'] as List).isNotEmpty) ...[
+                      // Tampilkan section Add-on hanya jika ada addon
+                      if (addonOptions.isNotEmpty) ...[
                         const SizedBox(height: 18),
                         const Text(
                           'Pilih Add-on:',
@@ -347,10 +431,8 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        ...List.generate((menu['addonOptions'] as List).length, (
-                          i,
-                        ) {
-                          final opt = (menu['addonOptions'] as List)[i];
+                        ...List.generate(addonOptions.length, (i) {
+                          final opt = addonOptions[i];
                           final id = opt['id'];
                           final label = opt['label'] ?? '';
                           final price = opt['price'] ?? 0;

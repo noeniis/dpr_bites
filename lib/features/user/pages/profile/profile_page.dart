@@ -1,3 +1,4 @@
+import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
@@ -38,8 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> fetchUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    final idUsers = await Prefs.getUserIdString();
     if (idUsers == null) return; // Belum login
 
     try {
@@ -147,7 +147,13 @@ class _ProfilePageState extends State<ProfilePage> {
       });
       // Simpan photo_path ke server bersama data lain yang wajib
       final prefs = await SharedPreferences.getInstance();
-      final idUsers = prefs.getString('id_users');
+      String? idUsers;
+      final idInt = prefs.getInt('id_users');
+      if (idInt != null) {
+        idUsers = idInt.toString();
+      } else {
+        idUsers = prefs.getString('id_users');
+      }
       if (idUsers != null) {
         final response = await http.post(
           Uri.parse('http://10.0.2.2/dpr_bites_api/edit_user_profile.php'),
@@ -224,7 +230,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
     // Kirim ke API edit profil
     final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    String? idUsers;
+    final idInt = prefs.getInt('id_users');
+    if (idInt != null) {
+      idUsers = idInt.toString();
+    } else {
+      idUsers = prefs.getString('id_users');
+    }
     if (idUsers == null) return;
     final Map<String, dynamic> body = {
       'id_users': idUsers,

@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ReviewPage extends StatefulWidget {
   final int idTransaksi;
   final int idGerai;
-  final int idUser; // buyer id
+  final int? idUser; // buyer id, can be null
   final String geraiName;
   final String? listingPath; // URL or local path for store image
   final bool readOnly; // display only
@@ -15,7 +16,7 @@ class ReviewPage extends StatefulWidget {
     super.key,
     required this.idTransaksi,
     required this.idGerai,
-    required this.idUser,
+    this.idUser,
     required this.geraiName,
     this.listingPath,
     this.readOnly = false,
@@ -33,6 +34,7 @@ class _ReviewPageState extends State<ReviewPage> {
   bool _submitting = false;
   String? _error;
   bool _anonymous = false; // user choose anonymity
+  int? _idUser; // will be set from widget or SharedPreferences
 
   @override
   void initState() {
@@ -42,6 +44,30 @@ class _ReviewPageState extends State<ReviewPage> {
       _controller.text = widget.initialKomentar!;
     }
     // If opened in read-only mode we cannot change anonymity.
+    _idUser = widget.idUser;
+    if (_idUser == null || _idUser == 0) {
+      _fetchUserIdFromPrefs();
+    }
+  }
+
+  Future<void> _fetchUserIdFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final candKeys = ['id_users', 'id_user', 'user_id'];
+      for (final k in candKeys) {
+        if (prefs.containsKey(k)) {
+          final v = prefs.get(k);
+          if (v != null) {
+            setState(() {
+              _idUser = int.tryParse(v.toString()) ?? 0;
+            });
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore error
+    }
   }
 
   Future<void> _submit() async {
@@ -52,6 +78,9 @@ class _ReviewPageState extends State<ReviewPage> {
       _error = null;
     });
     try {
+      if (_idUser == null || _idUser == 0) {
+        throw Exception('User ID tidak ditemukan. Silakan login ulang.');
+      }
       final resp = await http.post(
         Uri.parse('http://10.0.2.2/dpr_bites_api/add_ulasan.php'),
         headers: const {
@@ -60,7 +89,7 @@ class _ReviewPageState extends State<ReviewPage> {
         },
         body: jsonEncode({
           'id_transaksi': widget.idTransaksi,
-          'id_users': widget.idUser,
+          'id_users': _idUser,
           'rating': _rating,
           'komentar': _controller.text.trim(),
           'anonymous': _anonymous ? 1 : 0,

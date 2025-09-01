@@ -9,6 +9,8 @@ import 'checkout_process_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class CheckoutPage extends StatefulWidget {
   const CheckoutPage({Key? key}) : super(key: key);
 
@@ -28,22 +30,19 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool isDelivery = true;
   int? editingQtyIndex;
   String selectedPayment = 'qris';
-  Map<String, dynamic>?
-  selectedAddress; // disamakan ke map agar mudah isi dari API
-  int? selectedAddressId; // id alamat terpilih untuk sinkron ke AddressPage
+  Map<String, dynamic>? selectedAddress;
+  int? selectedAddressId;
   late final AddressStore _addressStore;
   bool _loading = true;
   String? _error;
-  bool _noSelectionMatch =
-      false; // jika ID terpilih tidak ditemukan di data API
-  bool _retryAfterMismatch = false; // retry sekali bila pertama kosong
-  List<int> _missingSelectedIds = []; // id yang dipilih tapi tidak muncul
-  final int _userId = 1; // TODO: ambil dari auth saat tersedia
-  int _geraiId = 0; // diisi dari arguments
-  List<int> _selectedCartItemIds =
-      []; // dari cart: id_keranjang_item yang dipilih
+  bool _noSelectionMatch = false;
+  bool _retryAfterMismatch = false;
+  List<int> _missingSelectedIds = [];
+  int? _userId; // ambil dari SharedPreferences
+  int _geraiId = 0;
+  List<int> _selectedCartItemIds = [];
   bool _didFetch = false;
-  bool _cartDirty = false; // tandai jika ada perubahan utk refresh cart
+  bool _cartDirty = false;
 
   Future<void> _prefetchSelectedItemsDetail(String baseUrl) async {
     if (_selectedCartItemIds.isEmpty) return; // hanya saat dari cart
@@ -143,6 +142,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _addressStore.addListener(_onAddressChanged);
     // Populate selectedAddress awal jika sudah ada
     _onAddressChanged();
+    // Ambil id_users dari SharedPreferences
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = prefs.getInt('id_users');
+      if (id != null && mounted) {
+        setState(() {
+          _userId = id;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchCheckoutData() async {
@@ -152,10 +165,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _noSelectionMatch = false;
     });
     try {
-      final baseUrl =
-          'http://10.0.2.2'; // ganti dengan IP LAN jika pakai device fisik
+      final baseUrl = 'http://10.0.2.2';
+      // Tunggu userId jika belum ada
+      if (_userId == null) {
+        final prefs = await SharedPreferences.getInstance();
+        _userId = prefs.getInt('id_users');
+      }
       final uri = Uri.parse(
-        '$baseUrl/dpr_bites_api/get_checkout_data.php?user_id=$_userId&gerai_id=$_geraiId',
+        '$baseUrl/dpr_bites_api/get_checkout_data.php?user_id=${_userId ?? ''}&gerai_id=$_geraiId',
       );
       debugPrint('[CHECKOUT] Fetching: $uri');
       final resp = await http.get(uri, headers: {'Accept': 'application/json'});

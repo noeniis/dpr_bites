@@ -1,3 +1,4 @@
+import '../../../../common/utils/prefs_helper.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
@@ -6,7 +7,7 @@ import '../../../../common/data/dummy_address.dart';
 import '../../../../common/data/address_store.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import 'filter_category_sheet.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
@@ -82,8 +83,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
   }
 
   Future<void> _fetchUserAddress() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    final idUsers = await Prefs.getUserIdString();
     if (idUsers == null) {
       setState(() {
         _buildingName = 'Tambah Alamat Disini';

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../checkout/checkout_page.dart';
 import '../../../../app/gradient_background.dart';
@@ -13,7 +14,7 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  final int _userId = 1; // TODO: replace with real user id
+  int? _userId; // loaded from SharedPreferences 'id_users'
   List<Map<String, dynamic>> carts = [];
   Map<int, Set<int>> selectedMenus = {};
   bool _loading = false; // minimal spinner to keep UI feel
@@ -133,7 +134,16 @@ class _CartPageState extends State<CartPage> {
   @override
   void initState() {
     super.initState();
-    _fetchCart();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      final id = prefs.getInt('id_users');
+      if (id != null) _userId = id;
+    } catch (_) {}
+    await _fetchCart();
   }
 
   Future<void> _fetchCart() async {
@@ -141,12 +151,17 @@ class _CartPageState extends State<CartPage> {
       _loading = true;
     });
     try {
-      final res = await http.get(
-        Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=$_userId',
-        ),
-        headers: {'Accept': 'application/json'},
+      // Ensure we have current user id
+      if (_userId == null) {
+        final prefs = await SharedPreferences.getInstance();
+        _userId = prefs.getInt('id_users');
+      }
+      final uri = Uri.parse(
+        'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=${_userId ?? ''}',
       );
+      final headers = {'Accept': 'application/json'};
+      if (_userId != null) headers['X-User-Id'] = _userId.toString();
+      final res = await http.get(uri, headers: headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         if (body is Map && body['success'] == true) {
@@ -237,13 +252,21 @@ class _CartPageState extends State<CartPage> {
       if (noteProvided) {
         mapPayload['note'] = note ?? '';
       }
+      // ensure user id present in payload
+      if ((_userId ?? 0) <= 0) {
+        final prefs = await SharedPreferences.getInstance();
+        _userId = prefs.getInt('id_users');
+      }
+      mapPayload['user_id'] = _userId ?? mapPayload['user_id'];
       final payload = jsonEncode(mapPayload);
+      final headers = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (_userId != null) headers['X-User-Id'] = _userId.toString();
       await http.post(
         Uri.parse('http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php'),
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: payload,
       );
       _dirty = true; // mark changes

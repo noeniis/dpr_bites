@@ -6,6 +6,7 @@ import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 // import 'package:dpr_bites/common/data/dummy_orders.dart'; // replaced by live API
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
@@ -20,7 +21,7 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late String filter;
-  final int _userId = 1; // TODO: ganti dengan user id dari auth
+  int? _userId; // loaded from SharedPreferences
   List<Map<String, dynamic>> _orders = [];
   bool _loading = false;
   String? _error;
@@ -36,12 +37,26 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<void> _fetch() async {
     setState(() => _loading = true);
     try {
+      if (_userId == null) {
+        // no logged-in user: show empty list and stop loading
+        if (mounted) {
+          setState(() {
+            _orders = [];
+            _error = null;
+            _loading = false;
+          });
+        }
+        return;
+      }
       final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_transactions.php?user_id=$_userId',
+        'http://10.0.2.2/dpr_bites_api/get_user_transactions.php?user_id=${_userId}',
       );
       final resp = await http.get(
         uri,
-        headers: const {'Accept': 'application/json'},
+        headers: {
+          'Accept': 'application/json',
+          if (_userId != null) 'X-User-Id': _userId.toString(),
+        },
       );
       if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
       final j = jsonDecode(resp.body);
@@ -56,6 +71,9 @@ class _HistoryPageState extends State<HistoryPage> {
               (e) => Map<String, dynamic>.from(e as Map),
             )
             .toList();
+      } else {
+        // No data from API — treat as empty list
+        _orders = [];
       }
       _error = null;
     } catch (e) {
@@ -79,7 +97,17 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     filter = widget.initialFilter ?? 'berlangsung';
-    _fetch();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _userId = prefs.getInt('id_users');
+    } catch (_) {
+      _userId = null;
+    }
+    await _fetch();
   }
 
   @override
@@ -143,7 +171,7 @@ class _HistoryPageState extends State<HistoryPage> {
                         child: Text(
                           _error != null
                               ? 'Error: $_error'
-                              : 'Tidak ada riwayat pesanan.',
+                              : 'Belum ada Riwayat Pemesanan',
                           style: const TextStyle(
                             fontSize: 16,
                             color: Colors.black54,
@@ -229,14 +257,16 @@ class _HistoryPageState extends State<HistoryPage> {
                                     ),
                                     const SizedBox(height: 2),
                                     GestureDetector(
-                                      onTap: () {
-                                        Navigator.push(
+                                      onTap: () async {
+                                        await Navigator.push(
                                           context,
                                           MaterialPageRoute(
                                             builder: (_) =>
                                                 ReceiptPage(order: order),
                                           ),
                                         );
+                                        // Setelah kembali dari ReceiptPage, refresh history
+                                        await _fetch();
                                       },
                                       child: Row(
                                         children: [
