@@ -1,5 +1,4 @@
 
-
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
@@ -16,9 +15,11 @@ class ProfilSellerPage extends StatefulWidget {
 }
 
 class _ProfilSellerPageState extends State<ProfilSellerPage> {
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _currentPasswordController = TextEditingController();
+
   final TextEditingController _newPasswordController = TextEditingController();
   bool _obscureCurrent = true;
   bool _obscureNew = true;
@@ -205,6 +206,7 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
           centerTitle: true,
           foregroundColor: Colors.black,
         ),
+
         body: _isLoadingProfile
             ? const Center(child: CircularProgressIndicator())
             : LayoutBuilder(
@@ -398,6 +400,7 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
                           ],
                         ),
                       ),
+
                     ),
                   );
                 },

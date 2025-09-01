@@ -3,6 +3,8 @@ import 'package:image/image.dart' as img;
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class KtpCameraPage extends StatefulWidget {
   const KtpCameraPage({super.key});
@@ -31,7 +33,10 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
         setState(() => _errorMsg = 'Tidak ada kamera yang tersedia.');
         return;
       }
-      final camera = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cameras.first);
+      final camera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
       _controller = CameraController(camera, ResolutionPreset.high);
       await _controller!.initialize();
       setState(() => _isReady = true);
@@ -47,10 +52,12 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
   }
 
   Future<Map<String, String>> _ocrKtp(String imagePath) async {
-  final inputImage = InputImage.fromFilePath(imagePath);
-  final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
-  final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
-  final text = recognizedText.text;
+    final inputImage = InputImage.fromFilePath(imagePath);
+    final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
+    final RecognizedText recognizedText = await textRecognizer.processImage(
+      inputImage,
+    );
+    final text = recognizedText.text;
 
     String nik = '';
     String nama = '';
@@ -63,7 +70,9 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim().toUpperCase();
       // NIK: setelah KABUPATEN/KOTA
-      if (nik.isEmpty && (line.contains('KABUPATEN') || line.contains('KOTA')) && i + 1 < lines.length) {
+      if (nik.isEmpty &&
+          (line.contains('KABUPATEN') || line.contains('KOTA')) &&
+          i + 1 < lines.length) {
         final next = lines[i + 1].replaceAll(RegExp(r'[^0-9]'), '');
         if (next.length >= 12 && next.length <= 20) {
           nik = next;
@@ -71,7 +80,9 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
         }
       }
       // Nama: setelah AGAMA/GAMA
-      if (nama.isEmpty && (line.contains('AGAMA') || line.contains('GAMA')) && i + 1 < lines.length) {
+      if (nama.isEmpty &&
+          (line.contains('AGAMA') || line.contains('GAMA')) &&
+          i + 1 < lines.length) {
         final next = lines[i + 1].trim();
         if (next.isNotEmpty) {
           nama = next;
@@ -84,7 +95,9 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
       final next = lines[namaIdx + 1].trim();
       final parts = next.split(',');
       if (parts.isNotEmpty) {
-        tempatLahir = parts[0].replaceAll(RegExp(r'[^A-Z ]', caseSensitive: false), '').trim();
+        tempatLahir = parts[0]
+            .replaceAll(RegExp(r'[^A-Z ]', caseSensitive: false), '')
+            .trim();
         if (parts.length > 1) {
           tanggalLahir = parts[1].replaceAll(RegExp(r'[^0-9-]'), '').trim();
         }
@@ -147,7 +160,9 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
       height: cropHeight,
     );
 
-    final croppedPath = file.path.replaceFirst('.jpg', '_crop.jpg').replaceFirst('.png', '_crop.png');
+    final croppedPath = file.path
+        .replaceFirst('.jpg', '_crop.jpg')
+        .replaceFirst('.png', '_crop.png');
     final croppedFile = File(croppedPath);
     await croppedFile.writeAsBytes(img.encodeJpg(cropped, quality: 95));
 
@@ -159,11 +174,64 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
       _isBusy = false;
     });
 
-    // Kirim hasil OCR ke halaman sebelumnya
-    Navigator.pop(context, {
-      'imagePath': croppedFile.path,
-      'ocr': ocrResult,
-    });
+    // Kirim hasil OCR ke file penjual_info.php
+    _sendDataToPhp(croppedFile.path, ocrResult);
+  }
+
+  // Kirim data ke PHP
+  Future<void> _sendDataToPhp(
+    String imagePath,
+    Map<String, String> ocrResult,
+  ) async {
+    final data = {
+      'imagePath': imagePath,
+      'nik': ocrResult['nik'],
+      'nama': ocrResult['nama'],
+      'gender': ocrResult['gender'],
+      'tempatLahir': ocrResult['tempatLahir'],
+      'tanggalLahir': ocrResult['tanggalLahir'],
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(
+          'http://localhost:80/dpr_bites_api/penjual_info.php',
+        ), // Ganti dengan URL PHP
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['success']) {
+          // Jika berhasil, lanjutkan ke halaman berikutnya atau beri notifikasi
+          Navigator.pop(context);
+        } else {
+          _showErrorDialog("Gagal mengirim data ke server");
+        }
+      } else {
+        _showErrorDialog("Terjadi kesalahan pada server");
+      }
+    } catch (e) {
+      _showErrorDialog("Terjadi kesalahan: ${e.toString()}");
+    }
+  }
+
+  // Menampilkan dialog kesalahan
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -177,73 +245,82 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
         title: const Text('Foto KTP', style: TextStyle(color: Colors.white)),
       ),
       body: _errorMsg != null
-          ? Center(child: Text(_errorMsg!, style: const TextStyle(color: Colors.white)))
+          ? Center(
+              child: Text(
+                _errorMsg!,
+                style: const TextStyle(color: Colors.white),
+              ),
+            )
           : _isReady
-              ? Stack(
-                  children: [
-                    // Camera preview full screen
-                    Positioned.fill(
-                      child: _capturedFile == null
-                          ? CameraPreview(_controller!)
-                          : Image.file(
-                              File(_capturedFile!.path),
-                              fit: BoxFit.contain,
-                            ),
+          ? Stack(
+              children: [
+                // Camera preview full screen
+                Positioned.fill(
+                  child: _capturedFile == null
+                      ? CameraPreview(_controller!)
+                      : Image.file(
+                          File(_capturedFile!.path),
+                          fit: BoxFit.contain,
+                        ),
+                ),
+                // Kotak KTP di tengah
+                if (_capturedFile == null)
+                  Center(
+                    child: AspectRatio(
+                      aspectRatio: 85.6 / 53.98,
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _KtpGridPainter(),
+                          child: Container(),
+                        ),
+                      ),
                     ),
-                    // Kotak KTP di tengah
-                    if (_capturedFile == null)
-                      Center(
-                        child: AspectRatio(
-                          aspectRatio: 85.6 / 53.98,
-                          child: IgnorePointer(
-                            child: CustomPaint(
-                              painter: _KtpGridPainter(),
-                              child: Container(),
-                            ),
-                          ),
+                  ),
+                // Tombol kamera
+                if (!_isBusy && _capturedFile == null)
+                  Positioned(
+                    bottom: 40,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: FloatingActionButton(
+                        backgroundColor: Colors.white,
+                        onPressed: _takePicture,
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.black,
                         ),
                       ),
-                    // Tombol kamera
-                    if (!_isBusy && _capturedFile == null)
-                      Positioned(
-                        bottom: 40,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: FloatingActionButton(
-                            backgroundColor: Colors.white,
-                            onPressed: _takePicture,
-                            child: const Icon(Icons.camera_alt, color: Colors.black),
-                          ),
+                    ),
+                  ),
+                // Tombol retake/ok
+                if (_capturedFile != null)
+                  Positioned(
+                    bottom: 40,
+                    left: 32,
+                    right: 32,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        FloatingActionButton(
+                          heroTag: 'retake',
+                          backgroundColor: Colors.white,
+                          onPressed: () => setState(() => _capturedFile = null),
+                          child: const Icon(Icons.refresh, color: Colors.black),
                         ),
-                      ),
-                    // Tombol retake/ok
-                    if (_capturedFile != null)
-                      Positioned(
-                        bottom: 40,
-                        left: 32,
-                        right: 32,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            FloatingActionButton(
-                              heroTag: 'retake',
-                              backgroundColor: Colors.white,
-                              onPressed: () => setState(() => _capturedFile = null),
-                              child: const Icon(Icons.refresh, color: Colors.black),
-                            ),
-                            FloatingActionButton(
-                              heroTag: 'ok',
-                              backgroundColor: Colors.green,
-                              onPressed: () => Navigator.pop(context, _capturedFile!.path),
-                              child: const Icon(Icons.check, color: Colors.white),
-                            ),
-                          ],
+                        FloatingActionButton(
+                          heroTag: 'ok',
+                          backgroundColor: Colors.green,
+                          onPressed: () =>
+                              Navigator.pop(context, _capturedFile!.path),
+                          child: const Icon(Icons.check, color: Colors.white),
                         ),
-                      ),
-                  ],
-                )
-              : const Center(child: CircularProgressIndicator()),
+                      ],
+                    ),
+                  ),
+              ],
+            )
+          : const Center(child: CircularProgressIndicator()),
     );
   }
 }

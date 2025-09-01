@@ -1,10 +1,12 @@
-import 'ktp_camera_page.dart';
-import 'halal_page.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import 'package:flutter/services.dart';
+import 'halal_page.dart';
+import 'ktp_camera_page.dart';
 
 class KtpFormPage extends StatefulWidget {
   const KtpFormPage({super.key});
@@ -44,35 +46,108 @@ class _KtpFormPageState extends State<KtpFormPage> {
     }
   }
 
+  Future<void> openCamera() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const KtpCameraPage()),
+    );
+    if (!mounted) return; // Periksa apakah widget masih terpasang
+
+    if (result is Map && result['imagePath'] != null) {
+      setState(() {
+        ktpImagePath = result['imagePath'];
+
+        // Isi otomatis field dari hasil OCR jika ada
+        final ocr = result['ocr'] ?? {};
+        if (ocr['nama'] != null && ocr['nama'].toString().isNotEmpty) {
+          nameController.text = ocr['nama'];
+        }
+        if (ocr['nik'] != null && ocr['nik'].toString().isNotEmpty) {
+          nikController.text = ocr['nik'];
+        }
+        if (ocr['gender'] != null && ocr['gender'].toString().isNotEmpty) {
+          gender = ocr['gender'];
+        }
+        if (ocr['tempatLahir'] != null &&
+            ocr['tempatLahir'].toString().isNotEmpty) {
+          birthPlaceController.text = ocr['tempatLahir'];
+        }
+        if (ocr['tanggalLahir'] != null &&
+            ocr['tanggalLahir'].toString().isNotEmpty) {
+          try {
+            final parts = ocr['tanggalLahir'].split('-');
+            if (parts.length == 3) {
+              birthDate = DateTime(
+                int.parse(parts[2]),
+                int.parse(parts[1]),
+                int.parse(parts[0]),
+              );
+              birthDateController.text =
+                  "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
+            }
+          } catch (_) {}
+        }
+      });
+    }
+  }
+
+  // Fungsi untuk mengirim data ke penjual_info.php
+  Future<void> _sendDataToPhp() async {
+    final data = {
+      'nik': nikController.text,
+      'nama': nameController.text,
+      'gender': gender,
+      'tempatLahir': birthPlaceController.text,
+      'tanggalLahir': birthDateController.text,
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(
+          'http://localhost:80/dpr_bites_api/penjual_info.php',
+        ), // Ganti dengan URL PHP
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        if (result['success']) {
+          // Jika berhasil, lanjutkan ke halaman berikutnya atau beri notifikasi
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HalalPage()),
+          );
+        } else {
+          _showErrorDialog("Gagal mengirim data ke server");
+        }
+      } else {
+        _showErrorDialog("Terjadi kesalahan pada server");
+      }
+    } catch (e) {
+      _showErrorDialog("Terjadi kesalahan: ${e.toString()}");
+    }
+  }
+
+  // Menampilkan dialog kesalahan
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    Future<void> openCamera() async {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const KtpCameraPage()),
-      );
-      if (result is Map && result['imagePath'] != null) {
-        setState(() {
-          ktpImagePath = result['imagePath'];
-          // Isi otomatis field dari hasil OCR jika ada
-          final ocr = result['ocr'] ?? {};
-          if (ocr['nama'] != null && ocr['nama'].toString().isNotEmpty) nameController.text = ocr['nama'];
-          if (ocr['nik'] != null && ocr['nik'].toString().isNotEmpty) nikController.text = ocr['nik'];
-          if (ocr['gender'] != null && ocr['gender'].toString().isNotEmpty) gender = ocr['gender'];
-          if (ocr['tempatLahir'] != null && ocr['tempatLahir'].toString().isNotEmpty) birthPlaceController.text = ocr['tempatLahir'];
-          if (ocr['tanggalLahir'] != null && ocr['tanggalLahir'].toString().isNotEmpty) {
-            try {
-              final parts = ocr['tanggalLahir'].split('-');
-              if (parts.length == 3) {
-                birthDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-                birthDateController.text = "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
-              }
-            } catch (_) {}
-          }
-        });
-      }
-    }
-
     return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -80,7 +155,13 @@ class _KtpFormPageState extends State<KtpFormPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: const Text('Data KTP', style: TextStyle(color: Color(0xFF602829), fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Data KTP',
+            style: TextStyle(
+              color: Color(0xFF602829),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           iconTheme: const IconThemeData(color: Color(0xFF602829)),
         ),
         body: SafeArea(
@@ -95,11 +176,19 @@ class _KtpFormPageState extends State<KtpFormPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFD53D3D),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 10,
+                        ),
                       ),
                       icon: const Icon(Icons.camera_alt, size: 20),
-                      label: const Text('Ambil Foto KTP', style: TextStyle(fontSize: 13)),
+                      label: const Text(
+                        'Ambil Foto KTP',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       onPressed: openCamera,
                     ),
                   ),
@@ -134,31 +223,71 @@ class _KtpFormPageState extends State<KtpFormPage> {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text('MAKSIMAL 16 DIGIT', style: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  Text(
+                    'MAKSIMAL 16 DIGIT',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
                     value: gender,
                     items: const [
-                      DropdownMenuItem(value: 'Laki-laki', child: Text('LAKI-LAKI', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1))),
-                      DropdownMenuItem(value: 'Perempuan', child: Text('PEREMPUAN', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1))),
+                      DropdownMenuItem(
+                        value: 'Laki-laki',
+                        child: Text(
+                          'LAKI-LAKI',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Perempuan',
+                        child: Text(
+                          'PEREMPUAN',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     ],
                     onChanged: (val) => setState(() => gender = val),
                     decoration: InputDecoration(
                       labelText: 'JENIS KELAMIN',
-                      labelStyle: const TextStyle(color: Colors.black, letterSpacing: 1),
+                      labelStyle: const TextStyle(
+                        color: Colors.black,
+                        letterSpacing: 1,
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFD53D3D),
+                          width: 1.5,
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFD53D3D),
+                          width: 1.5,
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 2.0),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFD53D3D),
+                          width: 2.0,
+                        ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         vertical: 16,
@@ -176,26 +305,25 @@ class _KtpFormPageState extends State<KtpFormPage> {
                     onTap: () async {
                       await pickDate();
                       if (birthDate != null) {
-                        birthDateController.text = "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
+                        birthDateController.text =
+                            "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
                       }
                     },
                     child: AbsorbPointer(
                       child: CustomInputField(
                         controller: birthDateController,
                         hintText: 'Tanggal Lahir',
-                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFFD53D3D)),
+                        prefixIcon: const Icon(
+                          Icons.calendar_today,
+                          color: Color(0xFFD53D3D),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
                   CustomButtonKotak(
                     text: 'Simpan',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => HalalPage()),
-                      );
-                    },
+                    onPressed: _sendDataToPhp, // Kirim data ke PHP
                   ),
                 ],
               ),
