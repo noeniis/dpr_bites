@@ -3,8 +3,8 @@ import 'package:image/image.dart' as img;
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+// import 'package:http/http.dart' as http;
+// import 'dart:convert';
 
 class KtpCameraPage extends StatefulWidget {
   const KtpCameraPage({super.key});
@@ -69,7 +69,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
     int nikIdx = -1, namaIdx = -1, ttlIdx = -1;
     for (int i = 0; i < lines.length; i++) {
       final line = lines[i].trim().toUpperCase();
-      // NIK: setelah KABUPATEN/KOTA
       if (nik.isEmpty &&
           (line.contains('KABUPATEN') || line.contains('KOTA')) &&
           i + 1 < lines.length) {
@@ -79,7 +78,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
           nikIdx = i + 1;
         }
       }
-      // Nama: setelah AGAMA/GAMA
       if (nama.isEmpty &&
           (line.contains('AGAMA') || line.contains('GAMA')) &&
           i + 1 < lines.length) {
@@ -90,7 +88,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
         }
       }
     }
-    // Tempat/Tgl Lahir: setelah nama
     if (namaIdx != -1 && namaIdx + 1 < lines.length) {
       final next = lines[namaIdx + 1].trim();
       final parts = next.split(',');
@@ -104,7 +101,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
         ttlIdx = namaIdx + 1;
       }
     }
-    // Jenis kelamin: setelah tempat/tgl lahir
     if (ttlIdx != -1 && ttlIdx + 1 < lines.length) {
       final next = lines[ttlIdx + 1].toUpperCase();
       if (next.contains('PEREMPUAN')) gender = 'Perempuan';
@@ -124,7 +120,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
     setState(() => _isBusy = true);
     final file = await _controller!.takePicture();
 
-    // Baca gambar asli
     final originalBytes = await File(file.path).readAsBytes();
     final originalImage = img.decodeImage(originalBytes);
     if (originalImage == null) {
@@ -135,7 +130,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
       return;
     }
 
-    // Hitung area crop sesuai kotak KTP di tengah preview
     final previewAspect = 85.6 / 53.98;
     final imgW = originalImage.width;
     final imgH = originalImage.height;
@@ -166,7 +160,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
     final croppedFile = File(croppedPath);
     await croppedFile.writeAsBytes(img.encodeJpg(cropped, quality: 95));
 
-    // OCR hasil crop
     final ocrResult = await _ocrKtp(croppedFile.path);
 
     setState(() {
@@ -174,64 +167,9 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
       _isBusy = false;
     });
 
-    // Kirim hasil OCR ke file penjual_info.php
-    _sendDataToPhp(croppedFile.path, ocrResult);
-  }
-
-  // Kirim data ke PHP
-  Future<void> _sendDataToPhp(
-    String imagePath,
-    Map<String, String> ocrResult,
-  ) async {
-    final data = {
-      'imagePath': imagePath,
-      'nik': ocrResult['nik'],
-      'nama': ocrResult['nama'],
-      'gender': ocrResult['gender'],
-      'tempatLahir': ocrResult['tempatLahir'],
-      'tanggalLahir': ocrResult['tanggalLahir'],
-    };
-
-    try {
-      final response = await http.post(
-        Uri.parse(
-          'http://localhost:80/dpr_bites_api/penjual_info.php',
-        ), // Ganti dengan URL PHP
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data),
-      );
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['success']) {
-          // Jika berhasil, lanjutkan ke halaman berikutnya atau beri notifikasi
-          Navigator.pop(context);
-        } else {
-          _showErrorDialog("Gagal mengirim data ke server");
-        }
-      } else {
-        _showErrorDialog("Terjadi kesalahan pada server");
-      }
-    } catch (e) {
-      _showErrorDialog("Terjadi kesalahan: ${e.toString()}");
-    }
-  }
-
-  // Menampilkan dialog kesalahan
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Error"),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
-          ),
-        ],
-      ),
-    );
+    // Kembalikan ke form (bawa imagePath + hasil OCR)
+    if (!mounted) return;
+    Navigator.pop(context, {'imagePath': croppedFile.path, 'ocr': ocrResult});
   }
 
   @override
@@ -254,7 +192,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
           : _isReady
           ? Stack(
               children: [
-                // Camera preview full screen
                 Positioned.fill(
                   child: _capturedFile == null
                       ? CameraPreview(_controller!)
@@ -263,7 +200,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
                           fit: BoxFit.contain,
                         ),
                 ),
-                // Kotak KTP di tengah
                 if (_capturedFile == null)
                   Center(
                     child: AspectRatio(
@@ -276,7 +212,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
                       ),
                     ),
                   ),
-                // Tombol kamera
                 if (!_isBusy && _capturedFile == null)
                   Positioned(
                     bottom: 40,
@@ -293,7 +228,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
                       ),
                     ),
                   ),
-                // Tombol retake/ok
                 if (_capturedFile != null)
                   Positioned(
                     bottom: 40,
@@ -311,8 +245,10 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
                         FloatingActionButton(
                           heroTag: 'ok',
                           backgroundColor: Colors.green,
-                          onPressed: () =>
-                              Navigator.pop(context, _capturedFile!.path),
+                          onPressed: () => Navigator.pop(context, {
+                            'imagePath': _capturedFile!.path,
+                            'ocr': {},
+                          }),
                           child: const Icon(Icons.check, color: Colors.white),
                         ),
                       ],
@@ -328,7 +264,6 @@ class _KtpCameraPageState extends State<KtpCameraPage> {
 class _KtpGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // Outer KTP border
     final borderPaint = Paint()
       ..color = Colors.white.withOpacity(0.95)
       ..strokeWidth = 3.5
@@ -340,7 +275,6 @@ class _KtpGridPainter extends CustomPainter {
     );
     canvas.drawRRect(rrect, borderPaint);
 
-    // Area NIK (sekitar 70% lebar, 15% tinggi, margin kiri 5%, atas 7%)
     final nikWidth = size.width * 0.7;
     final nikHeight = size.height * 0.15;
     final nikLeft = size.width * 0.05;
@@ -352,7 +286,6 @@ class _KtpGridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     canvas.drawRect(nikRect, nikPaint);
 
-    // Area foto KTP (sekitar 23% lebar, 38% tinggi, margin kanan 5%, atas 18%)
     final fotoWidth = size.width * 0.23;
     final fotoHeight = size.height * 0.50;
     final fotoLeft = size.width * 0.72;

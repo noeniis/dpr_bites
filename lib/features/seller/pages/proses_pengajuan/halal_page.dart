@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+// import 'package:http/http.dart' as http;
+// import 'dart:convert';
 import 'informasi_rekening_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HalalPage extends StatefulWidget {
   const HalalPage({super.key});
@@ -16,50 +17,22 @@ class HalalPage extends StatefulWidget {
 class _HalalPageState extends State<HalalPage> {
   String? _selectedOption;
 
-  // Fungsi untuk mengirim data ke PHP (add_gerai_profile.php)
   Future<void> submitHalalInfo() async {
-    // Data yang akan dikirim ke PHP
-    final data = {
-      'id_users': 1, // Ganti dengan id_user yang sesuai
-      'nama_gerai': 'Gerai A',
-      'latitude': '10.1234',
-      'longitude': '20.1234',
-      'detail_alamat': 'Jl. Contoh No. 1',
-      'telepon': '081234567890',
-      'qris_path': 'path/to/qris/image',
-      'sertifikasi_halal': _selectedOption, // 'Ya' or 'Tidak'
-      'status_pengajuan': 'pending', // Status sesuai yang dipilih
-    };
-    // android ke 10.0.2.2:80 klo emulator 10.0.2.2
-    try {
-      final response = await http.post(
-        Uri.parse(
-          'http://localhost:80/dpr_bites_api/add_gerai_profile.php',
-        ), // URL PHP
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data), // Kirim data dalam format JSON
-      );
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['success']) {
-          // Jika berhasil, lanjutkan ke halaman berikutnya
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const InformasiRekeningPage()),
-          );
-        } else {
-          _showErrorDialog("Gagal menyimpan informasi");
-        }
-      } else {
-        _showErrorDialog("Terjadi kesalahan pada server");
-      }
-    } catch (e) {
-      _showErrorDialog("Terjadi kesalahan: ${e.toString()}");
+    if (_selectedOption == null) {
+      _showErrorDialog("Pilih status halal terlebih dahulu");
+      return;
     }
+    final prefs = await SharedPreferences.getInstance();
+    final status = _selectedOption == 'ya' ? 'Ya' : 'Tidak';
+    await prefs.setString('penjual_sertifikasi_halal', status);
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InformasiRekeningPage()),
+    );
   }
 
-  // Menampilkan dialog kesalahan
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -154,16 +127,7 @@ class _HalalPageState extends State<HalalPage> {
                     width: double.infinity,
                     child: CustomButtonKotak(
                       text: "Simpan dan lanjutkan",
-                      onPressed: () {
-                        // Pastikan pilihan sudah dipilih sebelum melanjutkan
-                        if (_selectedOption != null) {
-                          submitHalalInfo(); // Kirim data ke PHP
-                        } else {
-                          _showErrorDialog(
-                            "Pilih status halal terlebih dahulu",
-                          );
-                        }
-                      },
+                      onPressed: submitHalalInfo,
                     ),
                   ),
                 ),

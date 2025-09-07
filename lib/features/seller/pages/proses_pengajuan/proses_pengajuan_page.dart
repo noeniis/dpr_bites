@@ -11,6 +11,9 @@ import 'seller_pick_location_page.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../common/data/dummy_address.dart';
 
+// NEW: fallback ambil id_gerai bila belum ada
+import 'package:dpr_bites/features/seller/services/menu_service.dart';
+
 class ProsesPengajuanPage extends StatefulWidget {
   const ProsesPengajuanPage({super.key});
 
@@ -32,6 +35,20 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _ensureGeraiIdInPrefs(); // NEW
+  }
+
+  // NEW: pastikan id_gerai ada di prefs ketika memulai flow
+  Future<void> _ensureGeraiIdInPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    var idGerai = prefs.getString('id_gerai');
+    if (idGerai == null || idGerai.isEmpty) {
+      final gid = await MenuService.getIdGerai();
+      if (gid != null) {
+        await prefs.setString('id_gerai', gid.toString());
+        debugPrint('Set id_gerai di ProsesPengajuan: $gid');
+      }
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -138,6 +155,36 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
     );
   }
 
+  Future<void> _saveGeraiDanPenjualDraft() async {
+    if (storeNameController.text.isEmpty ||
+        selectedLat == null ||
+        selectedLng == null ||
+        detailAddressController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama gerai, lokasi, dan detail alamat wajib diisi'),
+        ),
+      );
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('penjual_nama_gerai', storeNameController.text);
+    await prefs.setDouble('penjual_lat', selectedLat!);
+    await prefs.setDouble('penjual_lng', selectedLng!);
+    await prefs.setString(
+      'penjual_detail_alamat',
+      detailAddressController.text,
+    );
+
+    await prefs.setString('penjual_nama_penjual', sellerNameController.text);
+    await prefs.setString('penjual_no_hp', phoneNumberController.text);
+    await prefs.setString('penjual_email', emailController.text);
+    await prefs.setString(
+      'penjual_nomor_opsional',
+      optionalPhoneController.text,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GradientBackground(
@@ -182,7 +229,6 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                     if (selectedLat != null && selectedLng != null) {
                       showLocationDetail(context);
                     } else {
-                      // Jika belum ada lokasi, double tap juga akan handle pick
                       handlePickLocation(context);
                     }
                   },
@@ -197,13 +243,11 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Field Detail Alamat
                 CustomInputField(
                   controller: detailAddressController,
                   hintText: "Detail Alamat (misal: Blok, gedung, dsb)",
                 ),
                 const SizedBox(height: 16),
-
                 const Text(
                   "Informasi penjual",
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -240,18 +284,14 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
         bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            0,
-            16,
-            32,
-          ), // Tambah jarak bawah
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           child: SafeArea(
             child: SizedBox(
               width: double.infinity,
               child: CustomButtonKotak(
                 text: "Simpan dan lanjutkan",
                 onPressed: () async {
+                  await _saveGeraiDanPenjualDraft();
                   final ktpResult = await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const KtpFormPage()),

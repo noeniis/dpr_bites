@@ -12,6 +12,9 @@ import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// NEW: untuk fallback mengambil id_gerai dari service
+import 'package:dpr_bites/features/seller/services/menu_service.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -37,7 +40,6 @@ class _LoginPageState extends State<LoginPage> {
     String password,
   ) async {
     try {
-      // Jika pakai emulator Android, gunakan 10.0.2.2
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/login.php'),
         headers: {'Content-Type': 'application/json'},
@@ -47,11 +49,11 @@ class _LoginPageState extends State<LoginPage> {
         final result = jsonDecode(response.body);
         return result is Map<String, dynamic> ? result : {};
       } else {
-        debugPrint('HTTP error: \\${response.statusCode} - \\${response.body}');
+        debugPrint('HTTP error: ${response.statusCode} - ${response.body}');
         return {'success': false, 'message': 'Server error'};
       }
     } catch (e) {
-      debugPrint('Exception saat login: \\${e.toString()}');
+      debugPrint('Exception saat login: ${e.toString()}');
       return {'success': false, 'message': 'Terjadi kesalahan'};
     }
   }
@@ -79,7 +81,25 @@ class _LoginPageState extends State<LoginPage> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('id_users', result['id_users'].toString());
         debugPrint('ID USERS LOGIN: ${result['id_users']}');
+
+        // pastikan id_gerai juga tersedia di prefs
+        try {
+          final idGeraiFromLogin = result['id_gerai']?.toString();
+          if (idGeraiFromLogin != null && idGeraiFromLogin.isNotEmpty) {
+            await prefs.setString('id_gerai', idGeraiFromLogin);
+            debugPrint('ID GERAI LOGIN: $idGeraiFromLogin');
+          } else {
+            final gid = await MenuService.getIdGerai();
+            if (gid != null) {
+              await prefs.setString('id_gerai', gid.toString());
+              debugPrint('ID GERAI (fallback): $gid');
+            }
+          }
+        } catch (e) {
+          debugPrint('Gagal menyimpan id_gerai: $e');
+        }
       }
+
       // Redirect sesuai role dari backend
       if (result['role'] == 'user' || result['role'] == 'pegawai') {
         Navigator.pushReplacement(
@@ -108,7 +128,6 @@ class _LoginPageState extends State<LoginPage> {
           MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
         );
       } else {
-        // Default: ke HomePage
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomePage()),
@@ -133,7 +152,6 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 32),
-                // CARD UTAMA
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -150,7 +168,6 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // HEADER LOGIN
                       Row(
                         children: [
                           Container(
@@ -191,8 +208,6 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
                       const SizedBox(height: 30),
-
-                      // Username
                       const Text(
                         "Username",
                         style: TextStyle(
@@ -212,8 +227,6 @@ class _LoginPageState extends State<LoginPage> {
                         obscureText: false,
                       ),
                       const SizedBox(height: 18),
-
-                      // Password
                       const Text(
                         "Password",
                         style: TextStyle(
@@ -247,7 +260,6 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-
                       if (errorMessage != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -260,15 +272,11 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                         ),
-
-                      // Tombol Masuk
                       CustomButtonKotak(
                         text: " Masuk ke Sistem",
                         onPressed: handleLogin,
                       ),
                       const SizedBox(height: 10),
-
-                      // Forgot Password
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
@@ -298,10 +306,7 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 18),
-
-                // "or" separator
                 Row(
                   children: const [
                     Expanded(child: Divider(thickness: 1.2)),
@@ -318,8 +323,6 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // Registrasi Akun Button
                 CustomButtonKotak(
                   text: " Registrasi Akun",
                   onPressed: () {
@@ -331,15 +334,14 @@ class _LoginPageState extends State<LoginPage> {
                     );
                   },
                 ),
-
                 const SizedBox(height: 24),
-
-                // Bantuan Card (bisa diklik untuk masuk onboarding checklist seller)
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingChecklistPage(),
+                      ),
                     );
                   },
                   child: Container(
