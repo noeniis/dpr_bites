@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:http/http.dart' as http; // (opsional jika tidak dipakai)
+import 'dart:convert'; // (opsional)
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import 'halal_page.dart';
 import 'ktp_camera_page.dart';
+import 'package:dpr_bites/features/seller/services/menu_service.dart'; // pakai yang sudah ada di projectmu
 
 class KtpFormPage extends StatefulWidget {
   const KtpFormPage({super.key});
@@ -51,13 +53,12 @@ class _KtpFormPageState extends State<KtpFormPage> {
       context,
       MaterialPageRoute(builder: (_) => const KtpCameraPage()),
     );
-    if (!mounted) return; // Periksa apakah widget masih terpasang
+    if (!mounted) return;
 
     if (result is Map && result['imagePath'] != null) {
       setState(() {
         ktpImagePath = result['imagePath'];
 
-        // Isi otomatis field dari hasil OCR jika ada
         final ocr = result['ocr'] ?? {};
         if (ocr['nama'] != null && ocr['nama'].toString().isNotEmpty) {
           nameController.text = ocr['nama'];
@@ -91,45 +92,39 @@ class _KtpFormPageState extends State<KtpFormPage> {
     }
   }
 
-  // Fungsi untuk mengirim data ke penjual_info.php
-  Future<void> _sendDataToPhp() async {
-    final data = {
-      'nik': nikController.text,
-      'nama': nameController.text,
-      'gender': gender,
-      'tempatLahir': birthPlaceController.text,
-      'tanggalLahir': birthDateController.text,
-    };
-
-    try {
-      final response = await http.post(
-        Uri.parse(
-          'http://localhost:80/dpr_bites_api/penjual_info.php',
-        ), // Ganti dengan URL PHP
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data),
-      );
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result['success']) {
-          // Jika berhasil, lanjutkan ke halaman berikutnya atau beri notifikasi
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const HalalPage()),
-          );
-        } else {
-          _showErrorDialog("Gagal mengirim data ke server");
-        }
-      } else {
-        _showErrorDialog("Terjadi kesalahan pada server");
-      }
-    } catch (e) {
-      _showErrorDialog("Terjadi kesalahan: ${e.toString()}");
+  Future<void> _saveKtpDraft() async {
+    if (nikController.text.isEmpty || (gender ?? '').isEmpty) {
+      _showErrorDialog('NIK dan Jenis Kelamin wajib diisi');
+      return;
     }
+
+    String tanggalISO = birthDate != null
+        ? "${birthDate!.year.toString().padLeft(4, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.day.toString().padLeft(2, '0')}"
+        : '';
+
+    String? ktpUrl;
+    if (ktpImagePath != null && ktpImagePath!.isNotEmpty) {
+      // upload ke Cloudinary
+      ktpUrl = await MenuService.uploadImageToCloudinary(File(ktpImagePath!));
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('penjual_nik', nikController.text);
+    await prefs.setString('penjual_nama_lengkap', nameController.text);
+    await prefs.setString('penjual_jenis_kelamin', gender ?? '');
+    await prefs.setString('penjual_tempat_lahir', birthPlaceController.text);
+    await prefs.setString('penjual_tanggal_lahir', tanggalISO);
+    if (ktpUrl != null) {
+      await prefs.setString('penjual_foto_ktp_url', ktpUrl);
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HalalPage()),
+    );
   }
 
-  // Menampilkan dialog kesalahan
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -321,10 +316,7 @@ class _KtpFormPageState extends State<KtpFormPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  CustomButtonKotak(
-                    text: 'Simpan',
-                    onPressed: _sendDataToPhp, // Kirim data ke PHP
-                  ),
+                  CustomButtonKotak(text: 'Simpan', onPressed: _saveKtpDraft),
                 ],
               ),
             ),
