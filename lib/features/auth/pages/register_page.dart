@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
-import 'package:dpr_bites/common/utils/base_url.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -80,11 +79,10 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       // Jika menggunakan emulator Android, ganti 'localhost' dengan '10.0.2.2'
       final response = await http.post(
-        Uri.parse('${getBaseUrl()}/register.php'),
+        Uri.parse('http://10.0.2.2/dpr_bites_api/register.php'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data),
       );
-      print(data);
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         if (result is Map && result.containsKey('success')) {
@@ -244,7 +242,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   CustomButtonKotak(
                     text: "Registrasi",
                     onPressed: () async {
-
                       // Mapping role ke value enum string ('0', '1')
                       String roleValue;
                       if (selectedRole == "Pegawai") {
@@ -264,12 +261,10 @@ class _RegisterPageState extends State<RegisterPage> {
                         "role": roleValue,
                       };
 
-
                       final success = await registerUser(data);
                       if (success) {
                         showDialog(
                           context: context,
-
                           barrierDismissible: false,
                           builder: (_) => Dialog(
                             shape: RoundedRectangleBorder(
@@ -347,7 +342,6 @@ class _RegisterPageState extends State<RegisterPage> {
                             content: Text(
                               "Cek kembali data Anda atau coba lagi nanti.",
                             ),
-
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context),
