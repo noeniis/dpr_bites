@@ -3,7 +3,6 @@ import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:dpr_bites/common/utils/base_url.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String email;
@@ -165,7 +164,7 @@ Future<Map<String, dynamic>> resetPasswordApi(
   String newPassword,
 ) async {
   final response = await http.post(
-    Uri.parse('${getBaseUrl()}/reset_password.php'),
+    Uri.parse('http://10.0.2.2/dpr_bites_api/reset_password.php'),
     body: jsonEncode({'email': email, 'otp': otp, 'new_password': newPassword}),
     headers: {'Content-Type': 'application/json'},
   );

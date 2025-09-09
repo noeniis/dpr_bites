@@ -26,8 +26,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   final phoneNumberController = TextEditingController();
   final optionalPhoneController = TextEditingController();
   final emailController = TextEditingController();
-  bool isLoadingUser = true;
-
+    bool isLoadingUser = true;
   @override
   void initState() {
     super.initState();
@@ -71,9 +70,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
       var status = await Permission.location.request();
       if (!status.isGranted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Akses lokasi diperlukan untuk memilih lokasi.'),
-          ),
+          const SnackBar(content: Text('Akses lokasi diperlukan untuk memilih lokasi.')),
         );
         return;
       }
@@ -103,9 +100,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
       );
-      if (result is Map<String, dynamic> &&
-          result['lat'] != null &&
-          result['lng'] != null) {
+      if (result is Map<String, dynamic> && result['lat'] != null && result['lng'] != null) {
         setState(() {
           selectedLat = result['lat'];
           selectedLng = result['lng'];
@@ -116,9 +111,9 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Terjadi error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Terjadi error: $e')),
+      );
     }
   }
 
@@ -169,6 +164,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
               children: [
                 const Text(
                   "Informasi umum",
+                
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
@@ -209,26 +205,26 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
-                AbsorbPointer(
-                  child: CustomInputField(
-                    controller: sellerNameController,
-                    hintText: "Nama penjual",
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: sellerNameController,
+                      hintText: "Nama penjual",
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                AbsorbPointer(
-                  child: CustomInputField(
-                    controller: phoneNumberController,
-                    hintText: "Nomor Handphone",
+                  const SizedBox(height: 12),
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: phoneNumberController,
+                      hintText: "Nomor Handphone",
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                AbsorbPointer(
-                  child: CustomInputField(
-                    controller: emailController,
-                    hintText: "Email penjual",
+                  const SizedBox(height: 12),
+                  AbsorbPointer(
+                    child: CustomInputField(
+                      controller: emailController,
+                      hintText: "Email penjual",
+                    ),
                   ),
-                ),
                 const SizedBox(height: 12),
                 CustomInputField(
                   controller: optionalPhoneController,
@@ -240,12 +236,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
         bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            0,
-            16,
-            32,
-          ), // Tambah jarak bawah
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), // Tambah jarak bawah
           child: SafeArea(
             child: SizedBox(
               width: double.infinity,
