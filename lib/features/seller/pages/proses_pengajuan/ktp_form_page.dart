@@ -4,6 +4,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/penjual_info_service.dart';
+import '../../services/seller_user_service.dart';
+import 'package:dpr_bites/features/seller/models/user_info_model.dart';
+import 'package:dpr_bites/features/seller/models/ktp_info_model.dart';
 import 'package:flutter/services.dart';
 
 class KtpFormPage extends StatefulWidget {
@@ -17,15 +22,69 @@ class _KtpFormPageState extends State<KtpFormPage> {
   String? ktpImagePath;
   final nameController = TextEditingController();
   final nikController = TextEditingController();
+  final noTeleponPenjualController = TextEditingController();
   String? gender;
   final birthPlaceController = TextEditingController();
   final birthDateController = TextEditingController();
   DateTime? birthDate;
 
+  Future<void> _prefillKtpData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users') ?? '';
+    final data = await PenjualInfoService.fetchPenjualInfo(idUsers);
+    if (data != null && data['success'] == true && data['data'] != null) {
+      final ktpInfo = KtpInfoModel.fromJson(data['data']);
+      nikController.text = ktpInfo.nik;
+      noTeleponPenjualController.text = ktpInfo.noTeleponPenjual;
+      gender = ktpInfo.gender.isNotEmpty ? ktpInfo.gender : null;
+      birthPlaceController.text = ktpInfo.tempatLahir;
+      birthDateController.text = PenjualInfoService.toFormDate(ktpInfo.tanggalLahir);
+      if (ktpInfo.fotoKtpPath.isNotEmpty) {
+        ktpImagePath = ktpInfo.fotoKtpPath;
+      }
+      setState(() {});
+    }
+  }
+
+  Future<void> _prefillNamaLengkap() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users') ?? '';
+    final user = await SellerUserService.fetchUserById(idUsers);
+    if (user != null) {
+      final userInfo = UserInfoModel.fromJson(user);
+      nameController.text = userInfo.namaLengkap;
+      setState(() {});
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillNoTeleponPenjual();
+    _prefillKtpData();
+    _prefillNamaLengkap();
+    _debugIdGerai();
+  }
+
+  Future<void> _debugIdGerai() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idGerai = prefs.getString('id_gerai') ?? '';
+    print('[DEBUG] id_gerai pada initState ktp_form_page: $idGerai');
+  }
+
+  Future<void> _prefillNoTeleponPenjual() async {
+    final prefs = await SharedPreferences.getInstance();
+    final teleponGerai = prefs.getString('telepon_gerai');
+    if (teleponGerai != null && teleponGerai.isNotEmpty) {
+      noTeleponPenjualController.text = teleponGerai;
+    }
+  }
+
   @override
   void dispose() {
     nameController.dispose();
     nikController.dispose();
+    noTeleponPenjualController.dispose();
     birthPlaceController.dispose();
     birthDateController.dispose();
     super.dispose();
@@ -112,10 +171,9 @@ class _KtpFormPageState extends State<KtpFormPage> {
                           borderRadius: BorderRadius.circular(10),
                           child: AspectRatio(
                             aspectRatio: 85.6 / 53.98,
-                            child: Image.file(
-                              File(ktpImagePath!),
-                              fit: BoxFit.contain,
-                            ),
+                            child: ktpImagePath!.startsWith('http')
+                              ? Image.network(ktpImagePath!, fit: BoxFit.contain)
+                              : Image.file(File(ktpImagePath!), fit: BoxFit.contain),
                           ),
                         ),
                       ),
@@ -123,6 +181,11 @@ class _KtpFormPageState extends State<KtpFormPage> {
                   CustomInputField(
                     controller: nameController,
                     hintText: 'Nama Lengkap',
+                  ),
+                  const SizedBox(height: 14),
+                  CustomInputField(
+                    controller: noTeleponPenjualController,
+                    hintText: 'No Telepon Penjual',
                   ),
                   const SizedBox(height: 14),
                   CustomInputField(
@@ -137,35 +200,47 @@ class _KtpFormPageState extends State<KtpFormPage> {
                   Text('MAKSIMAL 16 DIGIT', style: const TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 1)),
                   const SizedBox(height: 14),
                   DropdownButtonFormField<String>(
-                    value: gender,
-                    items: const [
-                      DropdownMenuItem(value: 'Laki-laki', child: Text('LAKI-LAKI', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1))),
-                      DropdownMenuItem(value: 'Perempuan', child: Text('PEREMPUAN', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1))),
-                    ],
-                    onChanged: (val) => setState(() => gender = val),
-                    decoration: InputDecoration(
-                      labelText: 'JENIS KELAMIN',
-                      labelStyle: const TextStyle(color: Colors.black, letterSpacing: 1),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 2.0),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 16,
+                  value: gender, 
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'laki-laki',
+                      child: Text(
+                        'LAKI-LAKI',
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
                       ),
                     ),
+                    DropdownMenuItem(
+                      value: 'perempuan',
+                      child: Text(
+                        'PEREMPUAN',
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w500, letterSpacing: 1),
+                      ),
+                    ),
+                  ],
+                  onChanged: (val) => setState(() => gender = val),
+                  decoration: InputDecoration(
+                    labelText: 'JENIS KELAMIN',
+                    labelStyle: const TextStyle(color: Colors.black, letterSpacing: 1),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 1.5),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Color(0xFFD53D3D), width: 2.0),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 16,
+                    ),
                   ),
+                ),
                   const SizedBox(height: 14),
                   CustomInputField(
                     controller: birthPlaceController,
@@ -176,28 +251,80 @@ class _KtpFormPageState extends State<KtpFormPage> {
                     onTap: () async {
                       await pickDate();
                       if (birthDate != null) {
-                        birthDateController.text = "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
+                        birthDateController.text =
+                            "${birthDate!.day.toString().padLeft(2, '0')}-${birthDate!.month.toString().padLeft(2, '0')}-${birthDate!.year}";
                       }
                     },
                     child: AbsorbPointer(
                       child: CustomInputField(
                         controller: birthDateController,
                         hintText: 'Tanggal Lahir',
-                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFFD53D3D)),
+                        prefixIcon:
+                            const Icon(Icons.calendar_today, color: Color(0xFFD53D3D)),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  CustomButtonKotak(
-                    text: 'Simpan',
-                    onPressed: () {
+                ],
+              ),
+            ),
+          ),
+        ),
+        // >>> ini harus di level Scaffold, bukan di dalam GestureDetector
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          child: SafeArea(
+            child: SizedBox(
+              width: double.infinity,
+              child: CustomButtonKotak(
+                text: 'Simpan',
+                onPressed: () async {
+                  try {
+                    // Simpan ke SharedPreferences
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString(
+                        'no_telepon_penjual', noTeleponPenjualController.text);
+
+                    // Kirim data ke backend
+                    final idUsers = prefs.getString('id_users') ?? '';
+                    final idGerai = prefs.getString('id_gerai') ?? '';
+                    print('[DEBUG] id_gerai sebelum submit: $idGerai');
+                    final Map<String, dynamic> data = {
+                      'id_users': idUsers,
+                      'id_gerai': idGerai,
+                      'no_telepon_penjual': noTeleponPenjualController.text,
+                      'nik': nikController.text,
+                      'tempat_lahir': birthPlaceController.text,
+                      'tanggal_lahir': PenjualInfoService.toDbDate(birthDateController.text),
+                      'jenis_kelamin': gender ?? '',
+                    };
+
+                    if (ktpImagePath != null && ktpImagePath!.isNotEmpty) {
+                      if (ktpImagePath!.startsWith('http')) {
+                        data['foto_ktp_path'] = ktpImagePath;
+                      } else {
+                        data['foto_ktp_file'] = File(ktpImagePath!);
+                      }
+                    }
+
+                    final success =
+                        await PenjualInfoService.addOrUpdatePenjualInfo(data);
+                    if (success) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => HalalPage()),
                       );
-                    },
-                  ),
-                ],
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Gagal menyimpan data, coba lagi')),
+                      );
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Terjadi error: $e')),
+                    );
+                  }
+                },
               ),
             ),
           ),

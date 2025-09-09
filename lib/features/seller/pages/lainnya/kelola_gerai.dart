@@ -1,5 +1,4 @@
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +6,7 @@ import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import '../../services/gerai_profil_service.dart';
+import '../../models/gerai_profil_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class KelolaProfilGeraiPage extends StatefulWidget {
@@ -18,22 +18,12 @@ class KelolaProfilGeraiPage extends StatefulWidget {
 
 class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
   Future<String?> uploadToCloudinary(File file) async {
-    final url = Uri.parse('https://api.cloudinary.com/v1_1/dip8i3f6x/image/upload');
-    final request = http.MultipartRequest('POST', url)
-      ..fields['upload_preset'] = 'dpr_bites'
-      ..files.add(await http.MultipartFile.fromPath('file', file.path));
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final respStr = await response.stream.bytesToString();
-      final data = jsonDecode(respStr);
-      return data['secure_url'];
-    }
-    return null;
+    return await GeraiProfilService.uploadQrisToCloudinary(file);
   }
   bool _isLoading = true;
   String? _errorMsg;
-  int? _idGeraiProfil;
   int? _idGerai;
+  GeraiProfilModel? _profilGerai;
   @override
   void initState() {
     super.initState();
@@ -44,31 +34,30 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
     try {
       setState(() { _isLoading = true; _errorMsg = null; });
       final prefs = await SharedPreferences.getInstance();
-      final idUsersStr = prefs.getString('id_users');
-      final idUsers = idUsersStr != null ? int.tryParse(idUsersStr) : null;
-      if (idUsers == null) {
+      String? idUsers = prefs.getString('id_users');
+      if (idUsers == null || idUsers.isEmpty) {
+        print('[DEBUG] id_users tidak ditemukan di SharedPreferences');
         setState(() { _isLoading = false; _errorMsg = 'User belum login'; });
         return;
       }
-      final service = GeraiProfilService();
-      final data = await service.fetchGeraiProfil(idUsers);
-      if (data == null) {
+      print('[DEBUG] id_users ditemukan: $idUsers');
+      final profil = await GeraiProfilService.fetchGeraiProfilByUser(idUsers);
+      if (profil == null) {
         setState(() { _isLoading = false; _errorMsg = 'Profil gerai tidak ditemukan'; });
         return;
       }
+      _profilGerai = profil;
+      _idGerai = profil.idGerai;
       setState(() {
-        _idGerai = data['id_gerai'] is int ? data['id_gerai'] : int.tryParse(data['id_gerai'].toString());
-        _bannerUrl = data['banner_path'];
-        _listingUrl = data['listing_path'];
-        menuController.text = data['deskripsi_gerai'] ?? '';
-        // hari_buka: bisa berupa string, misal "Senin,Selasa"
-        final hariBuka = (data['hari_buka'] ?? '').split(',');
+        _bannerUrl = profil.bannerPath;
+        _listingUrl = profil.listingPath;
+        menuController.text = profil.deskripsiGerai;
+        final hariBuka = profil.hariBuka.split(',');
         for (var day in selectedDays.keys) {
           selectedDays[day] = hariBuka.contains(day);
         }
-        // jam_buka dan jam_tutup: "15:30:26" → ambil jam dan menit saja
-        final jamBuka = (data['jam_buka'] ?? '08:00').split(':');
-        final jamTutup = (data['jam_tutup'] ?? '16:00').split(':');
+        final jamBuka = profil.jamBuka.split(':');
+        final jamTutup = profil.jamTutup.split(':');
         selectedTimeStart = TimeOfDay(hour: int.parse(jamBuka[0]), minute: int.parse(jamBuka[1]));
         selectedTimeEnd = TimeOfDay(hour: int.parse(jamTutup[0]), minute: int.parse(jamTutup[1]));
         _isLoading = false;
@@ -318,17 +307,17 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
               String? listingUrl = _listingUrl;
               // Upload gambar jika ada perubahan (file lokal)
               if (_bannerImage != null) {
-                final url = await uploadToCloudinary(File(_bannerImage!.path));
+                final url = await GeraiProfilService.uploadQrisToCloudinary(File(_bannerImage!.path));
                 if (url != null) bannerUrl = url;
               }
               if (_listingImage != null) {
-                final url = await uploadToCloudinary(File(_listingImage!.path));
+                final url = await GeraiProfilService.uploadQrisToCloudinary(File(_listingImage!.path));
                 if (url != null) listingUrl = url;
               }
               // Siapkan data update
               final hariSelected = selectedDays.entries.where((e) => e.value).map((e) => e.key).join(',');
-              final jamBuka = selectedTimeStart.format(context);
-              final jamTutup = selectedTimeEnd.format(context);
+              final jamBuka = formatTime24(selectedTimeStart);
+              final jamTutup = formatTime24(selectedTimeEnd);
               // id_gerai didapat dari _idGerai (sudah diisi saat load profil)
               final idGerai = _idGerai;
               if (idGerai == null) {

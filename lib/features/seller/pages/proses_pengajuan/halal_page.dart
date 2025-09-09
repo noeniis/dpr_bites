@@ -3,6 +3,8 @@ import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'informasi_rekening_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/halal_status_service.dart';
 
 class HalalPage extends StatefulWidget {
   const HalalPage({super.key});
@@ -12,6 +14,36 @@ class HalalPage extends StatefulWidget {
 }
 
 class _HalalPageState extends State<HalalPage> {
+  @override
+  void initState() {
+    super.initState();
+    _loadHalalStatus();
+  }
+
+  Future<void> _loadHalalStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users') ?? '';
+    if (idUsers.isEmpty) return;
+    final status = await HalalStatusService.getHalalStatus(idUsers);
+    setState(() {
+      _selectedOption = status;
+    });
+  }
+  Future<void> _saveHalalStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users') ?? '';
+    final success = await HalalStatusService.saveHalalStatus(idUsers, _selectedOption);
+    if (success) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const InformasiRekeningPage()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal menyimpan status halal, coba lagi')),
+      );
+    }
+  }
   String? _selectedOption;
 
   @override
@@ -91,14 +123,9 @@ class _HalalPageState extends State<HalalPage> {
                   child: SizedBox(
                     width: double.infinity,
                     child: CustomButtonKotak(
-                    text: "Simpan dan lanjutkan",
-                    onPressed: () {
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const InformasiRekeningPage()),
-                    );
-                    },
-                  ),
+                      text: "Simpan dan lanjutkan",
+                      onPressed: _saveHalalStatus,
+                    ),
                   ),
                 ),
               ],

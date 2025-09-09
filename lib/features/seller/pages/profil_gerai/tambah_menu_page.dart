@@ -4,6 +4,11 @@ import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/seller/models/etalase_model.dart';
+import 'package:dpr_bites/features/seller/models/menu_model.dart';
+import 'package:dpr_bites/features/seller/models/addon_model.dart';
+import 'package:dpr_bites/features/seller/services/etalase_service.dart';
 import '../lainnya/menu/pilih_etalase_page.dart';
 import '../lainnya/menu/add_on_list_page.dart';
 
@@ -15,9 +20,24 @@ class TambahMenuPage extends StatefulWidget {
 }
 
 class TambahMenuPageState extends State<TambahMenuPage> {
-  List<Map<String, dynamic>> _selectedAddOns = [];
-  List<String> _etalaseList = ['Nasi Goreng', 'Soto', 'Bakso', 'Minuman'];
-  List<String> _selectedEtalase = [];
+  List<AddonModel> _selectedAddOns = [];
+  // List<EtalaseModel> _etalaseList = []; // tidak dipakai
+  List<EtalaseModel> _selectedEtalase = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEtalase();
+  }
+
+  Future<void> _fetchEtalase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idGerai = prefs.getString('id_gerai');
+    if (idGerai != null) {
+      await EtalaseService.fetchEtalase(idGerai: int.parse(idGerai));
+    }
+  }
+
   XFile? _menuImage;
 
   final TextEditingController _namaMenuController = TextEditingController();
@@ -81,10 +101,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                     hintText: "Beri nama hidangan",
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                       borderSide: BorderSide.none,
@@ -92,6 +110,7 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
                 // Foto Hidangan
                 const Text(
                   "Foto hidangan",
@@ -152,10 +171,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                     hintText: "Masukkan deskripsi hidangan ini",
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                       borderSide: BorderSide.none,
@@ -177,9 +194,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 DropdownButtonFormField<String>(
                   hint: const Text("Pilih kategori menu"),
                   value: _selectedKategori,
-                  items: <String>['Makanan', 'Minuman', 'Jajanan'].map((
-                    String value,
-                  ) {
+                  items: <String>['Makanan', 'Minuman', 'Jajanan']
+                      .map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(value),
@@ -193,10 +209,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   decoration: const InputDecoration(
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                       borderSide: BorderSide.none,
@@ -205,7 +219,7 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 ),
                 const SizedBox(height: 12),
 
-                // Etalase/Kategori Lain
+                // Etalase
                 const Text(
                   "Kategori/Etalase Lain",
                   style: TextStyle(
@@ -218,8 +232,13 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 Wrap(
                   spacing: 8,
                   children: _selectedEtalase.isEmpty
-                      ? [const Text('Belum ada etalase dipilih', style: TextStyle(color: Colors.black54))]
-                      : _selectedEtalase.map((e) => Chip(label: Text(e))).toList(),
+                      ? [
+                          const Text('Belum ada etalase dipilih',
+                              style: TextStyle(color: Colors.black54))
+                        ]
+                      : _selectedEtalase
+                          .map((e) => Chip(label: Text(e.namaEtalase)))
+                          .toList(),
                 ),
                 const SizedBox(height: 8),
                 CustomButtonKotak(
@@ -229,17 +248,13 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => PilihEtalasePage(
-                          etalaseList: _etalaseList,
                           selectedEtalase: _selectedEtalase,
                         ),
                       ),
                     );
-                    if (result != null && result is List<String>) {
+                    if (result != null && result is List<EtalaseModel>) {
                       setState(() {
                         _selectedEtalase = result;
-                        for (final e in result) {
-                          if (!_etalaseList.contains(e)) _etalaseList.add(e);
-                        }
                       });
                     }
                   },
@@ -263,10 +278,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                     hintText: "Rp Masukkan harga",
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                       borderSide: BorderSide.none,
@@ -292,10 +305,8 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                     hintText: "Masukkan jumlah stok",
                     filled: true,
                     fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                       borderSide: BorderSide.none,
@@ -317,8 +328,13 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                 Wrap(
                   spacing: 8,
                   children: _selectedAddOns.isEmpty
-                      ? [const Text('Belum ada add on', style: TextStyle(color: Colors.black54))]
-                      : _selectedAddOns.map((e) => Chip(label: Text(e['nama_addon'] ?? e['nama'] ?? '-'))).toList(),
+                      ? [
+                          const Text('Belum ada add on',
+                              style: TextStyle(color: Colors.black54))
+                        ]
+                      : _selectedAddOns
+                          .map((e) => Chip(label: Text(e.namaAddon)))
+                          .toList(),
                 ),
                 const SizedBox(height: 8),
                 CustomButtonKotak(
@@ -330,9 +346,9 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                         builder: (_) => AddOnListPage(selectedAddOns: _selectedAddOns),
                       ),
                     );
-                    if (result != null && result is List) {
+                    if (result != null && result is List<AddonModel>) {
                       setState(() {
-                        _selectedAddOns = List<Map<String, dynamic>>.from(result);
+                        _selectedAddOns = result;
                       });
                     }
                   },
@@ -358,7 +374,6 @@ class TambahMenuPageState extends State<TambahMenuPage> {
                   },
                 ),
                 const SizedBox(height: 24),
-                
               ],
             ),
           ),
@@ -369,25 +384,32 @@ class TambahMenuPageState extends State<TambahMenuPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 16), // Jeda atas agar tombol tidak mepet ke atas
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: CustomButtonKotak(
                     text: "Periksa menu",
                     onPressed: () {
+                      final menuModel = MenuModel(
+                        idMenu: 0,
+                        idGerai: 0,
+                        idEtalase: _selectedEtalase.isNotEmpty ? _selectedEtalase[0].idEtalase : null,
+                        namaMenu: _namaMenuController.text,
+                        gambarMenu: '', // gambar diupload di PeriksaMenuPage
+                        deskripsiMenu: _deskripsiController.text,
+                        kategori: _selectedKategori ?? '',
+                        harga: int.tryParse(_hargaController.text) ?? 0,
+                        jumlahStok: int.tryParse(_jumlahStokController.text) ?? 0,
+                        tersedia: _isTersedia,
+                        addons: _selectedAddOns,
+                      );
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => PeriksaMenuPage(
-                            namaMenu: _namaMenuController.text,
-                            deskripsi: _deskripsiController.text,
-                            harga: _hargaController.text,
-                            jumlahStok: _jumlahStokController.text,
-                            kategori: _selectedKategori ?? '',
-                            isTersedia: _isTersedia,
-                            imagePath: _menuImage?.path,
+                            menuModel: menuModel,
                             etalase: _selectedEtalase,
-                            addOns: _selectedAddOns,
+                            imagePath: _menuImage?.path,
                           ),
                         ),
                       );

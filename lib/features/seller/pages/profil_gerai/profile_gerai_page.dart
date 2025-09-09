@@ -1,99 +1,261 @@
-
-import 'package:flutter/material.dart';
-import '../../../../app/app_theme.dart';
-import '../../../../app/gradient_background.dart';
-import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/app/gradient_background.dart';
+import 'package:dpr_bites/app/app_theme.dart';
+import 'package:dpr_bites/common/widgets/custom_widgets.dart';
+import '../../services/gerai_profil_service.dart';
+import 'dart:convert';
+import '../../services/seller_user_service.dart';
+import 'package:http/http.dart' as http;
+import 'package:dpr_bites/common/utils/base_url.dart';
 
-class ProfilGeraiPage extends StatefulWidget {
-  const ProfilGeraiPage({super.key});
+class ProfileGeraiPage extends StatefulWidget {
+  const ProfileGeraiPage({Key? key}) : super(key: key);
 
   @override
-  State<ProfilGeraiPage> createState() => _ProfilGeraiPageState();
+  State<ProfileGeraiPage> createState() => _ProfileGeraiPageState();
 }
 
-class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
-  // Hari buka (Senin-Minggu)
-  final List<String> days = [
-    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
-  ];
-  List<bool> selectedDays = List.generate(7, (_) => false);
-
-
-  TextEditingController? timeStartController;
-  TextEditingController? timeEndController;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    timeStartController ??= TextEditingController(text: selectedTimeStart.format(context));
-    timeEndController ??= TextEditingController(text: selectedTimeEnd.format(context));
-  }
-
-  @override
-  void dispose() {
-    timeStartController?.dispose();
-    timeEndController?.dispose();
-    super.dispose();
-  }
-  // State untuk gambar banner dan listing
+class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
+  bool _isLoading = true;
+  String? _errorMsg;
+  int? _idGerai;
+  bool _isProfilExist = false;
   XFile? _bannerImage;
   XFile? _listingImage;
+  String? _bannerUrl;
+  String? _listingUrl;
+  final menuController = TextEditingController();
+  TimeOfDay selectedTimeStart = const TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay selectedTimeEnd = const TimeOfDay(hour: 16, minute: 0);
+  final List<String> operationalDays = [
+    'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+  ];
+  final Map<String, bool> selectedDays = {
+    'Senin': false,
+    'Selasa': false,
+    'Rabu': false,
+    'Kamis': false,
+    'Jumat': false,
+    'Sabtu': false,
+    'Minggu': false,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfilGerai();
+  }
+
+  Future<void> _loadProfilGerai() async {
+    setState(() { _isLoading = true; _errorMsg = null; });
+    final prefs = await SharedPreferences.getInstance();
+    String? idUsers = prefs.getString('id_users');
+    if (idUsers == null || idUsers.isEmpty) {
+      setState(() { _isLoading = false; _errorMsg = 'User belum login'; });
+      return;
+    }
+    final response = await GeraiProfilService.fetchGeraiProfilByUser(idUsers);
+    if (response == null) {
+      setState(() { _isLoading = false; _errorMsg = 'ID Gerai tidak ditemukan'; });
+      _idGerai = null;
+      return;
+    }
+    _idGerai = response.idGerai;
+    // Cek apakah data profil sudah ada
+    _isProfilExist = response.deskripsiGerai.isNotEmpty || response.bannerPath.isNotEmpty;
+    if (_isProfilExist) {
+      // Data sudah ada, isi field
+      _bannerUrl = response.bannerPath;
+      _listingUrl = response.listingPath;
+      menuController.text = response.deskripsiGerai;
+      final hariBuka = response.hariBuka.split(',');
+      for (var day in selectedDays.keys) {
+        selectedDays[day] = hariBuka.contains(day);
+      }
+      final jamBuka = response.jamBuka.split(':');
+      final jamTutup = response.jamTutup.split(':');
+      if (jamBuka.length == 2) {
+        selectedTimeStart = TimeOfDay(hour: int.tryParse(jamBuka[0]) ?? 8, minute: int.tryParse(jamBuka[1]) ?? 0);
+      }
+      if (jamTutup.length == 2) {
+        selectedTimeEnd = TimeOfDay(hour: int.tryParse(jamTutup[0]) ?? 16, minute: int.tryParse(jamTutup[1]) ?? 0);
+      }
+    } else {
+      // Data belum ada, field kosong
+      _bannerUrl = null;
+      _listingUrl = null;
+      menuController.text = '';
+      for (var day in selectedDays.keys) {
+        selectedDays[day] = false;
+      }
+      selectedTimeStart = const TimeOfDay(hour: 8, minute: 0);
+      selectedTimeEnd = const TimeOfDay(hour: 16, minute: 0);
+    }
+    setState(() { _isLoading = false; });
+  }
+
+  String formatTime24(TimeOfDay time) {
+    final hour = time.hour == 0 ? 24 : time.hour;
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
 
   Future<void> _pickBannerImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
       setState(() {
-        _bannerImage = image;
+        _bannerImage = picked;
+        _bannerUrl = picked.path;
       });
     }
   }
 
   Future<void> _pickListingImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+  // Selalu bisa pilih gambar
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
       setState(() {
-        _listingImage = image;
+        _listingImage = picked;
+        _listingUrl = picked.path;
       });
     }
   }
-  // Controller untuk inputan
-  final bannerController = TextEditingController();
-  final listingController = TextEditingController();
-  final menuController = TextEditingController();
-  final qrisController = TextEditingController();
 
-  // Controller untuk jam operasional
-  TimeOfDay selectedTimeStart = TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay selectedTimeEnd = TimeOfDay(hour: 17, minute: 0);
-
-  // Method untuk memilih jam buka
   Future<void> _selectTimeStart(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
+    final picked = await showTimePicker(
       context: context,
       initialTime: selectedTimeStart,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
     );
-    if (picked != null && picked != selectedTimeStart) {
-      setState(() {
-        selectedTimeStart = picked;
-      });
-    }
+    if (picked != null) setState(() => selectedTimeStart = picked);
   }
 
-  // Method untuk memilih jam tutup
   Future<void> _selectTimeEnd(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
+    final picked = await showTimePicker(
       context: context,
       initialTime: selectedTimeEnd,
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
     );
-    if (picked != null && picked != selectedTimeEnd) {
-      setState(() {
-        selectedTimeEnd = picked;
-      });
+    if (picked != null) setState(() => selectedTimeEnd = picked);
+  }
+
+  bool _validateFields() {
+    if ((_bannerImage == null && (_bannerUrl == null || _bannerUrl!.isEmpty)) || (_listingImage == null && (_listingUrl == null || _listingUrl!.isEmpty))) return false;
+    if (menuController.text.trim().isEmpty) return false;
+    final selected = selectedDays.entries.where((e) => e.value).map((e) => e.key).toList();
+    return selected.isNotEmpty;
+  }
+
+  Future<void> _saveProfilGerai() async {
+  final hariSelected = selectedDays.entries.where((e) => e.value).map((e) => e.key).join(',');
+  print('Hari dipilih (akan dikirim ke API): $hariSelected');
+    setState(() { _isLoading = true; });
+    String? bannerUrl = _bannerUrl;
+    String? listingUrl = _listingUrl;
+    // Upload gambar jika ada perubahan (file lokal)
+    if (_bannerImage != null) {
+      final url = await GeraiProfilService.uploadQrisToCloudinary(File(_bannerImage!.path));
+      if (url != null) bannerUrl = url;
+    }
+    if (_listingImage != null) {
+      final url = await GeraiProfilService.uploadQrisToCloudinary(File(_listingImage!.path));
+      if (url != null) listingUrl = url;
+    }
+    final jamBuka = formatTime24(selectedTimeStart);
+    final jamTutup = formatTime24(selectedTimeEnd);
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    final idGerai = _idGerai;
+    if (idGerai == null || idUsers == null) {
+      setState(() { _isLoading = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID gerai atau user tidak ditemukan')),);
+      return;
+    }
+    final data = {
+      "id_gerai": idGerai.toString(),
+      "id_users": idUsers,
+      "deskripsi_gerai": menuController.text.trim(),
+      "jam_buka": jamBuka,
+      "jam_tutup": jamTutup,
+      "hari_buka": hariSelected,
+      "banner_path": bannerUrl ?? "",
+      "listing_path": listingUrl ?? "",
+      "status_pengajuan": "pending",
+    };
+    bool success = false;
+    if (_isProfilExist) {
+      // Update
+      final service = GeraiProfilService();
+      success = await service.updateGeraiProfil(
+        idGerai: idGerai,
+        bannerPath: bannerUrl ?? '',
+        listingPath: listingUrl ?? '',
+        deskripsiGerai: menuController.text.trim(),
+        hariBuka: hariSelected,
+        jamBuka: jamBuka,
+        jamTutup: jamTutup,
+      );
+      // Update status_pengajuan di tabel gerai
+      await http.post(
+        Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "id_gerai": idGerai.toString(),
+          "status_pengajuan": "pending",
+        }),
+      );
+      // Update step2 di tabel users
+      await SellerUserService.updateStepSellerStatus(idUsers, step2: 1);
+    } else {
+      // Insert
+      success = await GeraiProfilService.insertGeraiProfil(data);
+      // Setelah insert, update status_pengajuan dan step2
+      await http.post(
+        Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "id_gerai": idGerai.toString(),
+          "status_pengajuan": "pending",
+        }),
+      );
+      await SellerUserService.updateStepSellerStatus(idUsers, step2: 1);
+    }
+    setState(() { _isLoading = false; });
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(success ? 'Berhasil' : 'Gagal'),
+        content: Text(success ? 'Profil gerai berhasil disimpan' : 'Gagal simpan profil gerai'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (success) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/onboarding_checklist',
+        (route) => false,
+      );
     }
   }
 
@@ -112,223 +274,134 @@ class _ProfilGeraiPageState extends State<ProfilGeraiPage> {
           title: const Text(
             "Profil Gerai",
             style: TextStyle(
-              color: AppTheme.textColor,
-              fontWeight: FontWeight.bold,
               fontSize: 20,
               fontFamily: 'Afacad',
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textColor,
             ),
           ),
         ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ...existing code...
-
-                // Gambar banner & listing
-                const Text(
-                  "Gambar banner & gambar listing",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMsg != null
+                  ? Center(child: Text(_errorMsg!, style: const TextStyle(color: Colors.red)))
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _bannerImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.file(
-                                    File(_bannerImage!.path),
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Container(
-                                  height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Center(child: Text("Belum ada gambar banner")),
+                          const Text("Gambar banner & gambar listing", style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _bannerImage != null
+                                        ? Image.file(File(_bannerImage!.path), height: 100, fit: BoxFit.cover)
+                                        : (_bannerUrl != null && _bannerUrl!.isNotEmpty)
+                                            ? (_bannerUrl!.startsWith('http')
+                                                ? Image.network(_bannerUrl!, height: 100, fit: BoxFit.cover)
+                                                : Image.file(File(_bannerUrl!), height: 100, fit: BoxFit.cover))
+                                            : const Text("Belum ada banner"),
+                                    ElevatedButton(
+                                      onPressed: _pickBannerImage,
+                                      child: const Text("Pilih Banner"),
+                                    ),
+                                  ],
                                 ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _pickBannerImage,
-                            child: const Text("Pilih Gambar Banner"),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    _listingImage != null
+                                        ? Image.file(File(_listingImage!.path), height: 100, fit: BoxFit.cover)
+                                        : (_listingUrl != null && _listingUrl!.isNotEmpty)
+                                            ? (_listingUrl!.startsWith('http')
+                                                ? Image.network(_listingUrl!, height: 100, fit: BoxFit.cover)
+                                                : Image.file(File(_listingUrl!), height: 100, fit: BoxFit.cover))
+                                            : const Text("Belum ada listing"),
+                                    ElevatedButton(
+                                      onPressed: _pickListingImage,
+                                      child: const Text("Pilih Listing"),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const Text("Kategori/Jenis masakan", style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: menuController,
+                            enabled: true,
+                            decoration: const InputDecoration(
+                              hintText: "Contoh: Nasi, Kopi",
+                              border: OutlineInputBorder(),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text("Hari operasional", style: TextStyle(fontWeight: FontWeight.bold)),
+                          Wrap(
+                            spacing: 8,
+                            children: operationalDays.map((day) {
+                              return FilterChip(
+                                label: Text(day),
+                                selected: selectedDays[day]!,
+                                onSelected: (val) {
+                                  setState(() {
+                                    selectedDays[day] = val;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Buka: ${formatTime24(selectedTimeStart)}'),
+                              ElevatedButton(
+                                onPressed: () => _selectTimeStart(context),
+                                child: const Text('Pilih Jam'),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Tutup: ${formatTime24(selectedTimeEnd)}'),
+                              ElevatedButton(
+                                onPressed: () => _selectTimeEnd(context),
+                                child: const Text('Pilih Jam'),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          _listingImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.file(
-                                    File(_listingImage!.path),
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Container(
-                                  height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Center(child: Text("Belum ada gambar listing")),
-                                ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _pickListingImage,
-                            child: const Text("Pilih Gambar Listing"),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 30),
-
-                // Menu masakan
-                const Text(
-                  "Menu masakan",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Afacad',
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textColor,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                CustomInputField(
-                  controller: menuController,
-                  hintText: "Cth. Ayam, Nasi, Kopi",
-                ),
-                const SizedBox(height: 20),
-
-                // Hari buka
-                const Text(
-                  "Hari buka",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: List.generate(days.length, (i) {
-                    return FilterChip(
-                      label: Text(days[i]),
-                      selected: selectedDays[i],
-                      onSelected: (val) {
-                        setState(() {
-                          selectedDays[i] = val;
-                        });
-                      },
-                      selectedColor: const Color(0xFFD53D3D),
-                      checkmarkColor: Colors.white,
-                      labelStyle: TextStyle(
-                        color: selectedDays[i] ? Colors.white : Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    );
-                  }),
-                ),
-                const SizedBox(height: 20),
-                // Jam operasional
-                const Text(
-                  "Jam operasional",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () async {
-                          await _selectTimeStart(context);
-                          if (timeStartController != null) {
-                            timeStartController!.text = selectedTimeStart.format(context);
-                          }
-                        },
-                        child: AbsorbPointer(
-                          child: CustomInputField(
-                            controller: timeStartController,
-                            hintText: 'Jam Buka',
-                            prefixIcon: const Icon(Icons.access_time, color: Color(0xFFD53D3D)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () async {
-                          await _selectTimeEnd(context);
-                          if (timeEndController != null) {
-                            timeEndController!.text = selectedTimeEnd.format(context);
-                          }
-                        },
-                        child: AbsorbPointer(
-                          child: CustomInputField(
-                            controller: timeEndController,
-                            hintText: 'Jam Tutup',
-                            prefixIcon: const Icon(Icons.access_time, color: Color(0xFFD53D3D)),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-                  // ...existing code...
-              ],
-            ),
-          ),
         ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: SizedBox(
-          width: double.infinity,
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: CustomButtonKotak(
             text: "Simpan dan lanjutkan",
             onPressed: () async {
-              // Set card 2 selesai
-              await OnboardingChecklistStorage.setStatus(1, true);
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/onboarding_checklist',
-                (route) => false,
-              );
+
+              if (!_validateFields()) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Semua field wajib diisi')),
+                );
+                return;
+              }
+              await _saveProfilGerai();
             },
           ),
         ),
-      ),
       ),
     );
   }

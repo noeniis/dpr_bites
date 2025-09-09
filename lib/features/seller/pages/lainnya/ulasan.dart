@@ -1,8 +1,7 @@
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../models/lainnya/ulasan_model.dart';
+import '../../services/lainnya/ulasan_service.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../common/widgets/custom_widgets.dart';
@@ -16,10 +15,18 @@ class UlasanPage extends StatefulWidget {
 }
 
 class _UlasanPageState extends State<UlasanPage> {
-  String filterBalasan = 'Semua'; // 'Semua', 'Sudah Dibalas', 'Belum Dibalas'
+  String filterBalasan = 'Semua';
+  final Map<int, TextEditingController> replyControllers = {};
+  int? replyingId;
+  Set<int> isReplying = {};
+  double rating = 0;
+  int reviewCount = 0;
+  List<Map<String, dynamic>> breakdown = List.generate(5, (i) => {'star': 5 - i, 'count': 0});
+  List<UlasanModel> reviews = [];
+  bool isLoading = true;
+  String? errorMsg;
+  final UlasanService ulasanService = UlasanService();
 
-  final Map<int, TextEditingController> replyControllers = {}; // id_ulasan -> controller
-  int? replyingId; // id_ulasan yang sedang dibalas (untuk dialog)
   @override
   void dispose() {
     for (final c in replyControllers.values) {
@@ -27,63 +34,30 @@ class _UlasanPageState extends State<UlasanPage> {
     }
     super.dispose();
   }
-  Set<int> isReplying = {}; // id_ulasan sedang submit
 
   Future<void> submitReply(int idUlasan, String reply) async {
     setState(() { isReplying.add(idUlasan); });
     try {
-      final res = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/reply_ulasan.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id_ulasan': idUlasan, 'balasan': reply}),
-      );
-      final data = jsonDecode(res.body);
-      if (data['success'] == true) {
-        replyControllers[idUlasan]?.clear();
-        await fetchUlasan();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Balasan terkirim')));
-      } else {
-        throw data['message'] ?? 'Gagal membalas';
-      }
+      await ulasanService.submitReply(idUlasan, reply);
+      replyControllers[idUlasan]?.clear();
+      await fetchUlasan();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Balasan terkirim')));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal membalas: $e')));
     } finally {
       setState(() { isReplying.remove(idUlasan); replyingId = null; });
     }
   }
-  double rating = 0;
-  int reviewCount = 0;
-  List<Map<String, dynamic>> breakdown = List.generate(5, (i) => {'star': 5 - i, 'count': 0});
-  List<dynamic> reviews = [];
-  bool isLoading = true;
-  String? errorMsg;
 
   Future<void> fetchUlasan() async {
     setState(() { isLoading = true; errorMsg = null; });
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final idUsers = prefs.getString('id_users');
-      if (idUsers == null) throw 'User belum login';
-      // Ambil id_gerai
-      final resGerai = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_gerai_by_user.php'),
-        body: {'id_users': idUsers},
-      );
-      if (resGerai.statusCode != 200) throw 'Gagal ambil id_gerai';
-      final dataGerai = jsonDecode(resGerai.body);
-      if (dataGerai['success'] != true || dataGerai['id_gerai'] == null) throw 'Gagal ambil id_gerai';
-      final idGerai = dataGerai['id_gerai'];
-      // Fetch ulasan
-      final res = await http.get(Uri.parse('http://10.0.2.2/dpr_bites_api/get_restaurant_ratings.php?id=$idGerai'));
-      if (res.statusCode != 200) throw 'Gagal fetch ulasan';
-      final data = jsonDecode(res.body);
-      if (data['success'] != true) throw 'Gagal fetch ulasan';
-      final d = data['data'] ?? {};
+      final data = await ulasanService.fetchUlasan();
       setState(() {
-        rating = (d['rating'] ?? 0).toDouble();
-        reviewCount = d['ratingCount'] ?? 0;
-        breakdown = (d['breakdown'] as List?)?.map((e) => Map<String, dynamic>.from(e)).toList() ?? breakdown;
-        reviews = d['reviews'] ?? [];
+        rating = data['rating'] ?? 0;
+        reviewCount = data['reviewCount'] ?? 0;
+        breakdown = data['breakdown'] ?? breakdown;
+        reviews = data['reviews'] ?? [];
         isLoading = false;
       });
     } catch (e) {
@@ -214,13 +188,13 @@ class _UlasanPageState extends State<UlasanPage> {
                         ),
                         const SizedBox(height: 10),
                         ...reviews.where((r) {
-                          final balasan = (r['balasan'] ?? '').toString().trim();
+                          final balasan = r.balasan.trim();
                           if (filterBalasan == 'Sudah Dibalas') return balasan.isNotEmpty;
                           if (filterBalasan == 'Belum Dibalas') return balasan.isEmpty;
                           return true;
                         }).map((r) {
-                          final idUlasan = r['id_ulasan'] ?? 0;
-                          final balasan = (r['balasan'] ?? '').toString().trim();
+                          final idUlasan = r.idUlasan;
+                          final balasan = r.balasan.trim();
                           if (!replyControllers.containsKey(idUlasan)) {
                             replyControllers[idUlasan] = TextEditingController();
                           }
@@ -237,8 +211,8 @@ class _UlasanPageState extends State<UlasanPage> {
                                       children: [
                                         CircleAvatar(
                                           radius: 28,
-                                          backgroundImage: r['photo'] != null && r['photo'].toString().isNotEmpty
-                                              ? NetworkImage(r['photo'])
+                                          backgroundImage: r.photo.isNotEmpty
+                                              ? NetworkImage(r.photo)
                                               : const AssetImage('lib/assets/images/iconUser.png') as ImageProvider,
                                           backgroundColor: Colors.grey[200],
                                         ),
@@ -247,23 +221,23 @@ class _UlasanPageState extends State<UlasanPage> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(r['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-                                              if ((r['pesanan'] ?? '').toString().isNotEmpty)
-                                                Text(r['pesanan'], style: const TextStyle(fontSize: 13)),
-                                              if ((r['komentar'] ?? '').toString().isNotEmpty)
+                                              Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                                              if (r.pesanan.isNotEmpty)
+                                                Text(r.pesanan, style: const TextStyle(fontSize: 13)),
+                                              if (r.komentar.isNotEmpty)
                                                 Padding(
                                                   padding: const EdgeInsets.only(top: 2.0, bottom: 2.0),
-                                                  child: Text(r['komentar'], style: const TextStyle(fontSize: 13, color: Colors.black87)),
+                                                  child: Text(r.komentar, style: const TextStyle(fontSize: 13, color: Colors.black87)),
                                                 ),
                                               Row(
                                                 children: [
                                                   ...List.generate(5, (i) => Icon(
                                                         Icons.star,
                                                         size: 15,
-                                                        color: i < (r['rating'] ?? 0) ? Colors.amber : Colors.grey[300],
+                                                        color: i < r.rating ? Colors.amber : Colors.grey[300],
                                                       )),
                                                   const SizedBox(width: 6),
-                                                  Text('${r['rating']}/5', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                  Text('${r.rating}/5', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                                                 ],
                                               ),
                                             ],
@@ -299,7 +273,6 @@ class _UlasanPageState extends State<UlasanPage> {
                                           onPressed: () {
                                             setState(() { replyingId = idUlasan; });
                                             replyControllers[idUlasan]?.text = '';
-                                            // Tambahkan listener agar tombol Kirim update saat mengetik
                                             void listener() => setState(() {});
                                             replyControllers[idUlasan]?.removeListener(listener);
                                             replyControllers[idUlasan]?.addListener(listener);

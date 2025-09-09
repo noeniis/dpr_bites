@@ -10,6 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'seller_pick_location_page.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../common/data/dummy_address.dart';
+import 'package:dpr_bites/features/seller/models/gerai_profil_model.dart';
+import '../../services/gerai_profil_service.dart';
+import 'package:dpr_bites/features/seller/models/user_info_model.dart';
 
 class ProsesPengajuanPage extends StatefulWidget {
   const ProsesPengajuanPage({super.key});
@@ -19,6 +22,7 @@ class ProsesPengajuanPage extends StatefulWidget {
 }
 
 class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
+  bool isSaving = false;
   final storeNameController = TextEditingController();
   final locationController = TextEditingController();
   final detailAddressController = TextEditingController();
@@ -31,7 +35,34 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   void initState() {
     super.initState();
     _loadUserData();
+      _prefillGerai();
+    }
+
+  Future<void> _prefillGerai() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    debugPrint('[DEBUG] id_users dari SharedPreferences: $idUsers');
+    debugPrint('[DEBUG] API dipanggil: GeraiProfilService.fetchGeraiByUser');
+    if (idUsers != null) {
+      final data = await GeraiProfilService.fetchGeraiByUser(idUsers);
+      if (data != null && data['success'] == true && data['data'] != null) {
+        final geraiModel = GeraiProfilModel.fromJson(data['data']);
+    await prefs.setString('id_gerai', geraiModel.idGerai.toString());
+    debugPrint('[DEBUG] id_gerai disimpan ke SharedPreferences: ${geraiModel.idGerai}');
+        storeNameController.text = geraiModel.namaGerai;
+        detailAddressController.text = geraiModel.detailAlamat;
+        if (geraiModel.latitude != null && geraiModel.longitude != null) {
+          selectedLat = geraiModel.latitude;
+          selectedLng = geraiModel.longitude;
+          final address = await GeraiProfilService.reverseGeocode(selectedLat!, selectedLng!);
+          locationController.text = address ?? '';
+          selectedAddress = address ?? '';
+        }
+        optionalPhoneController.text = geraiModel.telepon;
+      }
+    }
   }
+
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -39,9 +70,10 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
     if (idUsers != null) {
       final user = await SellerUserService.fetchUserById(idUsers);
       if (user != null) {
-        sellerNameController.text = user['nama_lengkap'] ?? '';
-        phoneNumberController.text = user['no_hp'] ?? '';
-        emailController.text = user['email'] ?? '';
+        final userInfo = UserInfoModel.fromJson(user);
+        sellerNameController.text = userInfo.namaLengkap;
+        phoneNumberController.text = userInfo.noHp;
+        emailController.text = userInfo.email;
       }
     }
     setState(() {
@@ -74,7 +106,6 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
         );
         return;
       }
-      // Ambil area DPR dari dummyAddresses (gunakan min/max lat/lng)
       final dprLatitudes = dummyAddresses
           .where((a) => a.latitude != null)
           .map((a) => a.latitude!)
@@ -243,15 +274,39 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
               child: CustomButtonKotak(
                 text: "Simpan dan lanjutkan",
                 onPressed: () async {
-                  final ktpResult = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const KtpFormPage()),
-                  );
-                  if (ktpResult != null) {
-                    Navigator.push(
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setString('telepon_gerai', phoneNumberController.text);
+                  final idUsers = prefs.getString('id_users');
+                  setState(() { isSaving = true; });
+                  // Validasi
+                  if (idUsers == null || storeNameController.text.isEmpty || selectedLat == null || selectedLng == null || phoneNumberController.text.isEmpty) {
+                    setState(() { isSaving = false; });
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lengkapi semua data utama!')));
+                    return;
+                  }
+                  final data = {
+                    'id_users': idUsers,
+                    'nama_gerai': storeNameController.text,
+                    'latitude': selectedLat?.toString() ?? '',
+                    'longitude': selectedLng?.toString() ?? '',
+                    'detail_alamat': detailAddressController.text,
+                    'telepon': optionalPhoneController.text,
+                  };
+                  final success = await GeraiProfilService.addOrUpdateGerai(data);
+                  setState(() { isSaving = false; });
+                  if (success) {
+                    final ktpResult = await Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const HalalPage()),
+                      MaterialPageRoute(builder: (_) => const KtpFormPage()),
                     );
+                    if (ktpResult != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HalalPage()),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal simpan data gerai!')));
                   }
                 },
               ),

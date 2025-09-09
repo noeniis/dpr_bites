@@ -1,7 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:dpr_bites/common/utils/base_url.dart';
+import 'package:dpr_bites/features/seller/services/dashboard_service.dart';
+import 'package:dpr_bites/features/seller/models/dashboard_rekap_model.dart';
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
@@ -24,11 +23,7 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
   String? _namaGerai;
   bool _loadingGerai = true;
 
-  int pesananBaru = 0;
-  int sedangDisiapkan = 0;
-  int selfPickup = 0;
-  int pesananAntar = 0;
-  int totalSaldo = 0;
+  DashboardRekapModel? _rekapModel;
   bool _loadingRekap = true;
 
   String? _idGerai;
@@ -52,27 +47,19 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
     }
 
     try {
-      final res = await http.post(
-        Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
-        body: {'id_users': idUser},
-      );
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-  final idGerai = data['id_gerai']?.toString();
-        if (data['success'] == true && data['nama_gerai'] != null) {
-          final idGerai = data['id_gerai']?.toString();
-          if (idGerai != null && idGerai.isNotEmpty) {
-            await prefs.setString('id_gerai', idGerai);
-            if (!mounted) return;
-            setState(() {
-              _idGerai = idGerai;
-              _namaGerai = data['nama_gerai'] ?? '-';
-              _loadingGerai = false;
-            });
-            await _fetchRekapPesanan(); 
-            return;
-          }
+      final dataGerai = await DashboardService.fetchGeraiByUser(idUser);
+      final idGerai = dataGerai?['id_gerai']?.toString();
+      if (dataGerai != null && dataGerai['nama_gerai'] != null) {
+        if (idGerai != null && idGerai.isNotEmpty) {
+          await prefs.setString('id_gerai', idGerai);
+          if (!mounted) return;
+          setState(() {
+            _idGerai = idGerai;
+            _namaGerai = dataGerai['nama_gerai'] ?? '-';
+            _loadingGerai = false;
+          });
+          await _fetchRekapPesanan(); 
+          return;
         }
       }
     } catch (_) {}
@@ -93,39 +80,15 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
       return;
     }
 
-    // Gunakan tanggal dari _selectedDate, default hari ini jika null
     final date = _selectedDate ?? DateTime.now();
     final tanggal = "${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
 
-    final uri = Uri.parse('${getBaseUrl()}/get_rekap_pesanan_seller.php')
-        .replace(queryParameters: {'id_gerai': idGerai, 'tanggal': tanggal});
-
-    try {
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          if (!mounted) return;
-          setState(() {
-            pesananBaru     = (data['pesanan_baru'] ?? 0) as int;
-            sedangDisiapkan = (data['sedang_disiapkan'] ?? 0) as int;
-            selfPickup      = (data['pickup'] ?? 0) as int;
-            pesananAntar    = (data['diantar'] ?? 0) as int;
-            totalSaldo      = (data['total_saldo'] ?? 0) as int;
-            _loadingRekap   = false;
-          });
-        } else {
-          if (!mounted) return;
-          setState(() { _loadingRekap = false; });
-        }
-      } else {
-        if (!mounted) return;
-        setState(() { _loadingRekap = false; });
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() { _loadingRekap = false; });
-    }
+    final result = await DashboardService.fetchRekap(idGerai: idGerai, tanggal: tanggal);
+    if (!mounted) return;
+    setState(() {
+      _rekapModel = result;
+      _loadingRekap = false;
+    });
   }
 
   Future<void> _pickDate() async {
@@ -150,6 +113,12 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
     String tanggalLabel = _selectedDate == null
         ? "Pilih Tanggal"
         : "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
+
+    int pesananBaru = _rekapModel?.pesananBaru ?? 0;
+    int sedangDisiapkan = _rekapModel?.sedangDisiapkan ?? 0;
+    int selfPickup = _rekapModel?.selfPickup ?? 0;
+    int pesananAntar = _rekapModel?.pesananAntar ?? 0;
+    int totalSaldo = _rekapModel?.totalSaldo ?? 0;
 
     return GradientBackground(
       child: Scaffold(

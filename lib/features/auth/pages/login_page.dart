@@ -1,7 +1,5 @@
 import 'package:dpr_bites/features/user/pages/home/home_page.dart';
-import 'package:http/http.dart' as http;
-import 'package:dpr_bites/common/utils/base_url.dart';
-import 'dart:convert';
+import 'package:dpr_bites/features/auth/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
@@ -10,7 +8,6 @@ import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,6 +17,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final AuthService _authService = AuthService();
   bool _showPassword = false;
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
@@ -32,35 +30,12 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<Map<String, dynamic>> loginUser(
-    String username,
-    String password,
-  ) async {
-    try {
-      // Jika pakai emulator Android, gunakan 10.0.2.2
-      final response = await http.post(
-        Uri.parse('${getBaseUrl()}/login.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username, 'password': password}),
-      );
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        return result is Map<String, dynamic> ? result : {};
-      } else {
-        debugPrint('HTTP error: \\${response.statusCode} - \\${response.body}');
-        return {'success': false, 'message': 'Server error'};
-      }
-    } catch (e) {
-      debugPrint('Exception saat login: \\${e.toString()}');
-      return {'success': false, 'message': 'Terjadi kesalahan'};
-    }
-  }
 
   void handleLogin() async {
     final username = usernameController.text.trim();
     final password = passwordController.text.trim();
 
-    // Username khusus koperasi (hardcode, jika tidak ada di database)
+
     if (username == 'koperasi' && password == 'koperasi') {
       Navigator.pushReplacement(
         context,
@@ -69,19 +44,18 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final result = await loginUser(username, password);
-    if (result['success'] == true) {
+    final result = await _authService.loginUser(username, password);
+    if (result.success) {
       setState(() {
         errorMessage = null;
       });
       // Simpan id_users ke SharedPreferences dan print ke terminal
-      if (result['id_users'] != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('id_users', result['id_users'].toString());
-        debugPrint('ID USERS LOGIN: ${result['id_users']}');
+      if (result.idUsers != null) {
+        await _authService.saveUserId(result.idUsers!);
+        debugPrint('ID USERS LOGIN: ${result.idUsers}');
       }
       // Redirect sesuai role dari backend
-      final roleStr = result['role'].toString();
+      final roleStr = result.role ?? '';
       if (roleStr == '0') {
         // Pegawai
         Navigator.pushReplacement(
@@ -90,10 +64,7 @@ class _LoginPageState extends State<LoginPage> {
         );
       } else if (roleStr == '1') {
         // Penjual
-        final step1 = result['step1'] == true;
-        final step2 = result['step2'] == true;
-        final step3 = result['step3'] == true;
-        if (step1 && step2 && step3) {
+        if (result.step1 && result.step2 && result.step3) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
@@ -118,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } else {
       setState(() {
-        errorMessage = result['message'] ?? 'Username atau password salah';
+        errorMessage = result.message ?? 'Username atau password salah';
       });
     }
   }

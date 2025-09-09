@@ -1,11 +1,10 @@
+import 'package:dpr_bites/features/seller/services/addon_service.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import '../../../../../app/gradient_background.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+
 
 
 class AddOnFormPage extends StatefulWidget {
@@ -18,7 +17,6 @@ class AddOnFormPage extends StatefulWidget {
 class _AddOnFormPageState extends State<AddOnFormPage> {
   XFile? _addOnImage;
   bool _isTersedia = false;
-  String? _idUser;
   String? _idGerai;
   @override
   void initState() {
@@ -27,61 +25,25 @@ class _AddOnFormPageState extends State<AddOnFormPage> {
   }
 
   Future<void> _loadUserAndGerai() async {
-    final prefs = await SharedPreferences.getInstance();
-    _idUser = prefs.getString('id_users');
-    if (_idUser != null) {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_gerai_by_user.php'),
-        body: {'id_users': _idUser},
-      );
-      final data = jsonDecode(response.body);
-      if (data['success'] == true && data['id_gerai'] != null) {
-        setState(() {
-          _idGerai = data['id_gerai'].toString();
-        });
-      }
+    final result = await AddonService.getGeraiIdByUser();
+    setState(() {
+      _idGerai = result['idGerai'];
+    });
+    if (_idGerai == null) {
+      debugPrint('DEBUG id_gerai tidak ditemukan!');
     }
   }
 
-  Future<String?> _uploadToCloudinary(String imagePath) async {
-    // Ganti dengan cloudinary preset dan cloud name kamu
-    const cloudName = 'dip8i3f6x';
-    const uploadPreset = 'dpr_bites';
-    final url = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
-    final request = http.MultipartRequest('POST', url)
-      ..fields['upload_preset'] = uploadPreset
-      ..files.add(await http.MultipartFile.fromPath('file', imagePath));
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final resStr = await response.stream.bytesToString();
-      final resJson = jsonDecode(resStr);
-      return resJson['secure_url'];
-    }
-    return null;
-  }
 
   Future<void> _submitAddOn() async {
-  if (_idGerai == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('ID Gerai tidak ditemukan')),
-    );
-    return;
-  }
-
-  try {
-    // Upload gambar kalau ada
-    String? imageUrl;
-    if (_addOnImage != null) {
-      imageUrl = await _uploadToCloudinary(_addOnImage!.path);
-      if (imageUrl == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal upload gambar')),
-        );
-        return;
-      }
+    debugPrint('DEBUG submit add on, id_gerai: $_idGerai');
+    if (_idGerai == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID Gerai tidak ditemukan')),
+      );
+      return;
     }
 
-    // Validasi harga dan stok
     final harga = int.tryParse(_hargaController.text.trim()) ?? 0;
     final stok = int.tryParse(_stokController.text.trim()) ?? 0;
 
@@ -92,45 +54,33 @@ class _AddOnFormPageState extends State<AddOnFormPage> {
       return;
     }
 
-    // Kirim data ke API
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2/dpr_bites_api/add_addon.php'),
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: {
-        'id_gerai': _idGerai!,
-        'nama_addon': _namaController.text.trim(),
-        'harga': harga.toString(),
-        'deskripsi': _deskripsiController.text.trim(),
-        'image_path': imageUrl ?? '',
-        'stok': stok.toString(),
-        'tersedia': _isTersedia ? '1' : '0',
-      },
-    );
-
-
-
-    // Parse hasil
-    final resJson = jsonDecode(response.body);
-
-    if (resJson['success'] == true) {
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal simpan add on: ${resJson['error'] ?? 'Unknown error'}',
+    try {
+      final result = await AddonService.addAddon(
+        idGerai: _idGerai!,
+        namaAddon: _namaController.text.trim(),
+        harga: harga,
+        deskripsi: _deskripsiController.text.trim(),
+        imagePath: _addOnImage?.path,
+        stok: stok,
+        tersedia: _isTersedia,
+      );
+      if (result['success'] == true) {
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal simpan add on: ${result['error'] ?? 'Unknown error'}',
+            ),
           ),
-        ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
       );
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: $e')),
-    );
   }
-}
 
   Future<void> _pickAddOnImage() async {
     final ImagePicker picker = ImagePicker();

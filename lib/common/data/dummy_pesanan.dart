@@ -1,4 +1,4 @@
-import '../../models/order_model.dart';
+import 'package:dpr_bites/features/seller/models/pesanan/order_model.dart';
 
 List<OrderModel> dummyPesanan = [
   OrderModel(

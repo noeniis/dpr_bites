@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
 import 'package:http/http.dart' as http;
+import 'package:dpr_bites/features/seller/services/rekap_pesanan_service.dart';
+import 'package:dpr_bites/features/seller/models/rekap_pesanan_model.dart';
 import 'dart:convert';
 import '../../../../common/utils/base_url.dart';
 import '../../../../app/gradient_background.dart';
@@ -16,20 +18,17 @@ class RekapPesananSellerPage extends StatefulWidget {
 }
 
 class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
+  RekapPesananModel? _rekapModel;
   bool _isDataKosong() {
-    if (statusCount.isEmpty) return true;
-    return statusCount.values.every((v) => v == 0);
+    if (_rekapModel == null || _rekapModel!.statusCount.isEmpty) return true;
+    return _rekapModel!.statusCount.values.every((v) => v == 0);
   }
   DateTime? _selectedDate;
   DateTime? _selectedMonth;
   bool _loading = true;
-  Map<String, int> statusCount = {};
-  int totalSaldo = 0;
   String? _idGerai;
   String? _error;
   bool _isMonthly = false;
-  List<Map<String, dynamic>> menuRekap = [];
-  List<Map<String, dynamic>> addonRekap = [];
 
   @override
   void initState() {
@@ -54,26 +53,13 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
     setState(() { _loading = true; _error = null; });
     final date = _selectedDate ?? DateTime.now();
     final tanggal = "${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}";
-    final uri = Uri.parse('${getBaseUrl()}/get_rekap_pesanan_seller.php')
-        .replace(queryParameters: {'id_gerai': _idGerai!, 'tanggal': tanggal});
     try {
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          setState(() {
-            statusCount = Map<String, int>.from(data['debug_status_breakdown'] ?? {});
-            totalSaldo = (data['total_saldo'] ?? 0) as int;
-            menuRekap = (data['menu_rekap'] as List?)?.map((e) => Map<String, dynamic>.from(e)).toList() ?? [];
-            addonRekap = (data['addon_rekap'] as List?)?.map((e) => Map<String, dynamic>.from(e)).toList() ?? [];
-            _loading = false;
-          });
-        } else {
-          setState(() { _error = data['message'] ?? 'Gagal memuat data'; _loading = false; });
-        }
-      } else {
-        setState(() { _error = 'Gagal memuat data'; _loading = false; });
-      }
+      final rekap = await RekapPesananService.fetchRekap(idGerai: _idGerai!, tanggal: tanggal);
+      setState(() {
+        _rekapModel = rekap;
+        _loading = false;
+        _error = rekap == null ? 'Belum ada data' : null;
+      });
     } catch (e) {
       setState(() { _error = 'Belum ada data'; _loading = false; });
     }
@@ -114,53 +100,18 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
 
   Future<void> _fetchRekapBulan() async {
     if (_idGerai == null || _selectedMonth == null) return;
-
     setState(() {
       _loading = true;
       _error = null;
     });
-
-    final bulanStr =
-        "${_selectedMonth!.year.toString().padLeft(4, '0')}-${_selectedMonth!.month.toString().padLeft(2, '0')}";
-
-    final uri = Uri.parse('${getBaseUrl()}/get_rekap_pesanan_seller.php')
-        .replace(queryParameters: {
-      'id_gerai': _idGerai!,
-      'tanggal': bulanStr, // kirim bulan ke backend
-    });
-
+    final bulanStr = "${_selectedMonth!.year.toString().padLeft(4, '0')}-${_selectedMonth!.month.toString().padLeft(2, '0')}";
     try {
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        if (data['success'] == true) {
-          setState(() {
-            statusCount = {
-              'pesanan_baru': data['pesanan_baru'] ?? 0,
-              'sedang_disiapkan': data['sedang_disiapkan'] ?? 0,
-              'diantar': data['diantar'] ?? 0,
-              'pickup': data['pickup'] ?? 0,
-              'selesai': data['debug_status_breakdown']?['selesai'] ?? 0,
-              'dibatalkan': data['debug_status_breakdown']?['dibatalkan'] ?? 0,
-            };
-            totalSaldo = data['total_saldo'] ?? 0;
-            menuRekap = (data['menu_rekap'] as List?)?.map((e) => Map<String, dynamic>.from(e)).toList() ?? [];
-            addonRekap = (data['addon_rekap'] as List?)?.map((e) => Map<String, dynamic>.from(e)).toList() ?? [];
-            _loading = false;
-          });
-        } else {
-          setState(() {
-            _error = 'Rekap gagal dimuat';
-            _loading = false;
-          });
-        }
-      } else {
-        setState(() {
-          _error = 'Gagal memuat data (status ${response.statusCode})';
-          _loading = false;
-        });
-      }
+      final rekap = await RekapPesananService.fetchRekap(idGerai: _idGerai!, tanggal: bulanStr);
+      setState(() {
+        _rekapModel = rekap;
+        _loading = false;
+        _error = rekap == null ? 'Belum Ada Data' : null;
+      });
     } catch (e) {
       setState(() {
         _error = 'Belum Ada Data';
@@ -317,7 +268,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                           padding: const EdgeInsets.symmetric(vertical: 8),
                                                           child: Center(
                                                             child: Text(
-                                                              statusCount[e.key]?.toString() ?? '0',
+                                                              _rekapModel?.statusCount[e.key]?.toString() ?? '0',
                                                               style: const TextStyle(fontWeight: FontWeight.bold),
                                                             ),
                                                           ),
@@ -331,7 +282,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                       ),
                                       const SizedBox(height: 18),
                                       // Rekap Menu Terjual
-                                      if (menuRekap.isNotEmpty) ...[
+                                      if (_rekapModel?.menuRekap.isNotEmpty ?? false) ...[
                                         Container(
                                           width: double.infinity,
                                           padding: const EdgeInsets.all(14),
@@ -372,7 +323,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                       ),
                                                     ],
                                                   ),
-                                                  ...menuRekap.map((m) => TableRow(
+                                                  ...?_rekapModel?.menuRekap.map((m) => TableRow(
                                                         children: [
                                                           Padding(
                                                             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -391,7 +342,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                         ),
                                       ],
                                       // Rekap Add-on Terjual
-                                      if (addonRekap.isNotEmpty) ...[
+                                      if (_rekapModel?.addonRekap.isNotEmpty ?? false) ...[
                                         Container(
                                           width: double.infinity,
                                           padding: const EdgeInsets.all(14),
@@ -432,7 +383,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                       ),
                                                     ],
                                                   ),
-                                                  ...addonRekap.map((a) => TableRow(
+                                                  ...?_rekapModel?.addonRekap.map((a) => TableRow(
                                                         children: [
                                                           Padding(
                                                             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -473,7 +424,7 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                             const SizedBox(height: 10),
                                             Text(
-                                              'Rp ${NumberFormat('#,###', 'id_ID').format(totalSaldo)}',
+                                              'Rp ${NumberFormat('#,###', 'id_ID').format(_rekapModel?.totalSaldo ?? 0)}',
                                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppTheme.primaryColor),
                                             ),
                                           ],

@@ -3,7 +3,8 @@ import 'dart:async';
 import '../../app/gradient_background.dart';
 import '../../common/widgets/custom_widgets.dart';
 import 'pengajuan_detail_page.dart';
-import 'pengajuan_service.dart';
+import 'services/pengajuan_service.dart';
+import 'models/pengajuan_model.dart';
 
 class HomepageKoperasi extends StatefulWidget {
   const HomepageKoperasi({Key? key}) : super(key: key);
@@ -13,7 +14,6 @@ class HomepageKoperasi extends StatefulWidget {
 }
 
 class _HomepageKoperasiState extends State<HomepageKoperasi> {
-  // Tambahkan timer untuk auto-refresh
   @override
   void dispose() {
     _refreshTimer?.cancel();
@@ -24,12 +24,12 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
 
   void _startAutoRefresh() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       _loadPengajuan();
     });
   }
   String filterStatus = 'pending';
-  Future<List<Map<String, dynamic>>>? _futurePengajuan;
+  Future<List<PengajuanModel>>? _futurePengajuan;
 
   @override
   void initState() {
@@ -106,7 +106,7 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
               ),
             ),
             Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
+              child: FutureBuilder<List<PengajuanModel>>(
                 future: _futurePengajuan,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -116,11 +116,19 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
                     return const Center(child: Text('Tidak ada pengajuan'));
                   }
                   final pengajuanList = snapshot.data!;
+                  List<PengajuanModel> filteredList;
+                  if (filterStatus == 'pending') {
+                    filteredList = pengajuanList.where((data) {
+                      return (data.step1?.toString() == '1' && data.step2?.toString() == '1');
+                    }).toList();
+                  } else {
+                    filteredList = pengajuanList;
+                  }
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),
-                    itemCount: pengajuanList.length,
+                    itemCount: filteredList.length,
                     itemBuilder: (context, i) {
-                      final data = pengajuanList[i];
+                      final data = filteredList[i];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: CustomEmptyCard(
@@ -130,13 +138,13 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
                               radius: 28,
                               child: const Icon(Icons.person, color: Colors.white),
                             ),
-                            title: Text(data['nama_lengkap'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(data['nama_gerai'] ?? '-'),
-                            trailing: Text((data['status_pengajuan'] ?? '').toString().toUpperCase(),
+                            title: Text(data.namaLengkap, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(data.namaGerai),
+                            trailing: Text(data.statusPengajuan.toUpperCase(),
                               style: TextStyle(
-                                color: (data['status_pengajuan'] ?? '') == 'pending'
+                                color: data.statusPengajuan == 'pending'
                                     ? Colors.orange
-                                    : (data['status_pengajuan'] ?? '') == 'approved'
+                                    : data.statusPengajuan == 'approved'
                                         ? Colors.green
                                         : Colors.red,
                                 fontWeight: FontWeight.bold,

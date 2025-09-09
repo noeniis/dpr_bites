@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
+import 'package:dpr_bites/features/seller/services/pesanan_service.dart';
 
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dpr_bites/models/order_api_model.dart';
+import 'package:dpr_bites/features/seller/models/pesanan/order_api_model.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/features/seller/pages/pesanan/detail_pesanan.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
@@ -67,7 +66,6 @@ class _PesananPageState extends State<PesananPage> {
       });
 
       if (idGerai == null || idGerai!.isEmpty) {
-        // Jangan fetch, hentikan loading agar UI bisa tampil info
         setState(() => isLoading = false);
         return;
       }
@@ -87,71 +85,18 @@ class _PesananPageState extends State<PesananPage> {
       setState(() => isLoading = false);
       return;
     }
-
-    setState(() {
-      isLoading = true;
-    });
-
-    
-    final host = '10.0.2.2'; // emulator Android → host PC
-    final port = 80; 
-    final authority = port == 80 ? host : '$host:$port';
-
-    final params = {'id_gerai': idGerai!};
-    if (_selectedDate != null) {
-      params['tanggal'] = "${_selectedDate!.year.toString().padLeft(4, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
-    }
-
-    final uri = Uri.http(
-      authority,
-      '/dpr_bites_api/get_pesanan_seller.php',
-      params,
-    );
-
+    setState(() => isLoading = true);
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 12));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        // DEBUG: print seluruh data pesanan dari API
-        if (data is Map && data['pesanan'] is List) {
-          for (final e in data['pesanan']) {
-            print('[DEBUG PESANAN] id_transaksi: \\${e['id_transaksi']} | status: \\${e['status']} | metode: \\${e['metode_pembayaran']} | bukti: \\${e['bukti_pembayaran']}');
-          }
-        }
-
-        if (data is Map && data['success'] == true && data['pesanan'] is List) {
-          final list = (data['pesanan'] as List)
-              .map((e) => OrderApiModel.fromJson(e))
-              .toList();
-          if (!mounted) return;
-          setState(() {
-            pesananList = list;
-          });
-        } else {
-          final msg = (data is Map ? data['message'] : null)?.toString() ??
-              'Gagal memuat data';
-          if (!mounted) return;
-          setState(() {
-            pesananList = [];
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg)),
-          );
-        }
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('HTTP ${response.statusCode}: ${response.reasonPhrase ?? ''}')),
-        );
-      }
-    } on TimeoutException {
+      final list = await PesananService.fetchPesanan(idGerai: idGerai!, tanggal: _selectedDate);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Timeout menghubungi server')),
-      );
+      setState(() {
+        pesananList = list;
+      });
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        pesananList = [];
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -164,46 +109,7 @@ class _PesananPageState extends State<PesananPage> {
   }
 
   List<OrderApiModel> get filteredPesananList {
-    if (_selectedFilter == 'Semua') {
-      // Saring pesanan QRIS status konfirmasi_pembayaran tanpa bukti_pembayaran (null/empty string, case-insensitive)
-      return pesananList.where((p) {
-        final metode = p.metodePembayaran.toLowerCase().trim();
-        final status = p.status.toLowerCase().trim();
-        final bukti = (p.buktiPembayaran ?? '').trim();
-        if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
-          return bukti.isNotEmpty;
-        }
-        return true;
-      }).toList();
-    }
-    switch (_selectedFilter) {
-      case 'Konfirmasi Ketersediaan':
-        return pesananList.where((p) => p.status == 'konfirmasi_ketersediaan').toList();
-      case 'Konfirmasi Pembayaran':
-        return pesananList.where((p) {
-          final metode = p.metodePembayaran.toLowerCase().trim();
-          final status = p.status.toLowerCase().trim();
-          final bukti = (p.buktiPembayaran ?? '').trim();
-          if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
-            // QRIS harus ada bukti pembayaran (tidak null/kosong)
-            return bukti.isNotEmpty;
-          } else {
-            return status == 'konfirmasi_pembayaran';
-          }
-        }).toList();
-      case 'Disiapkan':
-        return pesananList.where((p) => p.status == 'disiapkan').toList();
-      case 'Diantar':
-        return pesananList.where((p) => p.status == 'diantar').toList();
-      case 'Pickup':
-        return pesananList.where((p) => p.status == 'pickup').toList();
-      case 'Selesai':
-        return pesananList.where((p) => p.status == 'selesai').toList();
-      case 'Dibatalkan':
-        return pesananList.where((p) => p.status == 'dibatalkan').toList();
-      default:
-        return pesananList;
-    }
+    return PesananService.filterPesanan(pesananList, _selectedFilter);
   }
 
   @override
@@ -319,7 +225,6 @@ class _PesananPageState extends State<PesananPage> {
                             ],
                           ),
                         ),
-                        // Filter horizontal scrollable (status)
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -403,7 +308,6 @@ class _PesananPageState extends State<PesananPage> {
                                                     ),
                                                   );
                                                   if (result != null) {
-                                                    // Jika ada perubahan status, reload data
                                                     fetchPesanan();
                                                   }
                                                 },
@@ -449,7 +353,7 @@ class _PesananPageState extends State<PesananPage> {
           backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
           selectedItemColor: const Color(0xFFD53D3D),
           unselectedItemColor: Colors.black54,
-          currentIndex: 1, // pesanan
+          currentIndex: 1, 
           onTap: (i) {
             if (i == 0) {
               Navigator.push(
