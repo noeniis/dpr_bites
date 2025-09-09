@@ -1,13 +1,9 @@
-import '../../../../common/utils/prefs_helper.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-// import '../../../../common/data/dummy_restaurants.dart'; // replaced by real API data
 import '../../../../common/data/dummy_address.dart';
 import '../../../../common/data/address_store.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-// import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/user/services/home_page_service.dart';
 import 'filter_category_sheet.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'filter_price_sheet.dart';
@@ -29,6 +25,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
   String? selectedPrice;
   String? selectedCategory;
   final searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
 
   // Data restoran dari API
   List<Map<String, dynamic>> _restaurants = [];
@@ -44,6 +41,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
     super.initState();
     _fetchUserAddress();
     _fetchRestaurants();
+    _searchFocus.addListener(() => setState(() {}));
+    searchController.addListener(() => setState(() {}));
   }
 
   @override
@@ -78,47 +77,24 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
   @override
   void dispose() {
+    _searchFocus.dispose();
     searchController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchUserAddress() async {
-    final idUsers = await Prefs.getUserIdString();
-    if (idUsers == null) {
-      setState(() {
-        _buildingName = 'Tambah Alamat Disini';
-        _detailPengantaran = '';
-        _addressLoaded = true;
-      });
-      return;
-    }
-    try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_user_address.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id_users': idUsers}),
-      );
-      final result = jsonDecode(response.body);
-      if (result['success'] == true && result['has_address'] == true) {
-        setState(() {
-          _buildingName = result['nama_gedung'] ?? 'Tambah Alamat Disini';
-          _detailPengantaran = result['detail_pengantaran'] ?? '';
-          _addressLoaded = true;
-        });
+    final res = await HomePageService.fetchUserAddress();
+    if (!mounted) return;
+    setState(() {
+      if (res.hasAddress && res.address != null) {
+        _buildingName = res.address!.buildingName;
+        _detailPengantaran = res.address!.detailPengantaran;
       } else {
-        setState(() {
-          _buildingName = 'Tambah Alamat Disini';
-          _detailPengantaran = '';
-          _addressLoaded = true;
-        });
-      }
-    } catch (e) {
-      setState(() {
         _buildingName = 'Tambah Alamat Disini';
         _detailPengantaran = '';
-        _addressLoaded = true;
-      });
-    }
+      }
+      _addressLoaded = true;
+    });
   }
 
   Future<void> _fetchRestaurants({
@@ -129,41 +105,16 @@ class _HomePageState extends State<HomePage> with RouteAware {
       _loadingRestaurants = true;
       _errorRestaurants = false;
     });
-    try {
-      late final Uri url;
-      if (priceLabel != null) {
-        final encoded = Uri.encodeQueryComponent(priceLabel);
-        url = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_restaurants_by_price.php?price=$encoded',
-        );
-      } else if (minRating != null) {
-        url = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_restaurants_by_rating.php?min_rating=${minRating.toString()}',
-        );
-      } else {
-        url = Uri.parse('http://10.0.2.2/dpr_bites_api/get_restaurants.php');
-      }
-      final res = await http.get(url, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final List data = body['data'] as List? ?? [];
-          _restaurants = data
-              .map<Map<String, dynamic>>(
-                (e) => Map<String, dynamic>.from(e as Map),
-              )
-              .toList();
-        } else {
-          _errorRestaurants = true;
-        }
-      } else {
-        _errorRestaurants = true;
-      }
-    } catch (_) {
-      _errorRestaurants = true;
-    }
+    final res = await HomePageService.fetchRestaurants(
+      minRating: minRating,
+      priceLabel: priceLabel,
+    );
     if (!mounted) return;
     setState(() {
+      _restaurants = res.restaurants
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _errorRestaurants = !res.success;
       _loadingRestaurants = false;
     });
   }
@@ -328,35 +279,41 @@ class _HomePageState extends State<HomePage> with RouteAware {
             ),
             actions: [
               Transform.translate(
-                offset: const Offset(0, -21),
+                offset: const Offset(0, -18),
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 10),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(
-                      Icons.shopping_cart_outlined,
-                      size: 20,
-                      color: Colors.white,
-                    ),
-                    label: const Text(
-                      "Keranjang",
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD53D3D),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                    ),
-                    onPressed: () {
+                  padding: const EdgeInsets.only(right: 14),
+                  child: GestureDetector(
+                    onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const CartPage()),
                       );
                     },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFD53D3D), Color(0xFFB03056)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD53D3D).withOpacity(0.35),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.shopping_cart_outlined,
+                        size: 20,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -372,56 +329,160 @@ class _HomePageState extends State<HomePage> with RouteAware {
                 children: [
                   // Jarak bawah header alamat
                   const SizedBox(height: 0), // Lebih dekat ke AppBar
-                  // Search Field
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomInputField(
-                          hintText: "Apa yang Anda Cari?",
-                          controller: searchController,
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Color(0xFFD53D3D),
-                          ),
-                          onSubmitted: (val) {
-                            print("onSubmitted: $val");
-                            if (val.trim().isEmpty) return;
-                            final query = val.trim();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SearchPage(initialQuery: query),
-                              ),
-                            ).then((_) {
-                              // Clear setelah kembali
-                              if (mounted) {
-                                setState(() {
-                                  searchController.clear();
-                                });
-                              }
-                            });
-                          },
+                  // Search Field - minimal, modern, animated
+                  Builder(
+                    builder: (context) {
+                      final bool focused =
+                          _searchFocus.hasFocus ||
+                          searchController.text.isNotEmpty;
+                      final gradientColors = const [
+                        Color(0xFFD53D3D),
+                        Color(0xFFB03056),
+                      ];
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(horizontal: 0),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (focused
+                                  ? const Color(0xFFD53D3D).withOpacity(0.18)
+                                  : const Color(0xFFD53D3D).withOpacity(0.10)),
+                              blurRadius: focused ? 18 : 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        child: Container(
+                          padding: const EdgeInsets.all(2.6),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: focused
+                                ? LinearGradient(
+                                    colors: gradientColors,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : LinearGradient(
+                                    colors: [
+                                      const Color(0xFFD53D3D).withOpacity(0.30),
+                                      const Color(0xFFB03056).withOpacity(0.30),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                          ),
+                          child: Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: focused
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.98),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  size: 22,
+                                  color: focused
+                                      ? const Color(0xFFD53D3D)
+                                      : Colors.black38,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    focusNode: _searchFocus,
+                                    controller: searchController,
+                                    textInputAction: TextInputAction.search,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Lagi Pengen Makan Apa?',
+                                      hintStyle: TextStyle(
+                                        color: Colors.black38,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      isDense: true,
+                                      border: InputBorder.none,
+                                    ),
+                                    onSubmitted: (val) {
+                                      final query = val.trim();
+                                      if (query.isEmpty) return;
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              SearchPage(initialQuery: query),
+                                        ),
+                                      ).then((_) {
+                                        if (mounted) {
+                                          setState(() {
+                                            searchController.clear();
+                                            _searchFocus.unfocus();
+                                          });
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ),
+                                if (searchController.text.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () {
+                                      searchController.clear();
+                                      _searchFocus.requestFocus();
+                                    },
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
 
-                  // Filter chips
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
+                  // Filter chips (modern, full-bleed horizontally scrollable)
+                  SizedBox(
+                    height: 52,
+                    width: double.infinity,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      clipBehavior: Clip.none, // allow bounce paint outside
+                      // Gutter kiri & kanan supaya bounce terlihat (visual ruang minimal)
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       children: [
-                        CustomFilterChip(
-                          label: "Bintang 4.5+",
+                        const SizedBox(width: 4), // extra left gutter
+                        _FilterPill(
+                          label: 'Bintang 4.5+',
                           selected: selectedRating != null,
+                          leading: const Icon(
+                            Icons.star,
+                            size: 18,
+                            color: Colors.amber,
+                          ),
                           onTap: () {
                             final willSelect = selectedRating == null;
-                            setState(() {
-                              selectedRating = willSelect ? '4.5' : null;
-                            });
-                            // Fetch dari API rating jika diaktifkan, jika tidak ambil semua
+                            setState(
+                              () => selectedRating = willSelect ? '4.5' : null,
+                            );
                             if (willSelect) {
                               _fetchRestaurants(minRating: 4.5);
                             } else {
@@ -429,10 +490,15 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             }
                           },
                         ),
-                        const SizedBox(width: 10),
-                        CustomFilterChip(
-                          label: "Rentang harga",
+                        _FilterSpacing(),
+                        _FilterPill(
+                          label: selectedPrice ?? 'Rentang harga',
                           selected: selectedPrice != null,
+                          leading: const Icon(
+                            Icons.monetization_on,
+                            size: 18,
+                            color: Color(0xFFD53D3D),
+                          ),
                           onTap: () async {
                             final result = await showModalBottomSheet<String>(
                               context: context,
@@ -444,13 +510,10 @@ class _HomePageState extends State<HomePage> with RouteAware {
                               builder: (_) =>
                                   FilterPriceSheet(initialValue: selectedPrice),
                             );
-                            setState(() {
-                              selectedPrice = result;
-                            });
+                            setState(() => selectedPrice = result);
                             if (result != null) {
                               _fetchRestaurants(priceLabel: result);
                             } else {
-                              // reset list (pertahankan rating jika aktif)
                               if (selectedRating != null) {
                                 _fetchRestaurants(minRating: 4.5);
                               } else {
@@ -458,13 +521,27 @@ class _HomePageState extends State<HomePage> with RouteAware {
                               }
                             }
                           },
+                          onClear: selectedPrice != null
+                              ? () {
+                                  setState(() => selectedPrice = null);
+                                  if (selectedRating != null) {
+                                    _fetchRestaurants(minRating: 4.5);
+                                  } else {
+                                    _fetchRestaurants();
+                                  }
+                                }
+                              : null,
                         ),
-                        const SizedBox(width: 10),
-                        CustomFilterChip(
-                          label: "Kuliner",
+                        _FilterSpacing(),
+                        _FilterPill(
+                          label: selectedCategory ?? 'Kuliner',
                           selected: selectedCategory != null,
+                          leading: const Icon(
+                            Icons.category_outlined,
+                            size: 18,
+                            color: Color(0xFFD53D3D),
+                          ),
                           onTap: () async {
-                            // Modal filter kategori
                             final result = await showModalBottomSheet<String>(
                               context: context,
                               shape: const RoundedRectangleBorder(
@@ -476,11 +553,15 @@ class _HomePageState extends State<HomePage> with RouteAware {
                                 initialValue: selectedCategory,
                               ),
                             );
-                            setState(() {
-                              selectedCategory = result;
-                            });
+                            setState(() => selectedCategory = result);
                           },
+                          onClear: selectedCategory != null
+                              ? () => setState(() => selectedCategory = null)
+                              : null,
                         ),
+                        const SizedBox(
+                          width: 16,
+                        ), // right gutter for overscroll space
                       ],
                     ),
                   ),
@@ -640,53 +721,215 @@ class _HomePageState extends State<HomePage> with RouteAware {
             ),
           ),
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
-          selectedItemColor: const Color(0xFFD53D3D),
-          unselectedItemColor: Colors.black54,
-          currentIndex: 0,
-          selectedFontSize: 14,
-          unselectedFontSize: 13,
-          iconSize: 30,
-          onTap: (i) {
-            if (i == 0) {
-              // Home
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const HomePage()),
-              );
-            } else if (i == 1) {
-              // History
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryPage()),
-              );
-            } else if (i == 2) {
-              // Favorit
-              Navigator.pushReplacementNamed(context, '/favorit');
-            } else if (i == 3) {
-              // Profile
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: "History",
+        bottomNavigationBar: _MinimalBottomNav(currentIndex: 0),
+      ),
+    );
+  }
+}
+
+class _MinimalBottomNav extends StatelessWidget {
+  final int currentIndex; // 0 home,1 history,2 favorit,3 profile
+  const _MinimalBottomNav({required this.currentIndex});
+
+  Color get _primary => const Color(0xFFD53D3D);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget buildItem({required IconData icon, required int index}) {
+      final bool active = index == currentIndex;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: active
+              ? null
+              : () {
+                  switch (index) {
+                    case 0:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HomePage()),
+                      );
+                      break;
+                    case 1:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HistoryPage()),
+                      );
+                      break;
+                    case 2:
+                      Navigator.pushReplacementNamed(context, '/favorit');
+                      break;
+                    case 3:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      );
+                      break;
+                  }
+                },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: active
+                    ? LinearGradient(
+                        colors: [_primary, _primary.withOpacity(0.75)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: active ? null : Colors.transparent,
+              ),
+              child: Icon(
+                icon,
+                size: 26,
+                color: active ? Colors.white : _primary.withOpacity(0.7),
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.favorite),
-              label: "Favorit",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: "Profil",
-            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Row(
+          children: [
+            buildItem(icon: Icons.home_rounded, index: 0),
+            buildItem(icon: Icons.history_rounded, index: 1),
+            buildItem(icon: Icons.favorite_rounded, index: 2),
+            buildItem(icon: Icons.person_rounded, index: 3),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterSpacing extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => const SizedBox(width: 10);
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+  final Widget? leading;
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.onClear,
+    this.leading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected
+        ? const LinearGradient(colors: [Color(0xFFD53D3D), Color(0xFFB03056)])
+        : const LinearGradient(colors: [Colors.white, Colors.white]);
+    final borderColor = selected
+        ? const Color(0xFFD53D3D)
+        : Colors.grey.shade300;
+    final textColor = selected ? Colors.white : const Color(0xFF602829);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: EdgeInsets.symmetric(
+              horizontal: selected ? 16 : 18,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              gradient: bg,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: borderColor, width: 1.2),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFD53D3D).withOpacity(0.28),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (leading != null) ...[
+                  IconTheme(
+                    data: IconThemeData(
+                      color: selected
+                          ? Colors.white
+                          : leading is Icon
+                          ? (leading as Icon).color
+                          : null,
+                      size: 18,
+                    ),
+                    child: leading!,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                if (onClear != null) ...[
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: onClear,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white24 : Colors.grey.shade200,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.close,
+                        size: 14,
+                        color: selected ? Colors.white : Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

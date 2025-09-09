@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../checkout/checkout_page.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
+import 'package:dpr_bites/features/user/services/cart_service.dart';
 
 class CartPage extends StatefulWidget {
   const CartPage({Key? key}) : super(key: key);
@@ -14,14 +12,14 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  int? _userId; // loaded from SharedPreferences 'id_users'
+  int? _userId; // loaded via CartService.getUserIdFromPrefs
   List<Map<String, dynamic>> carts = [];
   Map<int, Set<int>> selectedMenus = {};
   bool _loading = false; // minimal spinner to keep UI feel
   bool _busy = false;
   bool _dirty = false; // track if any change made to inform previous page
-
-  static const String _baseApi = 'http://10.0.2.2/dpr_bites_api';
+  // Build image URLs using backend base
+  String get _baseApi => CartService.getBaseApiUrlForCart();
 
   Widget _buildMenuImage(String? path, {double size = 48, double radius = 8}) {
     if (path == null || path.isEmpty) {
@@ -138,11 +136,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    try {
-      final id = prefs.getInt('id_users');
-      if (id != null) _userId = id;
-    } catch (_) {}
+    _userId = await CartService.getUserIdFromPrefs();
     await _fetchCart();
   }
 
@@ -151,57 +145,11 @@ class _CartPageState extends State<CartPage> {
       _loading = true;
     });
     try {
-      // Ensure we have current user id
-      if (_userId == null) {
-        final prefs = await SharedPreferences.getInstance();
-        _userId = prefs.getInt('id_users');
-      }
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=${_userId ?? ''}',
-      );
-      final headers = {'Accept': 'application/json'};
-      if (_userId != null) headers['X-User-Id'] = _userId.toString();
-      final res = await http.get(uri, headers: headers);
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          if (data is List) {
-            final fetched = <Map<String, dynamic>>[];
-            for (final r in data) {
-              if (r is Map) {
-                final menus = (r['menus'] as List? ?? [])
-                    .whereType<Map>()
-                    .map(
-                      (m) => {
-                        'id_keranjang_item': m['id_keranjang_item'],
-                        'menu_id': m['menu_id'],
-                        'name': m['name'],
-                        'desc': m['desc'],
-                        'image': m['image'],
-                        'price': m['price'],
-                        'qty': m['qty'],
-                        'addon': m['addon'] ?? <String>[],
-                        'addonPrice': m['addonPrice'] ?? 0,
-                        'addonOptions': m['addonOptions'] ?? [],
-                        'note': m['note'] ?? '',
-                      },
-                    )
-                    .toList();
-                fetched.add({
-                  'id_keranjang': r['id_keranjang'],
-                  'id_gerai': r['id_gerai'],
-                  'restaurantName': r['restaurantName'],
-                  'estimate': r['estimate'] ?? '15-20 menit',
-                  'menus': menus,
-                });
-              }
-            }
-            setState(() {
-              carts = fetched;
-            });
-          }
-        }
+      final result = await CartService.fetchCart(userId: _userId);
+      if (mounted) {
+        setState(() {
+          carts = result.carts;
+        });
       }
     } catch (_) {
     } finally {
@@ -226,48 +174,17 @@ class _CartPageState extends State<CartPage> {
     if (_busy) return;
     _busy = true;
     try {
-      final addonIds = <int>[];
-      for (final label in addonLabels) {
-        final match = addonOptions.firstWhere(
-          (o) => o is Map && o['label'] == label,
-          orElse: () => null,
-        );
-        if (match is Map && match['id'] != null) {
-          final idVal = int.tryParse(match['id'].toString());
-          if (idVal != null) addonIds.add(idVal);
-        }
-      }
-      final mapPayload = <String, dynamic>{
-        'user_id': _userId,
-        'gerai_id': geraiId,
-        'menu_id': menuId,
-        'qty': qty,
-      };
-      if (cartItemId != null && cartItemId > 0) {
-        mapPayload['item_id'] = cartItemId; // API uses item_id for explicit row
-      }
-      if (addonsExplicit || addonIds.isNotEmpty) {
-        mapPayload['addons'] = addonIds; // explicit even if empty
-      }
-      if (noteProvided) {
-        mapPayload['note'] = note ?? '';
-      }
-      // ensure user id present in payload
-      if ((_userId ?? 0) <= 0) {
-        final prefs = await SharedPreferences.getInstance();
-        _userId = prefs.getInt('id_users');
-      }
-      mapPayload['user_id'] = _userId ?? mapPayload['user_id'];
-      final payload = jsonEncode(mapPayload);
-      final headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      };
-      if (_userId != null) headers['X-User-Id'] = _userId.toString();
-      await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php'),
-        headers: headers,
-        body: payload,
+      await CartService.addOrUpdateCartItem(
+        userId: _userId,
+        geraiId: geraiId,
+        menuId: menuId,
+        qty: qty,
+        addonLabels: addonLabels,
+        addonOptions: addonOptions,
+        addonsExplicit: addonsExplicit,
+        note: note,
+        noteProvided: noteProvided,
+        cartItemId: cartItemId,
       );
       _dirty = true; // mark changes
     } catch (_) {
@@ -440,7 +357,7 @@ class _CartPageState extends State<CartPage> {
                     width: double.infinity,
                     child: CustomButtonKotak(
                       text: 'Simpan',
-                      onPressed: () {
+                      onPressed: () async {
                         int totalAddonPrice = 0;
                         for (final opt in addonOptions) {
                           if (selectedAddons.contains(opt['label']))
@@ -451,7 +368,7 @@ class _CartPageState extends State<CartPage> {
                           menu['addon'] = selectedAddons;
                           menu['addonPrice'] = totalAddonPrice;
                         });
-                        _syncItem(
+                        await _syncItem(
                           geraiId: carts[restIdx]['id_gerai'] as int,
                           menuId: menu['menu_id'] as int,
                           qty: menu['qty'] as int,
@@ -464,6 +381,8 @@ class _CartPageState extends State<CartPage> {
                             (menu['id_keranjang_item'] ?? '').toString(),
                           ),
                         );
+                        await _fetchCart();
+                        if (mounted) setState(() {});
                         Navigator.pop(context);
                       },
                     ),

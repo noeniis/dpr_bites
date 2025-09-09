@@ -3,13 +3,13 @@ import 'package:flutter/services.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geocoding/geocoding.dart';
+import 'package:dpr_bites/features/user/models/address_add_page_model.dart';
+import 'package:dpr_bites/features/user/services/address_add_page_service.dart';
 import 'address_maps_page.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class AddressAddPage extends StatefulWidget {
   final int? idAlamat; // if set -> edit mode
@@ -30,14 +30,12 @@ class _AddressAddPageState extends State<AddressAddPage> {
   double? _lat;
   double? _lon;
   String? _alamatLengkapMaps;
+  int? _userId;
 
   @override
   void initState() {
     super.initState();
-    // Jika edit mode, load detail alamat
-    if (widget.idAlamat != null) {
-      _loadDetail();
-    }
+    _bootstrap();
   }
 
   @override
@@ -52,75 +50,65 @@ class _AddressAddPageState extends State<AddressAddPage> {
   bool _loading = false; // saving state
   bool _loadingDetail = false; // loading detail in edit mode
 
-  Future<void> _loadDetail() async {
-    setState(() => _loadingDetail = true);
-    final url = Uri.parse(
-      'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_get_detail.php',
-    );
-    try {
-      final int idUsers = await _getCurrentUserId();
-      if (idUsers <= 0) throw Exception('User tidak terautentikasi');
-      final res = await http.post(
-        url,
-        body: jsonEncode({'id_alamat': widget.idAlamat}),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': idUsers.toString(),
-        },
+  Future<void> _bootstrap() async {
+    setState(() => _loadingDetail = widget.idAlamat != null);
+    final uid = await AddressAddPageService.getUserIdFromPrefs();
+    _userId = uid;
+    if (uid == null || uid <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('User belum login')));
+      }
+      setState(() => _loadingDetail = false);
+      return;
+    }
+    if (widget.idAlamat != null) {
+      final res = await AddressAddPageService.fetchDetail(
+        idAlamat: widget.idAlamat!,
+        userId: uid,
       );
-      final data = jsonDecode(res.body);
-      if (data['success'] == true && data['address'] != null) {
-        final a = data['address'] as Map<String, dynamic>;
-        _namaPenerimaC.text = (a['nama_penerima'] ?? '').toString();
-        _namaGedungC.text = (a['nama_gedung'] ?? '').toString();
-        _detailPengantaranC.text = (a['detail_pengantaran'] ?? '').toString();
-        _noHpC.text = (a['no_hp'] ?? '').toString();
-        final lat = (a['latitude']);
-        final lon = (a['longitude']);
-        _lat = (lat is num) ? lat.toDouble() : double.tryParse('$lat');
-        _lon = (lon is num) ? lon.toDouble() : double.tryParse('$lon');
+      if (res.detail != null) {
+        final a = res.detail!;
+        _namaPenerimaC.text = a.namaPenerima;
+        _namaGedungC.text = a.namaGedung;
+        _detailPengantaranC.text = a.detailPengantaran;
+        _noHpC.text = a.noHp;
+        _lat = a.latitude;
+        _lon = a.longitude;
         _lokasiDipilih = _lat != null && _lon != null;
         if (_lat != null && _lon != null) {
           _alamatLengkapMaps = await _getAddressFromLatLng(_lat!, _lon!);
         } else {
           _alamatLengkapMaps = null;
         }
-        _isDefault =
-            (a['alamat_utama'] == 1 ||
-            a['alamat_utama'] == true ||
-            a['alamat_utama']?.toString() == '1');
-        setState(() {});
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? 'Gagal memuat detail alamat'),
-          ),
-        );
+        _isDefault = a.alamatUtama;
+      } else if (res.error != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(res.error!)));
+        }
       }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memuat detail alamat: $e')));
-    } finally {
+      if (mounted) setState(() => _loadingDetail = false);
+    } else {
       if (mounted) setState(() => _loadingDetail = false);
     }
   }
 
   Future<String?> _getAddressFromLatLng(double lat, double lon) async {
     try {
-      final placemarks = await placemarkFromCoordinates(lat, lon);
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        final address = [
-          p.street,
-          p.subLocality,
-          p.locality,
-          p.subAdministrativeArea,
-          p.administrativeArea,
-          p.postalCode,
-          p.country,
-        ].where((e) => e != null && e.isNotEmpty).join(', ');
-        return address.isNotEmpty ? address : null;
+      final url = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon',
+      );
+      final res = await http.get(
+        url,
+        headers: {'User-Agent': 'dpr-bites/1.0 (contact: example@example.com)'},
+      );
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final disp = (data['display_name'] as String?)?.trim();
+        if (disp != null && disp.isNotEmpty) return disp;
       }
     } catch (_) {}
     return null;
@@ -135,77 +123,45 @@ class _AddressAddPageState extends State<AddressAddPage> {
       return;
     }
     setState(() => _loading = true);
-    final int idUsers = await _getCurrentUserId();
-    if (idUsers <= 0) {
+    final int? idUsers =
+        _userId ?? await AddressAddPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers <= 0) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('User belum login')));
       setState(() => _loading = false);
       return;
     }
-    final isEdit = widget.idAlamat != null;
-    final url = Uri.parse(
-      isEdit
-          ? 'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_update.php'
-          : 'http://10.0.2.2/dpr_bites_api/alamat_pengantaran_add.php',
+    final req = AddressUpsertRequest(
+      idAlamat: widget.idAlamat,
+      namaPenerima: _namaPenerimaC.text.trim(),
+      namaGedung: _namaGedungC.text.trim(),
+      detailPengantaran: _detailPengantaranC.text.trim(),
+      latitude: _lat!,
+      longitude: _lon!,
+      noHp: _noHpC.text.trim(),
+      alamatUtama: _isDefault,
     );
-    final body = {
-      'id_users': idUsers,
-      if (isEdit) 'id_alamat': widget.idAlamat,
-      'nama_penerima': _namaPenerimaC.text.trim(),
-      'nama_gedung': _namaGedungC.text.trim(),
-      'detail_pengantaran': _detailPengantaranC.text.trim(),
-      'latitude': _lat,
-      'longitude': _lon,
-      'no_hp': _noHpC.text.trim(),
-      'alamat_utama': _isDefault ? 1 : 0,
-    };
-    try {
-      final res = await http.post(
-        url,
-        body: jsonEncode(body),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': idUsers.toString(),
-        },
-      );
-      final data = jsonDecode(res.body);
-      if (data['success'] == true) {
-        Navigator.pop(context, true);
-      } else {
+    final res = await AddressAddPageService.saveAddress(
+      request: req,
+      userId: idUsers,
+    );
+    if (res.success) {
+      if (mounted) Navigator.pop(context, true);
+    } else {
+      if (mounted) {
+        final isEdit = widget.idAlamat != null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              data['message'] ??
+              res.message ??
                   (isEdit ? 'Gagal mengubah alamat' : 'Gagal menyimpan alamat'),
             ),
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isEdit ? 'Gagal mengubah alamat: $e' : 'Gagal menyimpan alamat: $e',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<int> _getCurrentUserId() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      int? id = prefs.getInt('id_users');
-      if (id != null) return id;
-      final s = prefs.getString('id_users');
-      if (s == null) return 0;
-      return int.tryParse(s) ?? 0;
-    } catch (_) {
-      return 0;
-    }
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -339,8 +295,16 @@ class _AddressAddPageState extends State<AddressAddPage> {
                               if (result is Map) {
                                 final lat = (result['lat'] as num?)?.toDouble();
                                 final lon = (result['lon'] as num?)?.toDouble();
-                                String? alamat;
-                                if (lat != null && lon != null) {
+                                final addrFromMap =
+                                    (result['address'] as String?)?.trim();
+                                String? alamat =
+                                    (addrFromMap != null &&
+                                        addrFromMap.isNotEmpty)
+                                    ? addrFromMap
+                                    : null;
+                                if (alamat == null &&
+                                    lat != null &&
+                                    lon != null) {
                                   alamat = await _getAddressFromLatLng(
                                     lat,
                                     lon,

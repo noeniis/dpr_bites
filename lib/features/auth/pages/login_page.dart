@@ -77,7 +77,17 @@ class _LoginPageState extends State<LoginPage> {
       // Simpan id_users ke SharedPreferences dan print ke terminal
       if (result['id_users'] != null) {
         final prefs = await SharedPreferences.getInstance();
+        // Keep existing string write for backward compatibility with code that reads as string
         await prefs.setString('id_users', result['id_users'].toString());
+        // Also store as int so pages that call getInt('id_users') receive a value
+        try {
+          final parsed = int.tryParse(result['id_users'].toString());
+          if (parsed != null) {
+            await prefs.setInt('id_users', parsed);
+          }
+        } catch (_) {
+          // ignore
+        }
         debugPrint('ID USERS LOGIN: ${result['id_users']}');
       }
       // Redirect sesuai role dari backend
@@ -341,7 +351,9 @@ class _LoginPageState extends State<LoginPage> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const OnboardingChecklistPage(),
+                      ),
                     );
                   },
                   child: Container(

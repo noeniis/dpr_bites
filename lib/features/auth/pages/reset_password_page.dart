@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'login_page.dart';
+import 'models/reset_password_page_model.dart';
+import 'services/reset_password_page_service.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String email;
@@ -43,20 +44,20 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     }
     // Cek password baru tidak sama dengan password lama (ke backend)
     try {
-      final response = await resetPasswordApi(
-        widget.email,
-        widget.otp,
-        password,
+      final result = await ResetPasswordPageService.reset(
+        ResetPasswordRequest(
+          email: widget.email,
+          otp: widget.otp,
+          newPassword: password,
+        ),
       );
-      if (response['success'] == true) {
+      if (result.success) {
         if (!mounted) return;
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/login', (route) => false);
+        _showSuccessDialog();
       } else {
         setState(() {
           // Jika backend mengembalikan pesan password sama dengan lama
-          _error = response['message'] ?? 'Gagal reset password';
+          _error = result.message ?? 'Gagal reset password';
         });
       }
     } catch (e) {
@@ -68,6 +69,107 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         _isLoading = false;
       });
     }
+  }
+
+  void _showSuccessDialog() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Sukses',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (context, anim1, anim2) {
+        return const SizedBox.shrink();
+      },
+      transitionBuilder: (context, anim, _, __) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return Opacity(
+          opacity: curved.value,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(curved),
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 28),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFE5EC),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFFD53D3D),
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Berhasil Mengubah Password',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Password Anda telah diperbarui. Silakan login kembali untuk melanjutkan.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: CustomButtonKotak(
+                          text: 'Kembali Ke Login',
+                          onPressed: () {
+                            // Tutup dialog lalu arahkan ke LoginPage
+                            Navigator.of(context, rootNavigator: true).pop();
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginPage(),
+                                ),
+                                (route) => false,
+                              );
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -156,17 +258,4 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       ),
     );
   }
-}
-
-Future<Map<String, dynamic>> resetPasswordApi(
-  String email,
-  String otp,
-  String newPassword,
-) async {
-  final response = await http.post(
-    Uri.parse('http://10.0.2.2/dpr_bites_api/reset_password.php'),
-    body: jsonEncode({'email': email, 'otp': otp, 'new_password': newPassword}),
-    headers: {'Content-Type': 'application/json'},
-  );
-  return jsonDecode(response.body);
 }

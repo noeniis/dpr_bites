@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'features/seller/pages/beranda/dashboard_page.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app_theme.dart';
 import 'features/auth/pages/login_page.dart';
 import 'features/user/pages/home/home_page.dart';
@@ -12,7 +12,20 @@ import 'features/user/pages/profile/profile_page.dart';
 import 'features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'features/auth/pages/reset_password_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Migration: if id_users is stored as string but not as int, try to normalize it
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final intVal = prefs.getInt('id_users');
+    if (intVal == null) {
+      final s = prefs.getString('id_users');
+      if (s != null) {
+        final parsed = int.tryParse(s);
+        if (parsed != null) await prefs.setInt('id_users', parsed);
+      }
+    }
+  } catch (_) {}
   runApp(const MyApp());
 }
 
@@ -25,15 +38,6 @@ class MyApp extends StatelessWidget {
       title: 'DPR Bites',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.mainTheme,
-      localizationsDelegates: [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('id', 'ID'),
-        Locale('en', 'US'),
-      ],
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginPage(),

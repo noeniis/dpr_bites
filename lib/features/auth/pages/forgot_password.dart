@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'otp_verification_page.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'models/forgot_password_model.dart';
+import 'services/forgot_password_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -31,8 +31,10 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
     try {
-      final response = await forgotPasswordApi(email);
-      if (response['success'] == true) {
+      final result = await ForgotPasswordService.sendOtp(
+        ForgotPasswordRequest(email),
+      );
+      if (result.success) {
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -41,7 +43,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         );
       } else {
         setState(() {
-          _error = response['message'] ?? 'Gagal mengirim OTP';
+          _error = result.message ?? 'Gagal mengirim OTP';
         });
       }
     } catch (e) {
@@ -125,14 +127,4 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       ),
     );
   }
-}
-
-Future<Map<String, dynamic>> forgotPasswordApi(String email) async {
-  // Ganti IP di bawah sesuai IP komputer Anda
-  final response = await http.post(
-    Uri.parse('http://10.0.2.2/dpr_bites_api/forgot_password.php'),
-    body: jsonEncode({'email': email}),
-    headers: {'Content-Type': 'application/json'},
-  );
-  return jsonDecode(response.body);
 }

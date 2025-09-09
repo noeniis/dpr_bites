@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'models/otp_verification_page_model.dart';
+import 'services/otp_verification_page_service.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String email;
@@ -32,8 +32,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       return;
     }
     try {
-      final response = await verifyOtpApi(widget.email, otp);
-      if (response['success'] == true) {
+      final result = await OtpVerificationPageService.verify(
+        OtpVerifyRequest(email: widget.email, otp: otp),
+      );
+      if (result.success) {
         if (!mounted) return;
         Navigator.of(context).pushReplacementNamed(
           '/reset-password',
@@ -41,7 +43,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         );
       } else {
         setState(() {
-          _error = response['message'] ?? 'OTP salah';
+          _error = result.message ?? 'OTP salah';
         });
       }
     } catch (e) {
@@ -123,13 +125,4 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       ),
     );
   }
-}
-
-Future<Map<String, dynamic>> verifyOtpApi(String email, String otp) async {
-  final response = await http.post(
-    Uri.parse('http://10.0.2.2/dpr_bites_api/verify_otp.php'),
-    body: jsonEncode({'email': email, 'otp': otp}),
-    headers: {'Content-Type': 'application/json'},
-  );
-  return jsonDecode(response.body);
 }

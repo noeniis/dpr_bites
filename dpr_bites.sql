@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 30, 2025 at 01:07 PM
+-- Generation Time: Sep 09, 2025 at 06:46 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -44,10 +44,20 @@ CREATE TABLE `addon` (
 --
 
 INSERT INTO `addon` (`id_addon`, `id_gerai`, `nama_addon`, `harga`, `deskripsi`, `image_path`, `created_at`, `stok`, `tersedia`) VALUES
-(7, 3, 'puding', 6000, 'puding rasa cokelat', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961599/br5sodzx3hczoezcqm96.jpg', '2025-08-23 22:06:38', 4, 1),
-(9, 3, 'Minuman green tea', 7000, 'minuman green tea', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756007739/bzvadm7wiuqch8vwo3hb.jpg', '2025-08-24 10:55:38', 13, 1),
+(7, 3, 'puding', 6000, 'puding rasa cokelat', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1755961599/br5sodzx3hczoezcqm96.jpg', '2025-08-23 22:06:38', 3, 1),
+(9, 3, 'Minuman green tea', 7000, 'minuman green tea 250 ml', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756007739/bzvadm7wiuqch8vwo3hb.jpg', '2025-08-24 10:55:38', 13, 1),
 (14, 3, 'Susu kotak pisang', 6000, 'susu kotak rasa pisang', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756191072/t0ezo6dfcfjqrw2rwikz.jpg', '2025-08-26 13:51:13', 15, 1),
-(15, 3, 'Roti Abon', 8000, 'Roti Abon', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756193435/upwwnr9ayz29saosbhho.jpg', '2025-08-26 13:57:48', 4, 1);
+(15, 3, 'Roti Abon', 8000, 'Roti Abon', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756193435/upwwnr9ayz29saosbhho.jpg', '2025-08-26 13:57:48', 3, 1),
+(16, 7, 'Bakso', 5000, 'Bakso 2 buah', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756709747/zhsanpwjsrmkqsyquj4v.jpg', '2025-09-01 13:55:48', 6, 1),
+(17, 8, 'Bakso', 8000, 'Bakso is 2', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756977809/nk81xz17w4slzqphnikj.jpg', '2025-09-04 16:23:28', 20, 1),
+(18, 9, 'Telur', 6000, 'telur rebus', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757046857/basit6eivyaq8mtsyson.jpg', '2025-09-05 11:34:17', 10, 1),
+(19, 9, 'Ice cream', 22000, 'matcha', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757132881/cfkyuphyisuioedqulxs.jpg', '2025-09-06 11:28:01', 20, 1),
+(20, 3, 'Snack', 6000, 'snack', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757140032/ker5gbcb3xkckrjnnsmt.jpg', '2025-09-06 13:27:12', 8, 1),
+(21, 10, 'Bakso', 8000, 'Bakso Kuah', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757218469/gec5aic8fhs1nxeqsyyg.jpg', '2025-09-07 11:14:30', 10, 1),
+(22, 10, 'Roti', 8000, 'roti', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757220440/fe9oybvee3kxoc4uy4qc.jpg', '2025-09-07 11:47:21', 10, 1),
+(23, 11, 'puding', 10000, 'puding cokelat', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221667/xqtxuk7dfzhvyk5oamkd.jpg', '2025-09-07 12:07:48', 5, 1),
+(24, 13, 'Ayam', 9000, 'ayam', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302876/wxf2b9rpavsv3abyukfs.jpg', '2025-09-08 10:41:16', 10, 1),
+(25, 14, 'Bakso', 8000, 'bakso', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314754/bctivprya8862xwnc3wn.jpg', '2025-09-08 13:59:14', 20, 1);
 
 -- --------------------------------------------------------
 
@@ -100,7 +110,21 @@ INSERT INTO `etalase` (`id_etalase`, `id_gerai`, `nama_etalase`, `created_at`) V
 (3, 3, 'Minuman', '2025-08-24 10:48:41'),
 (5, 3, 'Camilan', '2025-08-26 13:02:54'),
 (7, 3, 'Makanan', '2025-08-26 13:13:27'),
-(10, 5, 'Jajanan SD', '2025-08-30 16:02:03');
+(10, 5, 'Jajanan SD', '2025-08-30 16:02:03'),
+(15, 8, 'Ayam', '2025-09-04 16:16:54'),
+(16, 9, 'Makanan Berkuah', '2025-09-05 11:33:33'),
+(17, 9, 'Ayam', '2025-09-06 11:10:34'),
+(19, 3, 'Ayam', '2025-09-06 13:45:46'),
+(20, 9, 'Minuman', '2025-09-06 13:51:00'),
+(21, 10, 'Paket Ayam', '2025-09-07 11:13:58'),
+(22, 10, 'Camilan', '2025-09-07 11:16:42'),
+(23, 10, 'Es', '2025-09-07 11:43:00'),
+(24, 10, 'Makanan', '2025-09-07 11:46:32'),
+(25, 7, 'Makanan', '2025-09-07 11:49:57'),
+(26, 11, 'Roti', '2025-09-07 12:07:18'),
+(27, 12, 'Makanan', '2025-09-07 12:19:20'),
+(28, 13, 'Makanan Berat', '2025-09-08 10:40:42'),
+(29, 14, 'Makanan Berat', '2025-09-08 13:58:30');
 
 -- --------------------------------------------------------
 
@@ -153,7 +177,16 @@ INSERT INTO `gerai` (`id_gerai`, `id_users`, `nama_gerai`, `latitude`, `longitud
 (1, 1, 'Waroenk Noeni', 123.0000000, 123.0000000, 'JL. Merdeka 1', '0862528293', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:07', ''),
 (2, 2, 'Waroenk Noeni', 123.0000000, 123.0000000, 'JL. Merdeka 3', '0862528293', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'rejected', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:07', 'Data tidak valid; Dokumen tidak sesuai'),
 (3, 5, 'Waroenk Sila', 123.0000000, 123.0000000, 'JL. Maju 10', '0862528293', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:40', ''),
-(5, 12, 'Warung Makan Farah', 123.0000000, 123.0000000, 'Kantin Pujasera', '089689388', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:40', '');
+(5, 12, 'Warung Makan Farah', 123.0000000, 123.0000000, 'Kantin Pujasera', '089689388', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:40', ''),
+(6, 13, 'Warung Laura', 123.0000000, 123.0000000, 'Kantin Pujasera', '089689388', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-08-26 15:20:40', ''),
+(7, 11, 'Kantin Selaras', 123.0000000, 123.0000000, 'Kantin Pujasera', '089689388', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/qris-default_lr9x0g.jpg', 'approved', 0, '2025-08-20 11:28:09', '2025-09-07 11:49:00', ''),
+(8, 14, 'Kedai Bersama', -6.2110363, 106.7978352, 'Kantin Risanti', '08264714', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756974144/ib2tagwecqgbpvqqwst1.png', 'approved', 1, '2025-09-04 13:00:04', '2025-09-04 15:45:49', ''),
+(9, 15, 'Rumah Makan Nina', -6.2110363, 106.7982956, 'Kantin Pujasera', '0867278433', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757046703/afdr2sfm5pcxij2myfb3.png', 'approved', 1, '2025-09-04 17:18:36', '2025-09-05 11:32:28', ''),
+(10, 16, 'Warung Sunda', -6.2098462, 106.8001840, 'Kantin Risanti ', '08627484', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757168410/hdnu6ijnxkoofs8n8rfk.png', 'approved', 1, '2025-09-06 20:56:14', '2025-09-07 11:12:31', ''),
+(11, 17, 'Rumah Makan Kinan', -6.2113078, 106.7996221, 'Kantin Pujasera Blok B', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221527/dclerdljisfv7evyxqos.png', 'approved', 1, '2025-09-07 11:52:04', '2025-09-07 12:06:46', ''),
+(12, 9, 'Warung Bu Ayu', -6.2100669, 106.7986934, 'Kantin Risanti', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757222233/yre8m7qklteo4fu3qcqo.png', 'approved', 1, '2025-09-07 12:16:33', '2025-09-07 12:18:40', ''),
+(13, 18, 'Warung Pojok Hasan', -6.2083215, 106.7981004, 'Kantin Belakang Masjid', '08283749292', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302016/skcyrsvgqiknejaobk2z.png', 'approved', 1, '2025-09-08 10:24:56', '2025-09-08 10:39:53', ''),
+(14, 19, 'Warung Kandar', -6.2093762, 106.7986934, 'Kantin Pujasera', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314367/e7wikjuxkklrgepdgl1x.png', 'approved', 0, '2025-09-08 13:51:28', '2025-09-08 13:57:43', '');
 
 -- --------------------------------------------------------
 
@@ -181,8 +214,17 @@ CREATE TABLE `gerai_profil` (
 INSERT INTO `gerai_profil` (`id_gerai_profil`, `id_gerai`, `banner_path`, `listing_path`, `deskripsi_gerai`, `hari_buka`, `jam_buka`, `jam_tutup`, `created_at`, `updated_at`) VALUES
 (1, 1, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/banner-default_qbci0v.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'sfdghj', 'Senin', '15:30:26', '19:30:26', '2025-08-23 11:31:51', '2025-08-26 15:20:08'),
 (2, 2, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/banner-default_qbci0v.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'sfdghj', 'Senin', '15:30:26', '19:30:26', '2025-08-23 11:31:51', '2025-08-26 15:20:08'),
-(3, 3, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756267907/e8ffefeogzdtmikz6nk1.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'Ayam, Camilan, Minuman', 'Senin,Selasa,Rabu,Kamis,Jumat', '08:30:00', '04:30:00', '2025-08-23 11:31:51', '2025-08-30 15:37:32'),
-(5, 5, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756544576/rz8q6uga3rsiwi3hhi8e.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'Ayam, Camilan, Minuman', 'Senin,Selasa,Rabu,Kamis,Jumat', '08:30:00', '04:30:00', '2025-08-23 11:31:51', '2025-08-30 16:02:56');
+(3, 3, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757311049/iy2ryalsfdiullfofqym.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'Ayam, Camilan, Minuman', 'Senin,Selasa,Rabu,Kamis', '09:30:00', '14:30:00', '2025-08-23 11:31:51', '2025-09-08 12:57:29'),
+(5, 5, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756544576/rz8q6uga3rsiwi3hhi8e.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756176430/listing-default_srebux.png', 'Ayam, Camilan, Minuman', 'Senin,Selasa,Rabu,Kamis,Jumat', '08:30:00', '04:30:00', '2025-08-23 11:31:51', '2025-08-30 16:02:56'),
+(17, 7, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756700640/outjt50hyo0mie6fcycm.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756700642/p1m8hmpt865p8e7maa8u.jpg', 'Nasi, Ayam', 'Senin,Selasa,Rabu,Kamis', '10:00:00', '17:00:00', '2025-09-01 11:24:03', '2025-09-01 11:24:03'),
+(20, 6, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756709324/fazzlkarecghxa1xyeqw.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756709326/oh5paajikbxeoc3cikn7.jpg', 'Ayam, Nasi', 'Senin,Selasa,Rabu', '08:00:00', '03:00:00', '2025-09-01 13:48:46', '2025-09-01 13:48:46'),
+(21, 8, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756975251/lqx4xrspwrqhlsznxxpq.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756975253/tnuebtmdofwoqw7wyqfn.jpg', 'Ayam, Jajanan, Kopi', 'Senin,Rabu,Jumat', '09:00:00', '19:00:00', '2025-09-04 15:40:52', '2025-09-04 16:47:58'),
+(22, 9, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757046729/wozxaxuu5bunfyi0r94u.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756981401/znepldqbtuf6vpzwzflt.jpg', 'Mie Ayam, Bakso, Nasi', 'Senin,Selasa,Rabu,Kamis', '08:00:00', '16:00:00', '2025-09-04 17:23:19', '2025-09-06 09:43:00'),
+(28, 10, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757216878/g14uf8o2zv211obh9069.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757218654/tglvt82rwnwa5csadc7g.jpg', 'Jajanan, Kopi', 'Senin,Selasa,Rabu,Kamis', '09:00:00', '16:00:00', '2025-09-07 10:48:00', '2025-09-07 11:17:35'),
+(29, 11, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221584/mavrxyugtzo0wb8mdmmk.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221585/r6tjhisksqcx3lfshliw.jpg', 'Camilan, Mie Ayam, Bakso', 'Senin,Rabu,Kamis,Jumat', '10:00:00', '14:00:00', '2025-09-07 12:06:26', '2025-09-07 12:08:14'),
+(30, 12, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757222270/jlduz6acusjeyguu0pnw.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757222272/kafo9wfkfvvvtoeeszpa.jpg', 'Jajanan, Camilan, Kopi', 'Senin,Rabu,Jumat', '10:00:00', '16:00:00', '2025-09-07 12:17:53', '2025-09-07 12:17:53'),
+(31, 13, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302926/zx2myycb8e6tdwsj7skb.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302254/vvjmzvemy8bd56jfuyjh.jpg', 'Jajanan, Camilan, Mie Ayan', 'Senin,Selasa,Rabu,Kamis', '08:00:00', '17:00:00', '2025-09-08 10:30:54', '2025-09-08 10:42:06'),
+(32, 14, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314427/cxhozkkqwm4qiptvuyrl.jpg', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314432/t7bzzropuitjqdsy04cp.jpg', 'Mie Ayam, Nasi', 'Senin,Rabu,Kamis', '08:00:00', '16:00:00', '2025-09-08 13:53:52', '2025-09-08 14:01:02');
 
 -- --------------------------------------------------------
 
@@ -329,10 +371,23 @@ CREATE TABLE `menu` (
 --
 
 INSERT INTO `menu` (`id_menu`, `id_gerai`, `id_etalase`, `nama_menu`, `gambar_menu`, `deskripsi_menu`, `kategori`, `harga`, `jumlah_stok`, `tersedia`, `created_at`, `updated_at`) VALUES
-(4, 3, 7, 'Ayam', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756193397/xppnsoscao0jbph3be2a.jpg', 'Ayam + Nasi + Lalapan +Sambel', 'makanan', 25000, 5, 1, '2025-08-26 12:00:29', '2025-08-30 16:54:22'),
-(7, 3, 7, 'Bakso', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756542932/xod4yyoeqvphy6zf13rf.jpg', 'Bakso daging sapi', 'makanan', 26000, 20, 1, '2025-08-30 15:35:32', '2025-08-30 15:53:25'),
-(8, 3, 1, 'Seblak', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756543880/ctanppewkvypewxhwfvz.jpg', 'Seblak telor dengan toping kerupuk, sayur, makaroni', 'jajanan', 30000, 10, 1, '2025-08-30 15:51:20', '2025-08-30 16:52:59'),
-(9, 5, NULL, 'Cakwe', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756544541/eztvz8peefxgt6bdz7rc.jpg', 'Jajanan Cakwe is 10', 'jajanan', 15000, 10, 1, '2025-08-30 16:02:22', '2025-08-30 16:02:22');
+(4, 3, 7, 'Ayam Goreng', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757141293/z8mrha0aqytscmyejm8a.jpg', 'Ayam + Nasi + Lalapan +Sambel', 'makanan', 25000, 19, 1, '2025-08-26 12:00:29', '2025-09-08 12:58:50'),
+(7, 3, 7, 'Bakso Kuah', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756542932/xod4yyoeqvphy6zf13rf.jpg', 'Bakso daging sapi', 'makanan', 26000, 20, 1, '2025-08-30 15:35:32', '2025-09-06 13:08:59'),
+(9, 5, NULL, 'Cakwe', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756544541/eztvz8peefxgt6bdz7rc.jpg', 'Jajanan Cakwe is 10', 'jajanan', 15000, 10, 1, '2025-08-30 16:02:22', '2025-08-30 16:02:22'),
+(10, 3, 7, 'Mie', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756699745/andvjdfnvf0rdg1v0pk3.jpg', 'Mie instan', 'makanan', 5000, 20, 1, '2025-09-01 11:09:06', '2025-09-01 11:09:59'),
+(27, 7, NULL, 'Ayam', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756956269/kaebapva5wbupj9fxqpc.jpg', 'Ayam + nasi', 'makanan', 25000, 6, 1, '2025-09-04 10:24:28', '2025-09-04 10:24:53'),
+(36, 7, NULL, 'Puding', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756961949/djaqrly5crtmkqf0fjvq.jpg', 'Puding rasa cokelat uk. 20 cm', 'jajanan', 18000, 20, 1, '2025-09-04 11:59:08', '2025-09-04 11:59:15'),
+(37, 8, 15, 'Ayam Goreng', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756978437/dh5mridcpsc7laey91gk.jpg', 'Ayam+Lalapan+nasi', 'makanan', 19000, 20, 0, '2025-09-04 16:33:56', '2025-09-04 16:41:51'),
+(38, 9, 16, 'Bakso', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757046875/sxsco0j9ksfestezqeay.jpg', 'Bakso daging is 5 dengan bihun dan kuah yang segar', 'makanan', 19000, 20, 1, '2025-09-05 11:34:37', '2025-09-05 11:34:37'),
+(39, 9, 20, 'Matcha Latte', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757141482/zjankz0woace7kz9yjoe.jpg', 'Hot Matcha Latte', 'minuman', 20000, 10, 1, '2025-09-06 13:51:21', '2025-09-06 13:51:21'),
+(40, 10, 21, 'Ayam Sambel Matah', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757218553/dhw1ae9qwblzaerkw2ds.jpg', 'Ayam + Sambel + Nasi', 'makanan', 19000, 10, 1, '2025-09-07 11:15:55', '2025-09-07 11:16:05'),
+(41, 10, 22, 'Cakwe', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757218619/taabxzwwy7rbf8dblkfu.jpg', 'Cakwe is 8', 'jajanan', 16000, 5, 1, '2025-09-07 11:17:01', '2025-09-07 11:17:03'),
+(42, 10, 24, 'Seblak', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757220451/o1je7mst0kladk34cfqj.jpg', 'Seblak is kerupuk, sayur, telur, sosis, bakso', 'makanan', 19000, 20, 1, '2025-09-07 11:47:32', '2025-09-07 11:47:32'),
+(43, 11, 26, 'Roti Abon', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221679/saornpyzg5xxhyg7ddln.jpg', 'Roti dengan toping abon', 'makanan', 8000, 10, 1, '2025-09-07 12:08:00', '2025-09-07 12:08:00'),
+(44, 12, 27, 'Bakso', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757222380/vuu2ifrvi50ootlbblzm.jpg', 'Bakso is 5', 'makanan', 15000, 10, 1, '2025-09-07 12:19:41', '2025-09-07 12:19:41'),
+(45, 13, 28, 'Bakso', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302896/wajwd2sgq1o5a5omyfe3.jpg', 'Bakso daging sapi is 4 dengan bihun dan sayur', 'makanan', 18000, 20, 1, '2025-09-08 10:41:36', '2025-09-08 10:41:36'),
+(46, 3, 1, 'Seblak Ceker', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757303090/dvrv8o8tv8h1knrd7bap.jpg', 'Seblak dengan toping kerupuk, sayur, dan sosis', 'makanan', 20000, 20, 1, '2025-09-08 10:44:50', '2025-09-08 10:44:50'),
+(47, 14, 29, 'Ayam Goreng', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314787/qtx53uanqogwibh8ey0u.jpg', 'Ayam + Lalapan + Nasi', 'makanan', 25000, 10, 1, '2025-09-08 13:59:47', '2025-09-08 13:59:47');
 
 -- --------------------------------------------------------
 
@@ -351,10 +406,20 @@ CREATE TABLE `menu_addon` (
 --
 
 INSERT INTO `menu_addon` (`id_menu_addon`, `id_menu`, `id_addon`) VALUES
-(30, 7, 9),
-(31, 7, 7),
-(32, 4, 7),
-(33, 4, 15);
+(35, 10, 7),
+(38, 7, 9),
+(39, 7, 7),
+(41, 27, 16),
+(45, 37, 17),
+(46, 38, 18),
+(55, 39, 19),
+(57, 4, 7),
+(58, 4, 15),
+(59, 40, 21),
+(60, 43, 23),
+(61, 45, 24),
+(62, 46, 7),
+(63, 47, 25);
 
 -- --------------------------------------------------------
 
@@ -402,10 +467,18 @@ CREATE TABLE `penjual_info` (
 --
 
 INSERT INTO `penjual_info` (`id_penjual_info`, `id_users`, `id_gerai`, `no_telepon_penjual`, `nik`, `tempat_lahir`, `tanggal_lahir`, `jenis_kelamin`, `foto_ktp_path`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, '098675432', '09876542345', 'tangerang', '2015-08-06', 'perempuan', '1sdfghj', '2025-08-23 11:32:40', '2025-08-23 11:32:40'),
-(2, 2, 2, '098675432', '0987654234544', 'tangerang', '2015-08-06', 'perempuan', '1sdfghj', '2025-08-23 11:32:40', '2025-08-23 11:32:40'),
-(3, 5, 3, '098675432', '09876549000', 'tangerang', '2015-08-06', 'perempuan', '1sdfghjer', '2025-08-23 11:32:40', '2025-08-23 11:32:40'),
-(5, 12, 5, '098675432', '098765490001', 'tangerang', '2015-08-06', 'perempuan', '1sdfghjer', '2025-08-23 11:32:40', '2025-08-23 11:32:40');
+(1, 1, 1, '098675432', '09876542345', 'tangerang', '2015-08-06', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-08-23 11:32:40', '2025-09-01 11:41:57'),
+(2, 2, 2, '098675432', '0987654234544', 'tangerang', '2015-08-06', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-08-23 11:32:40', '2025-09-01 11:41:57'),
+(3, 5, 3, '098675432', '09876549000', 'tangerang', '2015-08-06', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-08-23 11:32:40', '2025-09-01 11:41:57'),
+(5, 12, 5, '098675432', '098765490001', 'tangerang', '2015-08-06', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-08-23 11:32:40', '2025-09-01 11:41:57'),
+(6, 11, 7, '098675432', '0987654900014', 'tangerang', '2015-08-06', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-08-23 11:32:40', '2025-09-01 11:41:57'),
+(7, 14, 8, '08272938', '36031267050909', 'Bogor', '2005-01-12', 'laki-laki', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756969127/dzvudvn13mxwtfpjimwc.jpg', '2025-09-04 13:57:51', '2025-09-04 15:13:05'),
+(8, 15, 9, '089686896837', '3603126703950010', 'Tangerang', '2005-01-10', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757045467/eztldaf6ofwn6wjqu8x8.jpg', '2025-09-04 17:19:34', '2025-09-05 11:29:02'),
+(9, 16, 10, '0875672819', '37610383993031', 'Kuningan', '2000-01-20', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757168282/oq7wf0sahj7jyqjoeiik.jpg', '2025-09-06 21:16:01', '2025-09-07 11:08:35'),
+(10, 17, 11, '0862789432', '122334332454234', 'Banyuwangi', '2004-10-15', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757221499/o3ae2exll0hlxgu0ybbe.jpg', '2025-09-07 12:05:00', '2025-09-07 12:05:33'),
+(11, 9, 12, '081378237138', '02983435457', 'Banywuangi', '2004-01-23', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757222222/wq8zjk5wlb1tcmtiatgd.jpg', '2025-09-07 12:17:03', '2025-09-07 12:17:03'),
+(12, 18, 13, '08967283746', '360312673748221', 'Depok', '1994-01-21', 'laki-laki', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757302722/bzqnd01dswgwa47m3knz.jpg', '2025-09-08 10:25:58', '2025-09-08 10:38:42'),
+(13, 19, 14, '92863552892', '097252791289738', 'Depok', '1961-01-01', 'perempuan', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757314379/fxokyg2fsccpqkxlgwfq.jpg', '2025-09-08 13:52:26', '2025-09-08 13:55:56');
 
 -- --------------------------------------------------------
 
@@ -435,12 +508,19 @@ CREATE TABLE `transaksi` (
 --
 
 INSERT INTO `transaksi` (`id_transaksi`, `booking_id`, `id_users`, `id_gerai`, `id_alamat`, `STATUS`, `metode_pembayaran`, `total_harga`, `biaya_pengantaran`, `jenis_pengantaran`, `catatan_pembatalan`, `bukti_pembayaran`, `created_at`, `updated_at`) VALUES
-(49, 'F-9C347E', 1, 3, 4, 'konfirmasi_ketersediaan', 'qris', 44000, 5000, 'pengantaran', NULL, '', '2025-08-29 20:19:49', '2025-08-29 20:19:49'),
+(49, 'F-9C347E', 1, 3, 4, 'konfirmasi_pembayaran', 'qris', 44000, 5000, 'pengantaran', NULL, '', '2025-08-29 20:19:49', '2025-09-06 16:28:52'),
 (50, 'F-6D9BA7', 1, 3, NULL, 'selesai', 'qris', 39000, 0, 'pickup', NULL, '', '2025-08-29 20:22:27', '2025-08-29 20:23:33'),
 (51, 'F-315329', 1, 3, 3, 'dibatalkan', 'qris', 36000, 5000, 'pengantaran', 'Dibatalkan Penjual Karena Pembayaran Tidak Sesuai', '', '2025-08-29 20:23:56', '2025-08-29 20:24:42'),
 (52, 'F-16CFB8', 1, 3, 4, 'selesai', 'qris', 36000, 5000, 'pengantaran', NULL, '', '2025-08-30 09:31:56', '2025-08-30 09:54:24'),
 (53, 'F-F13299', 1, 3, NULL, 'selesai', 'qris', 39000, 0, 'pickup', NULL, '', '2025-08-30 11:34:05', '2025-08-30 12:34:01'),
-(54, 'F-F13230', 11, 3, 4, 'selesai', 'qris', 39000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756292863/df2watlencv0kfjzwr6n.jpg', '2025-08-30 11:34:05', '2025-08-30 16:56:11');
+(54, 'F-F13230', 11, 3, 4, 'selesai', 'qris', 39000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756292863/df2watlencv0kfjzwr6n.jpg', '2025-08-30 11:34:05', '2025-08-30 16:56:11'),
+(56, 'F-F13233', 10, 3, 4, 'selesai', 'cash', 39000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757156856/bukti_pembayaran_cash/cwhayvwhwh1f2puy4456.jpg', '2025-09-01 11:34:05', '2025-09-06 18:07:35'),
+(57, 'F-F13236', 3, 3, 4, 'selesai', 'qris', 39000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756554812/rrquxbrrfrtsglaicgym.jpg', '2025-09-01 11:34:05', '2025-09-06 16:29:26'),
+(58, 'F-F13238', 4, 3, 4, 'selesai', 'cash', 39000, 5000, 'pengantaran', NULL, 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756710331/bukti_pembayaran_cash/m8dkcmopbk2hmu9kprml.jpg', '2025-09-01 11:34:05', '2025-09-01 14:05:32'),
+(59, 'F-F13239', 9, 3, 4, 'dibatalkan', 'qris', 39000, 5000, 'pengantaran', 'Menu habis', '', '2025-09-01 11:34:05', '2025-09-01 14:03:13'),
+(60, 'F-F13212', 9, 9, 4, 'selesai', 'cash', 39000, 5000, 'pengantaran', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757047987/bukti_pembayaran_cash/hoh8u5qzybxad3azmlnc.png', '2025-09-05 11:34:05', '2025-09-05 11:53:08'),
+(61, 'F-F13219', 9, 3, 4, 'selesai', 'qris', 39000, 5000, 'pengantaran', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756989074/zyy8d45gdn6edguezsts.png', '2025-09-06 11:34:05', '2025-09-06 17:42:21'),
+(62, 'F-F13280', 9, 3, 4, 'selesai', 'cash', 39000, 5000, 'pengantaran', '', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1757311148/bukti_pembayaran_cash/ftsqufzwx0mi8hynwjv3.png', '2025-09-06 11:34:05', '2025-09-08 12:59:07');
 
 -- --------------------------------------------------------
 
@@ -468,7 +548,14 @@ INSERT INTO `transaksi_item` (`id_transaksi_item`, `id_transaksi`, `id_menu`, `j
 (52, 51, 4, 1, 31000, 31000, ''),
 (53, 52, 4, 1, 31000, 31000, ''),
 (54, 53, 4, 1, 39000, 39000, ''),
-(55, 54, 4, 1, 39000, 39000, '');
+(55, 54, 4, 1, 39000, 39000, ''),
+(56, 56, 4, 1, 39000, 39000, ''),
+(57, 57, 7, 2, 25000, 50000, 'Extra Sambel'),
+(58, 58, 4, 1, 39000, 39000, 'Bagian dada'),
+(59, 59, 4, 1, 39000, 39000, ''),
+(60, 60, 4, 1, 39000, 39000, ''),
+(61, 61, 4, 1, 39000, 39000, ''),
+(62, 62, 4, 1, 39000, 39000, '');
 
 -- --------------------------------------------------------
 
@@ -495,7 +582,8 @@ INSERT INTO `transaksi_item_addon` (`id_transaksi_item_addon`, `id_transaksi_ite
 (49, 53, 7),
 (50, 54, 7),
 (51, 54, 15),
-(52, 55, 9);
+(52, 55, 9),
+(53, 57, 9);
 
 -- --------------------------------------------------------
 
@@ -520,8 +608,9 @@ CREATE TABLE `ulasan` (
 
 INSERT INTO `ulasan` (`id_ulasan`, `id_transaksi`, `id_users`, `rating`, `komentar`, `is_anonymous`, `balasan`, `created_at`) VALUES
 (3, 52, 1, 5, '', 1, 'Terima kasih ka', '2025-08-30 11:16:46'),
-(4, 50, 1, 4, 'Makanannya enak', 0, '', '2025-08-30 11:31:41'),
-(5, 53, 1, 3, 'Kurang Sambel', 0, 'Maaf kak', '2025-08-30 12:34:17');
+(4, 50, 1, 4, 'Makanannya enak', 0, 'Makasih ka jangan lupa beli lagi ya', '2025-08-30 11:31:41'),
+(5, 53, 1, 3, 'Kurang Sambel', 0, 'Maaf kak', '2025-08-30 12:34:17'),
+(13, 60, 9, 4, 'Mantap, Enak sekali ayamnya besar', 0, 'Terima kasih ka', '2025-08-30 12:34:17');
 
 -- --------------------------------------------------------
 
@@ -554,13 +643,20 @@ INSERT INTO `users` (`id_users`, `nama_lengkap`, `username`, `email`, `no_hp`, `
 (2, 'raihan ade', 'raihan', 'raihan@gmail.com', '0896374378', '$2y$10$0nqBOzEiOOBfqmCCUEREceSOlRZrmk/J1A/Pr40KTvGY9E1ATOFiK', '1', NULL, '2025-08-20 08:47:38', '2025-08-28 07:31:00', 0, 0, 0),
 (3, 'Noeni Indh', 'noeniindh', 'noeniindahs27@gmail.com', '085719832740', '$2y$10$XQ9KWkzRj93mCXrBuGjJrOormPrL7CSXfzHGoouFHNKiQIDhq5yCu', '0', NULL, '2025-08-20 08:56:09', '2025-08-28 07:31:00', 0, 0, 0),
 (4, 'Raihan Ade Purnomo', 'raihanadep', 'raihanadeprnm@gmail.com', '081385321390', '$2y$10$Kul7xV7qwqX.ywMgLd6X0O5QlfQF/Pz1SYb6SJtiPtywa0fc/5h2K', '0', NULL, '2025-08-20 11:06:08', '2025-08-28 07:31:00', 0, 0, 0),
-(5, 'Sila A', 'sila', 'noeniindahsulistiyani@gmail.com', '08571992783', '$2y$10$4.HpLPSVqRmbFzHKQ7qlieSNYMChEl8Ym0XPVuOXFqxAaX775XNqm', '1', NULL, '2025-08-21 07:55:43', '2025-08-28 07:31:00', 1, 1, 1),
+(5, 'Sila A', 'sila', 'noeniindhs27@gmail.com', '0857199209', '$2y$10$dgBJ4CXc6ci7EZ.wyfxZhuWf4h474RCBgkpTTkXgpPKYAzAAKG4/G', '1', NULL, '2025-08-21 07:55:43', '2025-09-05 12:30:55', 1, 1, 1),
 (7, 'azriel', 'azriel', 'azriel@gmail.com', '08138526372', '$2y$10$rFKakE92te.GsMN5yl/3ruX.WUd0AUET3iWI8BqyxXlGOV/3lN0Zq', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-27 18:24:35', '2025-08-28 07:31:00', 0, 0, 0),
 (8, 'Budi', 'budi', 'budi@gmail.com', '09893424835', '$2y$10$FGc4fcDrKG81ub0AM33hD.NDevoqxhoHubGrllfnO5TJYaE0j.Rdm', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:36:01', '2025-08-28 07:36:01', 0, 0, 0),
-(9, 'ayu', 'ayu', 'ayu@gmail.com', '081378237138', '$2y$10$8eJeX6VisRYEV7IWpr.80Olz0n.qWIS.BhtlEDdg8VWWpU4BpB28O', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:39:08', '2025-08-28 07:39:08', 0, 0, 0),
+(9, 'ayu', 'ayu', 'ayu@gmail.com', '081378237138', '$2y$10$8eJeX6VisRYEV7IWpr.80Olz0n.qWIS.BhtlEDdg8VWWpU4BpB28O', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:39:08', '2025-09-07 12:19:41', 1, 1, 1),
 (10, 'ida', 'ida', 'ida@gmail.com', '0813628283', '$2y$10$aM1iS5gFom60tvN1tzqBKeNMzOGTw05XLtClHxwRk0yAG.5NqZGz.', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-28 07:40:21', '2025-08-28 07:40:21', 0, 0, 0),
-(11, 'Bayu', 'bayu', 'bayuaji@gmail.com', '086737489', '$2y$10$Egb2cHafvevZHuuGUl8e7uBnl52czbgypOCmz/EUKzQcFxwTPziMm', '0', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-30 15:29:07', '2025-08-30 15:29:07', 0, 0, 0),
-(12, 'Farah Aini', 'fara', 'faraini@gmail.com', '0896983827', '$2y$10$lrkHiLz/zG24Rr5WdWbsreFl2MeUP0OYGCvoeLzomF.wVYHBIUxMS', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-30 15:56:50', '2025-08-30 15:57:10', 1, 1, 1);
+(11, 'Bayu', 'bayu', 'bayuaji@gmail.com', '086737489', '$2y$10$Egb2cHafvevZHuuGUl8e7uBnl52czbgypOCmz/EUKzQcFxwTPziMm', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-30 15:29:07', '2025-09-04 10:15:59', 1, 1, 0),
+(12, 'Farah Aini', 'fara', 'faraini@gmail.com', '0896983827', '$2y$10$lrkHiLz/zG24Rr5WdWbsreFl2MeUP0OYGCvoeLzomF.wVYHBIUxMS', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-08-30 15:56:50', '2025-08-30 15:57:10', 1, 1, 1),
+(13, 'Laura', 'lau', 'lau@gmail.com', '08574838585', '$2y$10$fpd.afdGz3rW04ADR/3C8uKIQI5O.GL4i8k3mrR/yvXbQOlQLjByi', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-01 09:56:55', '2025-09-01 11:24:03', 0, 1, 0),
+(14, 'Ihsan', 'ihsan', 'ihsan@gmail.com', '08272938', '$2y$10$0uJ7o/IiSigugRPfaid0LOjG2GLfuiFWH.2WGuxw8TCqyArKJ6p1u', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-04 12:11:29', '2025-09-04 16:33:57', 1, 1, 1),
+(15, 'Nina Qurrotul', 'nina', 'ninaqur@gmail.com', '089686896837', '$2y$10$HCrb24Vuo4H4BljVa5L3WOwzkeOvw7CW9ELmIqu5O/FmXK.IeL4nG', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-04 16:59:13', '2025-09-06 09:43:17', 1, 1, 1),
+(16, 'Laila Nurjannah', 'laila', 'lailanurj@gmail.com', '0875672819', '$2y$10$d6ER8WDkYu1S/kbT2ACV4e65QxwHwtP49z8DreRzGajssi3ML2xBK', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-06 20:33:28', '2025-09-07 11:47:32', 1, 1, 1),
+(17, 'Kinanti Arum', 'kinan', 'kinanti@gmail.com', '0862789432', '$2y$10$jJ1NzDMunfkEylXzZ7ImMO3a2H.A.eSn8x5qghiKEiU1unfz7VdPy', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-07 11:51:25', '2025-09-07 12:08:00', 1, 1, 1),
+(18, 'Hasan Junaidi', 'Hasan', 'hasanj@gmail.com', '08967283746', '$2y$10$Ew/pDQkUSS8Yich0icd4iexrXUUFy2fWMkub/4LJtJVPtW5snf012', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-08 10:23:37', '2025-09-08 10:42:41', 1, 1, 1),
+(19, 'Laura', 'laura', 'laura@gmail.com', '92863552892', '$2y$10$AJryKWJ/ZC/d8X8s5r5D3.Twf0Gx4.ECJu6SrSb9jXx7CBIaoEcuW', '1', 'https://res.cloudinary.com/dip8i3f6x/image/upload/v1756293044/dummy-profile-pic-300x300_udkg39.png', '2025-09-08 13:50:16', '2025-09-08 13:59:47', 1, 1, 1);
 
 --
 -- Indexes for dumped tables
@@ -714,7 +810,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `addon`
 --
 ALTER TABLE `addon`
-  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `alamat_pengantaran`
@@ -726,7 +822,7 @@ ALTER TABLE `alamat_pengantaran`
 -- AUTO_INCREMENT for table `etalase`
 --
 ALTER TABLE `etalase`
-  MODIFY `id_etalase` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id_etalase` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT for table `favorite`
@@ -738,13 +834,13 @@ ALTER TABLE `favorite`
 -- AUTO_INCREMENT for table `gerai`
 --
 ALTER TABLE `gerai`
-  MODIFY `id_gerai` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id_gerai` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `gerai_profil`
 --
 ALTER TABLE `gerai_profil`
-  MODIFY `id_gerai_profil` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id_gerai_profil` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- AUTO_INCREMENT for table `keranjang`
@@ -768,13 +864,13 @@ ALTER TABLE `keranjang_item_addon`
 -- AUTO_INCREMENT for table `menu`
 --
 ALTER TABLE `menu`
-  MODIFY `id_menu` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id_menu` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
 
 --
 -- AUTO_INCREMENT for table `menu_addon`
 --
 ALTER TABLE `menu_addon`
-  MODIFY `id_menu_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id_menu_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=64;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
@@ -786,37 +882,37 @@ ALTER TABLE `password_resets`
 -- AUTO_INCREMENT for table `penjual_info`
 --
 ALTER TABLE `penjual_info`
-  MODIFY `id_penjual_info` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id_penjual_info` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `transaksi`
 --
 ALTER TABLE `transaksi`
-  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `id_transaksi` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=63;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item`
 --
 ALTER TABLE `transaksi_item`
-  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
+  MODIFY `id_transaksi_item` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=63;
 
 --
 -- AUTO_INCREMENT for table `transaksi_item_addon`
 --
 ALTER TABLE `transaksi_item_addon`
-  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=53;
+  MODIFY `id_transaksi_item_addon` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
 
 --
 -- AUTO_INCREMENT for table `ulasan`
 --
 ALTER TABLE `ulasan`
-  MODIFY `id_ulasan` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id_ulasan` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id_users` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- Constraints for dumped tables

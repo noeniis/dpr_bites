@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../app/gradient_background.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dpr_bites/features/user/services/search_page_service.dart';
 import 'package:dpr_bites/features/user/pages/restaurant_detail/restaurant_detail_page.dart';
 import 'package:dpr_bites/features/user/pages/restaurant_detail/menu_detail_page.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
@@ -19,12 +18,13 @@ class _SearchPageState extends State<SearchPage> {
   // Menyimpan query terakhir secara statis (persist di memori aplikasi selama proses hidup)
   static String? _lastQuery;
   final TextEditingController searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   String? searchQuery;
 
   // Hasil dari API
   List<Map<String, dynamic>> _results = [];
   final int _userId = 1; // TODO: dynamic auth user
-  final Map<String, bool> _menuHasAddonCache = {}; // menuId -> hasAddon
+  // Removed unused _menuHasAddonCache to keep file lint-clean
   bool _adding = false; // optional simple busy flag
 
   @override
@@ -36,6 +36,8 @@ class _SearchPageState extends State<SearchPage> {
       searchQuery = init;
       WidgetsBinding.instance.addPostFrameCallback((_) => _performSearch(init));
     }
+    _searchFocus.addListener(() => setState(() {}));
+    searchController.addListener(() => setState(() {}));
   }
 
   void doSearch(String q) {
@@ -53,163 +55,23 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _performSearch(String q) async {
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/search_restaurants.php?q=${Uri.encodeQueryComponent(q)}',
-      );
-      debugPrint('[SEARCH] Request: ' + uri.toString());
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      debugPrint('[SEARCH] Status: ' + res.statusCode.toString());
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        debugPrint('[SEARCH] Body: ' + body.toString());
-        if (body is Map && body['success'] == true) {
-          final List data = body['data'] as List? ?? [];
-          _results = data
-              .map<Map<String, dynamic>>(
-                (e) => Map<String, dynamic>.from(e as Map),
-              )
-              .toList();
-        } else {
-          debugPrint('[SEARCH] success flag false / format mismatch');
-          // ignore error silently
-        }
-      } else {
-        debugPrint('[SEARCH] Non-200 response body: ' + res.body);
-        // ignore error silently
-      }
-    } catch (e) {
-      debugPrint('[SEARCH] Exception: ' + e.toString());
-      // ignore error silently
-    }
+    final list = await SearchService.searchRestaurants(q);
+    _results = list;
     if (!mounted) return;
     setState(() {});
   }
 
-  Future<Map<String, dynamic>?> _fetchMenuDetail(String id) async {
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
-            Uri.encodeQueryComponent(id),
-      );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          if (data is Map) return Map<String, dynamic>.from(data);
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
+  // Removed unused _fetchMenuDetail; the page opens MenuDetail via normalized map
 
-  Future<void> _addOrUpdateCart({
-    required String geraiId,
-    required String menuId,
-    required int qty,
-  }) async {
-    final uri = Uri.parse(
-      'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-    );
-    final bodyMap = {
-      'user_id': _userId,
-      'gerai_id': int.tryParse(geraiId) ?? geraiId,
-      'menu_id': int.tryParse(menuId) ?? menuId,
-      'qty': qty,
-    };
-    try {
-      debugPrint('[CART][SEARCH] POST $bodyMap');
-      final res = await http.post(
-        uri,
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(bodyMap),
-      );
-      debugPrint('[CART][SEARCH] Status ${res.statusCode}');
-      if (res.statusCode == 200) {
-        Map? json;
-        try {
-          json = jsonDecode(res.body);
-        } catch (_) {}
-        debugPrint('[CART][SEARCH] Body ${res.body}');
-        if (json is Map && json['success'] == true) {
-          return; // success
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Gagal menambah keranjang (format response)'),
-              ),
-            );
-          }
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal menambah keranjang: ${res.statusCode}'),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('[CART][SEARCH] Exception $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kesalahan jaringan menambah keranjang'),
-          ),
-        );
-      }
-    }
-  }
+  // Removed unused helper _addOrUpdateCart to keep lints clean
 
   Future<void> _handleAddPressed(
     Map<String, dynamic> resto,
     Map<String, dynamic> menu,
   ) async {
     if (_adding) return; // throttle
-    _adding = true;
-    try {
-      final restoId = resto['id'].toString();
-      final menuId = (menu['id'] ?? menu['menu_id']).toString();
-      bool? hasAddon = _menuHasAddonCache[menuId];
-      if (hasAddon == null) {
-        final detail = await _fetchMenuDetail(menuId);
-        final addons = (detail?['addonOptions'] as List?) ?? [];
-        hasAddon = addons.isNotEmpty;
-        _menuHasAddonCache[menuId] = hasAddon;
-        if (hasAddon) {
-          await _openMenuDetail(menu, geraiId: restoId);
-          return; // handled in detail
-        }
-      }
-      if (hasAddon) {
-        await _openMenuDetail(menu, geraiId: restoId);
-      } else {
-        await _addOrUpdateCart(geraiId: restoId, menuId: menuId, qty: 1);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ditambahkan ke keranjang')),
-          );
-        }
-      }
-    } finally {
-      _adding = false;
-    }
-  }
-
-  Future<void> _openMenuDetail(
-    Map<String, dynamic> menu, {
-    required String geraiId,
-  }) async {
-    if (geraiId.isEmpty) {
-      debugPrint('[CART][DETAIL][SEARCH] geraiId kosong');
-      return;
-    }
+    final geraiId = resto['id']?.toString() ?? '';
+    if (geraiId.isEmpty) return;
     final normalized = {
       'id': menu['id'] ?? menu['menu_id'],
       'name': menu['name'] ?? menu['nama_menu'],
@@ -225,56 +87,51 @@ class _SearchPageState extends State<SearchPage> {
       ),
       builder: (_) => MenuDetailPage(menu: normalized, initialQty: 1),
     );
-    if (result != null) {
-      final qty = (result['qty'] as int?) ?? 0;
-      if (qty > 0) {
-        final addonIds = (result['addonIds'] as List?)?.cast<int>() ?? [];
-        final note = result['note']?.toString();
-        // Kirim ke backend termasuk addons & note jika ada
-        final uri = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-        );
-        final payload = <String, dynamic>{
-          'user_id': _userId,
-          'gerai_id': geraiId,
-          'menu_id': normalized['id'],
-          'qty': qty,
-        };
-        if (addonIds.isNotEmpty) payload['addons'] = addonIds;
-        if (note != null) payload['note'] = note;
-        try {
-          debugPrint('[CART][DETAIL][SEARCH] POST $payload');
-          final res = await http.post(
-            uri,
-            headers: const {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          );
-          debugPrint(
-            '[CART][DETAIL][SEARCH] Status ${res.statusCode} Body ${res.body}',
-          );
-          if (mounted) {
-            if (res.statusCode == 200) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ditambahkan ke keranjang')),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Gagal menambah (${res.statusCode})')),
-              );
-            }
-          }
-        } catch (e) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Kesalahan jaringan saat menambah')),
-            );
-          }
-        }
-      }
+    if (result == null) return;
+    final qty = (result['qty'] as int?) ?? 0;
+    if (qty <= 0) return;
+    final addonIds = (result['addonIds'] as List?)?.cast<int>() ?? [];
+    final note = result['note']?.toString();
+    final payload = <String, dynamic>{
+      'user_id': _userId,
+      'gerai_id': geraiId,
+      'menu_id': normalized['id'],
+      'qty': qty,
+    };
+    if (addonIds.isNotEmpty) payload['addons'] = addonIds;
+    if (note != null) payload['note'] = note;
+    final ok = await SearchService.addOrUpdateCart(payload);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Ditambahkan ke keranjang')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal menambah (format/HTTP)')),
+      );
     }
+  }
+
+  Future<void> _openMenuDetail(
+    Map<String, dynamic> menu, {
+    required String geraiId,
+  }) async {
+    final normalized = {
+      'id': menu['id'] ?? menu['menu_id'],
+      'name': menu['name'] ?? menu['nama_menu'],
+      'desc': menu['desc'] ?? menu['deskripsi_menu'],
+      'price': menu['price'] ?? menu['harga'] ?? 0,
+      'image': menu['image'] ?? menu['gambar_menu'],
+    };
+    await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => MenuDetailPage(menu: normalized, initialQty: 1),
+    );
   }
 
   void _openRestaurant(dynamic restoId) {
@@ -285,6 +142,13 @@ class _SearchPageState extends State<SearchPage> {
         builder: (_) => RestaurantDetailPage(restaurantId: restoId.toString()),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    searchController.dispose();
+    super.dispose();
   }
 
   String _formatRupiah(dynamic v) {
@@ -361,40 +225,44 @@ class _SearchPageState extends State<SearchPage> {
           elevation: 0,
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 16, top: 12),
-              child: ElevatedButton.icon(
-                icon: const Icon(
-                  Icons.shopping_cart_outlined,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                label: const Text(
-                  "Keranjang",
-                  style: TextStyle(color: Colors.white),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD53D3D),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                ),
-                onPressed: () async {
+              padding: const EdgeInsets.only(right: 14, top: 4),
+              child: GestureDetector(
+                onTap: () async {
                   final changed = await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const CartPage()),
                   );
-                  // Jika CartPage memberi sinyal ada perubahan (misal return true), bisa refresh search bila perlu
                   if (changed == true &&
                       mounted &&
-                      searchQuery != null &&
-                      searchQuery!.isNotEmpty) {
+                      searchQuery?.isNotEmpty == true) {
                     _performSearch(searchQuery!);
                   }
                 },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFD53D3D), Color(0xFFD53D3D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x33D53D3D),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.shopping_cart_outlined,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -405,14 +273,117 @@ class _SearchPageState extends State<SearchPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CustomInputField(
-                  hintText: "Cari menu atau resto...",
-                  controller: searchController,
-                  prefixIcon: const Icon(
-                    Icons.search,
-                    color: Color(0xFFD53D3D),
-                  ),
-                  onSubmitted: doSearch,
+                // Search Field - same design as Home
+                Builder(
+                  builder: (context) {
+                    final bool focused =
+                        _searchFocus.hasFocus ||
+                        searchController.text.isNotEmpty;
+                    const gradientColors = [
+                      Color(0xFFD53D3D),
+                      Color(0xFFB03056),
+                    ];
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(horizontal: 0),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (focused
+                                ? const Color(0xFFD53D3D).withOpacity(0.18)
+                                : const Color(0xFFD53D3D).withOpacity(0.10)),
+                            blurRadius: focused ? 18 : 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(2.6),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: focused
+                              ? const LinearGradient(
+                                  colors: gradientColors,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : LinearGradient(
+                                  colors: [
+                                    const Color(0xFFD53D3D).withOpacity(0.30),
+                                    const Color(0xFFB03056).withOpacity(0.30),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                        ),
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: focused
+                                ? Colors.white
+                                : Colors.white.withOpacity(0.98),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.search,
+                                size: 22,
+                                color: focused
+                                    ? const Color(0xFFD53D3D)
+                                    : Colors.black38,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  focusNode: _searchFocus,
+                                  controller: searchController,
+                                  textInputAction: TextInputAction.search,
+                                  decoration: const InputDecoration(
+                                    hintText: 'Lagi Pengen Makan Apa?',
+                                    hintStyle: TextStyle(
+                                      color: Colors.black38,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    isDense: true,
+                                    border: InputBorder.none,
+                                  ),
+                                  onSubmitted: doSearch,
+                                ),
+                              ),
+                              if (searchController.text.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () {
+                                    searchController.clear();
+                                    _searchFocus.requestFocus();
+                                    setState(() {
+                                      searchQuery = '';
+                                      _results = [];
+                                    });
+                                  },
+                                  child: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
 
