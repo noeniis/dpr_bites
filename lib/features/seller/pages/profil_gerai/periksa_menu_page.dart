@@ -1,64 +1,64 @@
-import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
-import 'package:dpr_bites/features/seller/services/menu_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import 'dart:io';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:dpr_bites/common/utils/base_url.dart';
+import 'package:dpr_bites/features/seller/models/etalase_model.dart';
+import 'package:dpr_bites/features/seller/models/menu_model.dart';
+import 'package:dpr_bites/features/seller/services/menu_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/seller/services/seller_user_service.dart';
+import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 
+class PeriksaMenuPage extends StatefulWidget {
+  final MenuModel menuModel;
+  final List<EtalaseModel> etalase;
+  final String? imagePath;
 
-class PeriksaMenuPage extends StatelessWidget {
+  const PeriksaMenuPage({
+    super.key,
+    required this.menuModel,
+    required this.etalase,
+    this.imagePath,
+  });
+
+  @override
+  State<PeriksaMenuPage> createState() => _PeriksaMenuPageState();
+}
+
+class _PeriksaMenuPageState extends State<PeriksaMenuPage> {
   Future<void> _submitMenu(BuildContext context) async {
+    final menu = widget.menuModel;
+    if (menu.namaMenu.trim().isEmpty ||
+        menu.deskripsiMenu.trim().isEmpty ||
+        menu.kategori.trim().isEmpty ||
+        menu.harga == 0 ||
+        menu.jumlahStok == 0 ||
+        widget.imagePath == null ||
+        widget.imagePath!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua field wajib harus diisi dan gambar harus dipilih!')),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
+
     try {
-      // 1. Get id_gerai
       final idGerai = await MenuService.getIdGerai();
       if (idGerai == null) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mendapatkan ID gerai')));
         return;
       }
-
-      // 2. Get id_etalase utama (ambil yang pertama saja)
-      int? idEtalase;
-      List<Map<String, dynamic>> etalaseList = [];
-      // Ambil etalaseList dari API (atau cache) agar dapat id_etalase
-      final prefs = await SharedPreferences.getInstance();
-      final etalaseJson = prefs.getString('etalase_list');
-      if (etalaseJson != null) {
-        etalaseList = List<Map<String, dynamic>>.from(jsonDecode(etalaseJson));
-      } else {
-        // fallback: ambil dari API jika belum ada di prefs
-        final response = await http.get(Uri.parse('${getBaseUrl()}/get_etalase.php?id_gerai=$idGerai'));
-        final data = jsonDecode(response.body);
-        if (data['success'] == true && data['etalase'] != null) {
-          etalaseList = List<Map<String, dynamic>>.from(data['etalase']);
-          prefs.setString('etalase_list', jsonEncode(etalaseList));
-        }
-      }
-      if (etalase.isNotEmpty && etalaseList.isNotEmpty) {
-        final selectedNama = etalase[0];
-        final found = etalaseList.firstWhere(
-          (e) => e['nama_etalase'] == selectedNama,
-          orElse: () => {},
-        );
-        idEtalase = found['id_etalase'] is int
-            ? found['id_etalase']
-            : int.tryParse(found['id_etalase']?.toString() ?? '');
-      }
-
-      // 3. Upload gambar ke Cloudinary jika ada
+      int? idEtalase = widget.etalase.isNotEmpty ? widget.etalase[0].idEtalase : null;
       String gambarUrl = '';
-      if (imagePath != null && imagePath!.isNotEmpty) {
-        final url = await MenuService.uploadImageToCloudinary(File(imagePath!));
+      if (widget.imagePath != null && widget.imagePath!.isNotEmpty) {
+        final url = await MenuService.uploadImageToCloudinary(File(widget.imagePath!));
         if (url == null) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal upload gambar ke Cloudinary')));
@@ -66,73 +66,59 @@ class PeriksaMenuPage extends StatelessWidget {
         }
         gambarUrl = url;
       }
-
-      // 4. Kirim data menu ke API
       final menuResult = await MenuService.addMenu(
         idGerai: idGerai,
         idEtalase: idEtalase,
-        namaMenu: namaMenu,
+        namaMenu: menu.namaMenu,
         gambarMenu: gambarUrl,
-        deskripsiMenu: deskripsi,
-        kategori: kategori,
-        harga: int.tryParse(harga) ?? 0,
-        jumlahStok: int.tryParse(jumlahStok) ?? 0,
-        tersedia: isTersedia,
+        deskripsiMenu: menu.deskripsiMenu,
+        kategori: menu.kategori,
+        harga: menu.harga,
+        jumlahStok: menu.jumlahStok,
+        tersedia: menu.tersedia,
       );
       if (menuResult == null || menuResult['id_menu'] == null) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal menyimpan menu ke database')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menyimpan menu: ${menuResult?['error'] ?? 'Unknown error'}')),
+        );
         return;
       }
-      final idMenu = menuResult['id_menu'] is int ? menuResult['id_menu'] : int.tryParse(menuResult['id_menu'].toString());
-
-      // 5. Jika ada add on, simpan ke menu_addon
-      if (addOns.isNotEmpty) {
-        print('DEBUG addOns:');
-        for (var e in addOns) {
-          print(e);
-          print('DEBUG nama_addon: [32m[1m' + (e['nama_addon']?.toString() ?? e['nama']?.toString() ?? '-') + '\u001b[0m');
-        }
-        final idAddons = addOns.map((e) => int.tryParse(e['id_addon'].toString()) ?? 0).where((id) => id > 0).toList();
-        print('DEBUG idAddons: $idAddons');
+      final idMenu = menuResult['id_menu'] is int
+          ? menuResult['id_menu']
+          : int.tryParse(menuResult['id_menu'].toString());
+      if (menu.addons != null && menu.addons!.isNotEmpty) {
+        final idAddons = menu.addons!
+            .map((e) => e.idAddon)
+            .where((id) => id > 0)
+            .toList();
         if (idAddons.isNotEmpty) {
-          await MenuService.addMenuAddons(idMenu: idMenu, idAddons: idAddons);
+          await MenuService.addMenuAddons(idMenu: idMenu!, idAddons: idAddons);
         }
       }
-
+      // Update step3 menjadi 1
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final idUsers = prefs.getString('id_users');
+        if (idUsers != null) {
+          await SellerUserService.updateStepSellerStatus(idUsers, step3: 1);
+        }
+      } catch (e) {
+        debugPrint('Gagal update step3: $e');
+      }
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menu berhasil ditambahkan!')));
-      Navigator.pushReplacement(
+      // Navigasi ke halaman MenuRestoPage
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MenuRestoPage()),
+        (route) => false,
       );
     } catch (e) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi error: $e')));
     }
   }
-  final String namaMenu;
-  final String deskripsi;
-  final String harga;
-  final String jumlahStok;
-  final String kategori;
-  final List<String> etalase;
-  final List<Map<String, dynamic>> addOns;
-  final String? imagePath;
-  final bool isTersedia;
-
-  const PeriksaMenuPage({
-    super.key,
-    required this.namaMenu,
-    required this.deskripsi,
-    required this.harga,
-    required this.jumlahStok,
-    required this.kategori,
-    required this.etalase,
-    required this.addOns,
-    this.imagePath,
-    required this.isTersedia,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -144,9 +130,7 @@ class PeriksaMenuPage extends StatelessWidget {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: AppTheme.textColor),
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
             "Periksa Menu",
@@ -166,11 +150,11 @@ class PeriksaMenuPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Gambar Menu
-                  imagePath != null
+                  widget.imagePath != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: Image.file(
-                            File(imagePath!),
+                            File(widget.imagePath!),
                             width: double.infinity,
                             height: 220,
                             fit: BoxFit.cover,
@@ -186,52 +170,59 @@ class PeriksaMenuPage extends StatelessWidget {
                           child: const Center(child: Text("Belum ada gambar")),
                         ),
                   const SizedBox(height: 20),
-                  Text("Nama hidangan", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(namaMenu, style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+
+                  Text("Nama hidangan", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.menuModel.namaMenu, style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Kategori", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(kategori, style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+                  Text("Kategori", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.menuModel.kategori, style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Harga", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text("Rp $harga", style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+                  Text("Harga", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text("Rp ${widget.menuModel.harga}", style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Deskripsi", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(deskripsi, textAlign: TextAlign.justify, style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+                  Text("Deskripsi", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.menuModel.deskripsiMenu, textAlign: TextAlign.justify, style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Stok", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(jumlahStok, style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+                  Text("Stok", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.menuModel.jumlahStok.toString(), style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Status", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(isTersedia ? 'Tersedia' : 'Tidak tersedia', style: TextStyle(fontFamily: 'Inter', fontSize: 16, color: Colors.black)),
+                  Text("Status", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.menuModel.tersedia ? 'Tersedia' : 'Tidak tersedia', style: const TextStyle(fontSize: 16)),
+
                   const SizedBox(height: 16),
-                  Text("Etalase", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  etalase.isEmpty
+                  Text("Etalase", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  widget.etalase.isEmpty
                       ? const Text('Belum ada etalase dipilih', style: TextStyle(color: Colors.black54))
-                      : Wrap(spacing: 8, children: etalase.map((e) => Chip(label: Text(e))).toList()),
+                      : Wrap(
+                          spacing: 8,
+                          children: widget.etalase
+                              .map((e) => Chip(label: Text(e.namaEtalase)))
+                              .toList(),
+                        ),
                   const SizedBox(height: 16),
-                  Text("Add On", style: TextStyle(fontFamily: 'Afacad', fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  addOns.isEmpty
+                  Text("Add On", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  (widget.menuModel.addons == null || widget.menuModel.addons!.isEmpty)
                       ? const Text('Belum ada add on', style: TextStyle(color: Colors.black54))
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: addOns.map((e) => Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              children: [
-                                Expanded(child: Text(e['nama_addon'] ?? e['nama'] ?? '-', style: TextStyle(fontFamily: 'Inter', fontSize: 16))),
-                                Text('Stok: ${e['stok'] ?? '-'}', style: TextStyle(fontFamily: 'Inter', fontSize: 16)),
-                              ],
-                            ),
-                          )).toList(),
+                          children: widget.menuModel.addons!.map((e) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Text(e.namaAddon, style: const TextStyle(fontSize: 16))),
+                                  Text('Stok: ${e.stok}', style: const TextStyle(fontSize: 16)),
+                                ],
+                              ),
+                            );
+                          }).toList(),
                         ),
+
                   const SizedBox(height: 32),
                 ],
               ),

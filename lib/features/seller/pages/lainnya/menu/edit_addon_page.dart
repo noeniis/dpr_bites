@@ -1,8 +1,6 @@
+import 'package:dpr_bites/features/seller/services/addon_service.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
 import 'dart:io';
 import '../../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
@@ -18,21 +16,6 @@ class EditAddonPage extends StatefulWidget {
 }
 
 class _EditAddonPageState extends State<EditAddonPage> {
-  Future<String?> _uploadToCloudinary(String imagePath) async {
-    const cloudName = 'dip8i3f6x';
-    const uploadPreset = 'dpr_bites';
-    final url = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
-    final request = http.MultipartRequest('POST', url)
-  ..fields['upload_preset'] = 'dpr_bites'
-      ..files.add(await http.MultipartFile.fromPath('file', imagePath));
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final resStr = await response.stream.bytesToString();
-      final resJson = jsonDecode(resStr);
-      return resJson['secure_url'];
-    }
-    return null;
-  }
   late TextEditingController _namaAddonController;
   late TextEditingController _deskripsiController;
   late TextEditingController _hargaController;
@@ -76,26 +59,28 @@ class _EditAddonPageState extends State<EditAddonPage> {
     final idAddon = widget.addon['id_addon'] ?? widget.addon['id'] ?? '';
     String gambarAddon = _addonImageUrl ?? '';
     if (_addonImage != null) {
-      final url = await _uploadToCloudinary(_addonImage!.path);
+      final url = await AddonService.uploadImageToCloudinary(_addonImage!.path);
       if (url != null) {
         gambarAddon = url;
       }
     }
-    final bodyData = {
-      'id_addon': idAddon.toString(),
-      'nama_addon': _namaAddonController.text,
-      'deskripsi': _deskripsiController.text,
-      'harga': _hargaController.text,
-      'image_path': gambarAddon,
-      'tersedia': _isTersedia ? '1' : '0',
-    };
-    final response = await http.post(
-      Uri.parse('${getBaseUrl()}/update_addon.php'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(bodyData),
+    
+    final success = await AddonService.updateAddonWithImage(
+      idAddon: int.tryParse(idAddon.toString()) ?? 0,
+      namaAddon: _namaAddonController.text,
+      deskripsi: _deskripsiController.text,
+      harga: int.tryParse(_hargaController.text) ?? 0,
+      imagePath: gambarAddon,
+      tersedia: _isTersedia,
     );
-    if (response.statusCode == 200) {
-      widget.onSave?.call({...widget.addon, ...bodyData});
+    if (success) {
+      widget.onSave?.call({...widget.addon,
+        'nama_addon': _namaAddonController.text,
+        'harga': _hargaController.text,
+        'tersedia': _isTersedia ? '1' : '0',
+        'image_path': gambarAddon,
+        'deskripsi': _deskripsiController.text,
+      });
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,26 +90,15 @@ class _EditAddonPageState extends State<EditAddonPage> {
   }
 
   Future<void> _deleteAddon() async {
-  final idAddon = widget.addon['id_addon'] ?? widget.addon['id'] ?? '';
-  final response = await http.post(
-    Uri.parse('${getBaseUrl()}/delete_addon.php'),
-    body: {'id_addon': idAddon.toString()},
-  );
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    if (data['success'] == true) {
+    final idAddon = widget.addon['id_addon'] ?? widget.addon['id'] ?? '';
+  final success = await AddonService.deleteAddonWithImage(idAddon: int.tryParse(idAddon.toString()) ?? 0);
+    if (success) {
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(data['message']?.toString() ?? 'Gagal hapus add-on!')),
+        const SnackBar(content: Text('Gagal hapus add-on!')),
       );
     }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gagal hapus add-on (HTTP error)!')),
-    );
-  }
 }
 
 

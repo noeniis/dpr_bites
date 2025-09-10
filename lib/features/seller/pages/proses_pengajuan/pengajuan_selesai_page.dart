@@ -3,6 +3,8 @@ import '../../../../app/app_theme.dart';
 import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/common/data/onboarding_checklist_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/seller_user_service.dart';
 
 class PengajuanSelesaiPage extends StatelessWidget {
   const PengajuanSelesaiPage({super.key});
@@ -57,6 +59,10 @@ class PengajuanSelesaiPage extends StatelessWidget {
                     child: CustomButtonKotak(
                       text: "Lanjutkan ke beranda",
                       onPressed: () async {
+                        // Ambil id_users dari SharedPreferences
+                        final prefs = await SharedPreferences.getInstance();
+                        final idUsers = prefs.getString('id_users') ?? '';
+                        await SellerUserService.updateStepSellerStatus(idUsers, step1: 1);
                         await OnboardingChecklistStorage.setStatus(0, true);
                         Navigator.pushNamedAndRemoveUntil(
                           context,

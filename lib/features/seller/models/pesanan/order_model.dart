@@ -2,7 +2,7 @@ class OrderModel {
   final String namaPemesan;
   final String bookingId;
   final int jumlahPesanan;
-  String status; // 'pending' atau 'sedang disiapkan'
+  String status; 
   String? keterangan;
 
   OrderModel({

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../../app/gradient_background.dart';
 import 'alasan_tolak_page.dart';
 import '../../common/widgets/custom_widgets.dart';
-import 'pengajuan_service.dart';
+import 'services/pengajuan_service.dart';
+import 'models/pengajuan_model.dart';
 
 class PengajuanDetailPage extends StatelessWidget {
-  final Map<String, dynamic> data;
+  final PengajuanModel data;
   const PengajuanDetailPage({Key? key, required this.data}) : super(key: key);
 
   @override
@@ -16,7 +17,7 @@ class PengajuanDetailPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(data['nama_lengkap'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(data.namaLengkap, style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -25,7 +26,7 @@ class PengajuanDetailPage extends StatelessWidget {
             children: [
               Center(
                 child: Text(
-                  data['nama_gerai'] ?? '-',
+                  data.namaGerai,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
                 ),
               ),
@@ -90,7 +91,7 @@ class PengajuanDetailPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 32),
-              if ((data['status_pengajuan'] ?? 'pending') == 'pending')
+              if (data.statusPengajuan == 'pending')
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -105,9 +106,10 @@ class PengajuanDetailPage extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (_) => AlasanTolakPage(
                                 onSubmit: (alasan) async {
-                                  await PengajuanService.updateStatus(data['id_gerai'], 'rejected', alasan: alasan);
+                                  print('DEBUG id_gerai: ${data.idGerai}'); // debug
+                                  await PengajuanService.updateStatus(data.idGerai, 'rejected', alasan: alasan);
                                   Navigator.pop(context); // pop alasan
-                                  Navigator.pop(context, 'rejected'); // pop detail, return status
+                                  Navigator.pop(context, 'ditolak'); // pop detail, return status
                                 },
                               ),
                             ),
@@ -122,8 +124,8 @@ class PengajuanDetailPage extends StatelessWidget {
                         backgroundColor: Colors.green[600],
                         textColor: Colors.white,
                         onPressed: () async {
-                          await PengajuanService.updateStatus(data['id_gerai'], 'approved');
-                          Navigator.pop(context, 'approved'); // pop detail, return status
+                          await PengajuanService.updateStatus(data.idGerai, 'approved');
+                          Navigator.pop(context, 'approved'); 
                         },
                       ),
                     ),
@@ -138,7 +140,7 @@ class PengajuanDetailPage extends StatelessWidget {
 }
 
 class _DataDiriPenjualPage extends StatelessWidget {
-  final Map<String, dynamic> data;
+  final PengajuanModel data;
   const _DataDiriPenjualPage({required this.data});
 
   @override
@@ -161,7 +163,7 @@ class _DataDiriPenjualPage extends StatelessWidget {
 }
 
 class _DataGeraiPage extends StatelessWidget {
-  final Map<String, dynamic> data;
+  final PengajuanModel data;
   const _DataGeraiPage({required this.data});
 
   @override
@@ -183,8 +185,9 @@ class _DataGeraiPage extends StatelessWidget {
   }
 }
 
+
 class _DataDiriPenjual extends StatelessWidget {
-  final Map<String, dynamic> data;
+  final PengajuanModel data;
   const _DataDiriPenjual({required this.data});
 
   @override
@@ -198,9 +201,9 @@ class _DataDiriPenjual extends StatelessWidget {
           Center(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: data['foto_ktp_path'] != null && data['foto_ktp_path'].toString().isNotEmpty
+              child: data.fotoKtpPath != null && data.fotoKtpPath!.isNotEmpty
                   ? Image.network(
-                      data['foto_ktp_path'],
+                      data.fotoKtpPath!,
                       width: 180,
                       height: 120,
                       fit: BoxFit.cover,
@@ -214,11 +217,11 @@ class _DataDiriPenjual extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _InfoLine(label: 'Nama Lengkap', value: data['nama_lengkap'] ?? '-'),
-          _InfoLine(label: 'NIK', value: data['nik'] ?? '-'),
-          _InfoLine(label: 'Tempat Lahir', value: data['tempat_lahir'] ?? '-'),
-          _InfoLine(label: 'Tanggal Lahir', value: data['tanggal_lahir'] ?? '-'),
-          _InfoLine(label: 'Jenis Kelamin', value: data['jenis_kelamin'] ?? '-'),
+          _InfoLine(label: 'Nama Lengkap', value: data.namaLengkap),
+          _InfoLine(label: 'NIK', value: data.nik ?? '-'),
+          _InfoLine(label: 'Tempat Lahir', value: data.tempatLahir ?? '-'),
+          _InfoLine(label: 'Tanggal Lahir', value: data.tanggalLahir ?? '-'),
+          _InfoLine(label: 'Jenis Kelamin', value: data.jenisKelamin ?? '-'),
         ],
       ),
     );
@@ -226,7 +229,7 @@ class _DataDiriPenjual extends StatelessWidget {
 }
 
 class _DataGerai extends StatelessWidget {
-  final Map<String, dynamic> data;
+  final PengajuanModel data;
   const _DataGerai({required this.data});
 
   @override
@@ -237,20 +240,23 @@ class _DataGerai extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InfoLine(label: 'Nama Gerai', value: data['nama_gerai'] ?? '-'),
-          _InfoLine(label: 'Alamat', value: data['detail_alamat'] ?? '-'),
-          _InfoLine(label: 'Sertifikasi Halal', value: (data['sertifikasi_halal'] == '1' || data['sertifikasi_halal'] == true) ? 'Ya' : 'Tidak'),
+          _InfoLine(label: 'Nama Gerai', value: data.namaGerai),
+          _InfoLine(label: 'Alamat', value: data.detailAlamat ?? '-'),
+          const SizedBox(height: 8),
+          _InfoLine(label: 'Hari Buka', value: data.hariBuka ?? '-'),
+          _InfoLine(label: 'Jam Buka', value: data.jamBuka ?? '-'),
+          _InfoLine(label: 'Jam Tutup', value: data.jamTutup ?? '-'),
           const SizedBox(height: 8),
           const Text('Foto QRIS:', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Center(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: data['qris_path'] != null && data['qris_path'].toString().isNotEmpty
+              child: data.qrisPath != null && data.qrisPath!.isNotEmpty
                   ? Image.network(
-                      data['qris_path'],
-                      width: 120,
-                      height: 120,
+                      data.qrisPath!,
+                      width: 240,
+                      height: 300,
                       fit: BoxFit.cover,
                     )
                   : Image.asset(
@@ -261,10 +267,6 @@ class _DataGerai extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(height: 16),
-          _InfoLine(label: 'Hari Buka', value: data['hari_buka'] ?? '-'),
-          _InfoLine(label: 'Jam Buka', value: data['jam_buka'] ?? '-'),
-          _InfoLine(label: 'Jam Tutup', value: data['jam_tutup'] ?? '-'),
         ],
       ),
     );

@@ -1,14 +1,13 @@
+import 'package:dpr_bites/features/seller/models/addon_model.dart';
+import 'package:dpr_bites/features/seller/services/addon_service.dart';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import '../../../../../app/gradient_background.dart';
 import 'add_on_form_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 
 class AddOnListPage extends StatefulWidget {
-  final List<Map<String, dynamic>>? selectedAddOns;
+  final List<AddonModel>? selectedAddOns;
   const AddOnListPage({super.key, this.selectedAddOns});
 
   @override
@@ -16,12 +15,9 @@ class AddOnListPage extends StatefulWidget {
 }
 
 class _AddOnListPageState extends State<AddOnListPage> {
-  List<Map<String, dynamic>> _addOns = [];
+  List<AddonModel> _addOns = [];
   bool _loading = true;
   List<int> _selectedIndexes = [];
-  String? _idUser;
-  int? _idGerai;
-
   @override
   void initState() {
     super.initState();
@@ -29,50 +25,20 @@ class _AddOnListPageState extends State<AddOnListPage> {
   }
 
   Future<void> _loadUserAndGeraiAndAddOns() async {
-    final prefs = await SharedPreferences.getInstance();
-    _idUser = prefs.getString('id_users');
-    if (_idUser != null) {
-      final responseGerai = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_gerai_by_user.php'),
-        body: {'id_users': _idUser},
-      );
-      final dataGerai = jsonDecode(responseGerai.body);
-      if (dataGerai['success'] == true && dataGerai['id_gerai'] != null) {
-        // Convert id_gerai to int for safe usage
-        _idGerai = int.tryParse(dataGerai['id_gerai'].toString());
-        debugPrint('ID GERAI: $_idGerai');
-        final responseAddOn = await http.get(
-          Uri.parse('http://10.0.2.2/dpr_bites_api/get_addon.php?id_gerai=${_idGerai ?? ''}'),
-        );
-        final dataAddOn = jsonDecode(responseAddOn.body);
-        List<Map<String, dynamic>> loadedAddOns = [];
-        if (dataAddOn['success'] == true && dataAddOn['addons'] != null) {
-          loadedAddOns = List<Map<String, dynamic>>.from(dataAddOn['addons']);
+    final addOnList = await AddonService.fetchAddonsByGeraiFromPrefs();
+    List<int> selected = [];
+    if (widget.selectedAddOns != null && widget.selectedAddOns!.isNotEmpty) {
+      for (int i = 0; i < addOnList.length; i++) {
+        if (widget.selectedAddOns!.any((e) => e.namaAddon == addOnList[i].namaAddon)) {
+          selected.add(i);
         }
-        List<int> selected = [];
-        if (widget.selectedAddOns != null && widget.selectedAddOns!.isNotEmpty) {
-          for (int i = 0; i < loadedAddOns.length; i++) {
-            if (widget.selectedAddOns!.any((e) =>
-              (e['nama_addon'] ?? e['nama']) == loadedAddOns[i]['nama_addon'])) {
-              selected.add(i);
-            }
-          }
-        }
-        setState(() {
-          _addOns = loadedAddOns;
-          _selectedIndexes = selected;
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _loading = false;
-        });
       }
-    } else {
-      setState(() {
-        _loading = false;
-      });
     }
+    setState(() {
+      _addOns = addOnList;
+      _selectedIndexes = selected;
+      _loading = false;
+    });
   }
 
   void _addAddOn() async {
@@ -136,21 +102,18 @@ class _AddOnListPageState extends State<AddOnListPage> {
                                               decoration: BoxDecoration(
                                                 borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: addOn['image_path'] != null && addOn['image_path'].toString().isNotEmpty
-                                                  ? Image.network(
-                                                      addOn['image_path'],
-                                                      width: 48,
-                                                      height: 48,
-                                                      fit: BoxFit.cover,
-                                                    )
+                                              child: addOn.imagePath.isNotEmpty
+                                                  ? (addOn.imagePath.startsWith('http')
+                                                      ? Image.network(addOn.imagePath, fit: BoxFit.cover)
+                                                      : Image.asset('lib/assets/images/chalkboard_menu.jpeg', fit: BoxFit.cover))
                                                   : const Icon(Icons.fastfood, color: Colors.orange, size: 32),
                                             ),
                                           ),
-                                          title: Text(addOn['nama_addon'] ?? '-'),
-                                          subtitle: Text('Stok: ${addOn['stok'] ?? '-'} | Harga: Rp${addOn['harga'] ?? '-'}'),
-                                          trailing: addOn['tersedia'].toString() == '1'
-                                              ? const Icon(Icons.check_circle, color: Colors.green)
-                                              : const Icon(Icons.cancel, color: Colors.red),
+                      title: Text(addOn.namaAddon),
+                      subtitle: Text('Harga: Rp${addOn.harga}'),
+                      trailing: addOn.tersedia
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : const Icon(Icons.cancel, color: Colors.red),
                                         ),
                                       ),
                                       Checkbox(
@@ -180,7 +143,7 @@ class _AddOnListPageState extends State<AddOnListPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: 16), // Jeda atas
+                SizedBox(height: 16), 
                 SizedBox(
                   width: double.infinity,
                   child: CustomButtonKotak(

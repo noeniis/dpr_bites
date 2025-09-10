@@ -4,8 +4,9 @@ import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/features/seller/pages/proses_pengajuan/proses_pengajuan_page.dart';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/profile_gerai_page.dart';
 import 'package:dpr_bites/features/seller/pages/profil_gerai/daftar_menu_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dpr_bites/features/seller/services/seller_user_service.dart';
+import 'package:dpr_bites/features/seller/models/seller_user_model.dart';
+import 'package:dpr_bites/features/seller/services/onboarding_checklist_service.dart';
+
 
 
 class OnboardingChecklistPage extends StatefulWidget {
@@ -17,32 +18,62 @@ class OnboardingChecklistPage extends StatefulWidget {
 
 class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
   bool isLoading = true;
+  SellerUserModel? userModel;
   List<bool> status = [false, false, false];
-
+  String statusPengajuanGerai = '';
   @override
   void initState() {
-    super.initState();
-    _loadUserStepStatus();
+  super.initState();
+  _loadUserStepStatus();
+  _checkGeraiPengajuanStatus();
   }
 
   Future<void> _loadUserStepStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
-    if (idUsers != null) {
-      final user = await SellerUserService.fetchUserById(idUsers);
-      if (user != null) {
-        setState(() {
-          status = [
-            user['step1'] == 1,
-            user['step2'] == 1,
-            user['step3'] == 1,
-          ];
-        });
-      }
+    final user = await OnboardingChecklistService.fetchSellerUserStatus();
+    if (user != null) {
+      debugPrint('[ONBOARDING] step1: [33m${user.step1}[0m, step2: [33m${user.step2}[0m, step3: [33m${user.step3}[0m, statusPengajuanGerai: [33m${user.statusPengajuanGerai}[0m');
+      userModel = user;
+      statusPengajuanGerai = user.statusPengajuanGerai;
+      setState(() {
+        status = [
+          user.step1 == 1,
+          user.step2 == 1,
+          user.step3 == 1 && user.statusPengajuanGerai == 'approved',
+        ];
+        isLoading = false;
+      });
+    } else {
+      debugPrint('[ONBOARDING] user null, gagal ambil status');
+      setState(() { isLoading = false; });
     }
-    setState(() {
-      isLoading = false;
-    });
+    _checkGeraiPengajuanStatus();
+  }
+
+  Future<void> _checkGeraiPengajuanStatus() async {
+    if (userModel != null && userModel!.statusPengajuanGerai == 'rejected') {
+      final alasanTolak = userModel!.alasanTolak;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Pengajuan Gerai Ditolak'),
+              content: Text(
+                'Pengajuan gerai Anda ditolak.\n'
+                'Alasan: ${alasanTolak.isNotEmpty ? alasanTolak : "-"}\n'
+                'Kirim ulang seluruh data hingga peringatan ini tidak muncul.'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      });
+    }
   }
 
 
@@ -51,8 +82,8 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    // Redirect jika semua selesai
-    if (status.every((e) => e)) {
+
+    if (!isLoading && status.every((e) => e)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushReplacementNamed(context, '/dashboard');
       });
@@ -184,7 +215,7 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
                                     onPressed: status[1] ? null : () {
                                       Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (_) => const ProfilGeraiPage()),
+                                        MaterialPageRoute(builder: (_) => const ProfileGeraiPage()),
                                       );
                                     },
                                     child: Text(
@@ -209,7 +240,7 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
                 CustomEmptyCard(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: status[2] ? Colors.grey[300] : Colors.white,
+                      color: (statusPengajuanGerai == 'approved' && status[2]) ? Colors.grey[300] : (statusPengajuanGerai == 'approved' ? Colors.white : Colors.grey[300]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Padding(
@@ -219,7 +250,7 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.only(right: 14, top: 2),
-                            child: Icon(Icons.fastfood, color: status[2] ? Colors.grey : Color(0xFFD53D3D), size: 38),
+                            child: Icon(Icons.fastfood, color: (statusPengajuanGerai == 'approved' && status[2]) ? Colors.grey : (statusPengajuanGerai == 'approved' ? Color(0xFFD53D3D) : Colors.grey), size: 38),
                           ),
                           Expanded(
                             child: Column(
@@ -227,27 +258,27 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
                               children: [
                                 Text(
                                   "Pengaturan menu",
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: status[2] ? Colors.grey : Colors.black),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: (statusPengajuanGerai == 'approved' && status[2]) ? Colors.grey : (statusPengajuanGerai == 'approved' ? Colors.black : Colors.grey)),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   "Sajikan hidangan lezat untuk dinikmati para pelanggan.",
-                                  style: TextStyle(fontSize: 14, color: status[2] ? Colors.grey : Colors.black),
+                                  style: TextStyle(fontSize: 14, color: (statusPengajuanGerai == 'approved' && status[2]) ? Colors.grey : (statusPengajuanGerai == 'approved' ? Colors.black : Colors.grey)),
                                 ),
                                 const SizedBox(height: 6),
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
-                                    onPressed: status[2] ? null : () {
+                                    onPressed: (statusPengajuanGerai == 'approved' && !status[2]) ? () {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(builder: (_) => const DaftarMenuPage()),
                                       );
-                                    },
+                                    } : null,
                                     child: Text(
-                                      status[2] ? "Sudah selesai" : "Atur menu",
+                                      (statusPengajuanGerai == 'approved' && status[2]) ? "Sudah selesai" : (statusPengajuanGerai == 'approved' ? "Atur menu" : "Menunggu verifikasi gerai"),
                                       style: TextStyle(
-                                        color: status[2] ? Colors.grey : Color(0xFFD53D3D),
+                                        color: (statusPengajuanGerai == 'approved' && status[2]) ? Colors.grey : (statusPengajuanGerai == 'approved' ? Color(0xFFD53D3D) : Colors.grey),
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),

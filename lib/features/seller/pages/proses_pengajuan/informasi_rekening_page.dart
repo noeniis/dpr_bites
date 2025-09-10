@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'pengajuan_selesai_page.dart';
 import 'dart:io';
 import 'dart:ui';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/qris_service.dart';
 
 class InformasiRekeningPage extends StatefulWidget {
   const InformasiRekeningPage({super.key});
@@ -15,6 +17,54 @@ class InformasiRekeningPage extends StatefulWidget {
 }
 
 class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
+  String? _qrisUrlFromDb;
+  @override
+  void initState() {
+    super.initState();
+    _fetchQrisFromDb();
+  }
+
+  Future<void> _fetchQrisFromDb() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users') ?? '';
+    if (idUsers.isEmpty) return;
+    final qrisUrl = await QrisService.getQrisUrlByUser(idUsers);
+    if (qrisUrl != null && qrisUrl.isNotEmpty) {
+      setState(() {
+        _qrisUrlFromDb = qrisUrl;
+      });
+    }
+  }
+  bool _isLoading = false;
+
+  Future<void> _handleKirim() async {
+    if (_qrisImage == null && _qrisUrlFromDb != null && _qrisUrlFromDb!.isNotEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PengajuanSelesaiPage()),
+      );
+      return;
+    }
+    if (_qrisImage != null) {
+      setState(() => _isLoading = true);
+      final success = await QrisService.uploadAndSaveQris(_qrisImage);
+      setState(() => _isLoading = false);
+      if (success) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PengajuanSelesaiPage()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal upload/simpan QRIS')),);
+      }
+      return;
+    }
+    // Jika tidak ada gambar sama sekali
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Silakan upload gambar QRIS terlebih dahulu.')),
+    );
+  }
   XFile? _qrisImage;
 
   Future<void> _pickQrisImage() async {
@@ -67,16 +117,25 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
                 const SizedBox(height: 24),
                 Center(
                   child: DottedBorderContainer(
-                    child: _qrisImage == null
-                        ? const Icon(Icons.qr_code_2, size: 80, color: Colors.grey)
-                        : ClipRRect(
+                    child: _qrisImage != null
+                        ? ClipRRect(
                             borderRadius: BorderRadius.circular(16),
                             child: Image.file(
                               File(_qrisImage!.path),
                               height: 180,
                               fit: BoxFit.contain,
                             ),
-                          ),
+                          )
+                        : (_qrisUrlFromDb != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.network(
+                                  _qrisUrlFromDb!,
+                                  height: 180,
+                                  fit: BoxFit.contain,
+                                ),
+                              )
+                            : const Icon(Icons.qr_code_2, size: 80, color: Colors.grey)),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -106,19 +165,10 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      onPressed: () {
-                        if (_qrisImage != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const PengajuanSelesaiPage()),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Silakan upload gambar QRIS terlebih dahulu.')),
-                          );
-                        }
-                      },
-                      child: const Text("Kirim", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      onPressed: _isLoading ? null : (_qrisImage != null || (_qrisUrlFromDb != null && _qrisUrlFromDb!.isNotEmpty) ? _handleKirim : null),
+                      child: _isLoading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : const Text("Kirim", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     ),
                   ),
                 ),

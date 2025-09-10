@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../app/gradient_background.dart';
 import '../../common/widgets/custom_widgets.dart';
+import 'models/alasan_tolak_model.dart';
 
 class AlasanTolakPage extends StatefulWidget {
   final void Function(String alasan) onSubmit;
@@ -12,13 +13,7 @@ class AlasanTolakPage extends StatefulWidget {
 
 class _AlasanTolakPageState extends State<AlasanTolakPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<String> shortcutAlasan = [
-    'Data kurang lengkap',
-    'Foto KTP buram',
-    'Data tidak valid',
-    'Dokumen tidak sesuai',
-  ];
-  final Set<String> selectedAlasan = {};
+  final AlasanTolakModel alasanModel = AlasanTolakModel();
 
   @override
   Widget build(BuildContext context) {
@@ -40,16 +35,12 @@ class _AlasanTolakPageState extends State<AlasanTolakPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: shortcutAlasan.map((alasan) => FilterChip(
+                children: alasanModel.shortcutAlasan.map((alasan) => FilterChip(
                   label: Text(alasan),
-                  selected: selectedAlasan.contains(alasan),
+                  selected: alasanModel.selectedAlasan.contains(alasan),
                   onSelected: (selected) {
                     setState(() {
-                      if (selected) {
-                        selectedAlasan.add(alasan);
-                      } else {
-                        selectedAlasan.remove(alasan);
-                      }
+                      alasanModel.toggleAlasan(alasan, selected);
                     });
                   },
                 )).toList(),
@@ -64,17 +55,17 @@ class _AlasanTolakPageState extends State<AlasanTolakPage> {
                   border: OutlineInputBorder(),
                   hintText: 'Masukkan alasan penolakan',
                 ),
+                onChanged: (val) {
+                  alasanModel.alasanLain = val;
+                },
               ),
               const Spacer(),
               CustomButtonKotak(
                 text: 'Kirim',
                 onPressed: () {
-                  final alasanList = [
-                    ...selectedAlasan,
-                    if (_controller.text.trim().isNotEmpty) _controller.text.trim(),
-                  ];
-                  if (alasanList.isEmpty) return;
-                  widget.onSubmit(alasanList.join('; '));
+                  final alasanGabung = alasanModel.alasanGabung;
+                  if (alasanGabung.isEmpty) return;
+                  widget.onSubmit(alasanGabung);
                 },
               ),
             ],

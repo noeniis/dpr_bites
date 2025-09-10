@@ -1,12 +1,9 @@
-
-
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../auth/pages/forgot_password.dart';
+import '../../models/lainnya/profil_seller_model.dart';
+import '../../services/lainnya/profil_seller_service.dart';
 
 class ProfilSellerPage extends StatefulWidget {
   const ProfilSellerPage({Key? key}) : super(key: key);
@@ -31,36 +28,24 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
   bool _isEditingEmail = false;
   bool _isEditingPhone = false;
   bool _isLoadingUpdateProfile = false;
+  ProfilSellerModel? _profil;
+  final ProfilSellerService _service = ProfilSellerService();
+
   Future<void> _updateProfileField({String? email, String? noTelp}) async {
     if (_idUsers == null) return;
     setState(() { _isLoadingUpdateProfile = true; });
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/update_user_profile.php'),
-        body: jsonEncode({
-          "id_users": _idUsers,
-          if (email != null) "email": email,
-          if (noTelp != null) "no_hp": noTelp,
-        }),
-        headers: {'Content-Type': 'application/json'},
+      await _service.updateProfileField(idUsers: _idUsers!, email: email, noTelp: noTelp);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil berhasil diperbarui')),
       );
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profil berhasil diperbarui')),
-        );
-        setState(() {
-          if (email != null) _isEditingEmail = false;
-          if (noTelp != null) _isEditingPhone = false;
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Gagal update profil')),
-        );
-      }
+      setState(() {
+        if (email != null) _isEditingEmail = false;
+        if (noTelp != null) _isEditingPhone = false;
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Terjadi kesalahan jaringan')),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       setState(() { _isLoadingUpdateProfile = false; });
@@ -74,8 +59,7 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
   }
 
   Future<void> _loadUserIdAndFetchProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
+    final idUsers = await _service.getUserId();
     setState(() {
       _idUsers = idUsers;
     });
@@ -93,27 +77,17 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
       _isLoadingProfile = true;
     });
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/get_seller_profile.php'),
-        body: jsonEncode({"id_users": idUsers}),
-        headers: {'Content-Type': 'application/json'},
-      );
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        setState(() {
-          _nama = data['user']['nama'] ?? '';
-          _role = data['user']['role'] ?? 'Owner';
-          _emailController.text = data['user']['email'] ?? '';
-          _phoneController.text = data['user']['no_telp'] ?? '';
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Gagal ambil profil')),
-        );
-      }
+      final profil = await _service.fetchProfile(idUsers);
+      setState(() {
+        _profil = profil;
+        _nama = profil?.nama ?? '';
+        _role = profil?.role ?? 'Owner';
+        _emailController.text = profil?.email ?? '';
+        _phoneController.text = profil?.noTelp ?? '';
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Terjadi kesalahan jaringan')),
+        SnackBar(content: Text(e.toString())),
       );
     } finally {
       setState(() {
@@ -148,33 +122,16 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/update_password.php'),
-        body: jsonEncode({
-          "id_users": _idUsers,
-          "current_password": currentPassword,
-          "new_password": newPassword,
-        }),
-        headers: {'Content-Type': 'application/json'},
+      await _service.updatePassword(idUsers: _idUsers!, currentPassword: currentPassword, newPassword: newPassword);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kata sandi berhasil diubah')),
       );
-
-      final data = jsonDecode(response.body);
-
-      if (data['success'] == true) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kata sandi berhasil diubah')),
-        );
-        _currentPasswordController.clear();
-        _newPasswordController.clear();
-      } else {
-        setState(() {
-          _errorPassword = data['message'] ?? 'Gagal mengubah kata sandi';
-        });
-      }
+      _currentPasswordController.clear();
+      _newPasswordController.clear();
     } catch (e) {
       setState(() {
-        _errorPassword = 'Terjadi kesalahan jaringan';
+        _errorPassword = e.toString();
       });
     } finally {
       setState(() {
@@ -182,7 +139,6 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
       });
     }
   }
-// ...existing code...
 
   @override
   void dispose() {
@@ -217,7 +173,7 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Nama dan Peran
+                            // Nama
                             CustomEmptyCard(
                               margin: const EdgeInsets.only(bottom: 18),
                               child: Padding(
@@ -385,8 +341,6 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
                                   final success = await _deleteAccount(_idUsers!);
                                   if (success) {
                                     if (!mounted) return;
-                                    final prefs = await SharedPreferences.getInstance();
-                                    await prefs.remove('id_users');
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Akun berhasil dihapus')),);
                                     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
@@ -407,20 +361,14 @@ class _ProfilSellerPageState extends State<ProfilSellerPage> {
   }
 
   Future<bool> _deleteAccount(String idUsers) async {
-  print("DEBUG: kirim id_users = $idUsers");
-  try {
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2/dpr_bites_api/delete_user_and_related.php'),
-      body: {"id_users": idUsers},
-    );
-    print("DEBUG: response = ${response.body}");
-    final data = jsonDecode(response.body);
-    return data['success'] == true;
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gagal menghapus akun')),
-    );
-    return false;
+    try {
+      await _service.deleteAccount(idUsers);
+      return true;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+      return false;
+    }
   }
-}
 }

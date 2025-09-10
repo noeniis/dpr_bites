@@ -1,17 +1,19 @@
+import 'package:dpr_bites/features/seller/models/menu_model.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:dpr_bites/common/utils/base_url.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:dpr_bites/features/seller/services/menu_service.dart';
+import 'package:dpr_bites/features/seller/services/addon_service.dart';
 import '../../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'pilih_etalase_page.dart';
 import 'add_on_list_page.dart';
+import 'package:dpr_bites/features/seller/models/etalase_model.dart';
+import 'package:dpr_bites/features/seller/models/addon_model.dart';
 
 class EditMenuPage extends StatefulWidget {
-  final Map<String, dynamic> menu;
+  final MenuModel menu;
   final Function(Map<String, dynamic>)? onSave;
   final Function(String)? onDelete;
   const EditMenuPage({Key? key, required this.menu, this.onSave, this.onDelete}) : super(key: key);
@@ -21,31 +23,15 @@ class EditMenuPage extends StatefulWidget {
 }
 
 class _EditMenuPageState extends State<EditMenuPage> {
-  Future<String?> _uploadToCloudinary(String imagePath) async {
-    const cloudName = 'dip8i3f6x';
-    const uploadPreset = 'dpr_bites';
-    final url = Uri.parse('https://api.cloudinary.com/v1_1/$cloudName/image/upload');
-    final request = http.MultipartRequest('POST', url)
-  ..fields['upload_preset'] = 'dpr_bites'
-      ..files.add(await http.MultipartFile.fromPath('file', imagePath));
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final resStr = await response.stream.bytesToString();
-      final resJson = jsonDecode(resStr);
-      return resJson['secure_url'];
-    }
-    return null;
-  }
   final List<String> _kategoriList = ['makanan', 'minuman', 'jajanan'];
   String? _selectedKategori;
   late TextEditingController _namaMenuController;
   late TextEditingController _deskripsiController;
   late TextEditingController _hargaController;
   late TextEditingController _jumlahStokController;
-  List<Map<String, dynamic>> _etalaseMaster = [];
-  // List<Map<String, dynamic>> _addOnMaster = [];
-  List<Map<String, dynamic>> _selectedEtalase = [];
-  List<Map<String, dynamic>> _selectedAddOns = [];
+  List<EtalaseModel> _etalaseMaster = [];
+  List<EtalaseModel> _selectedEtalase = [];
+  List<AddonModel> _selectedAddOns = [];
   XFile? _menuImage;
   String? _menuImageUrl;
   bool _isTersedia = false;
@@ -54,75 +40,64 @@ class _EditMenuPageState extends State<EditMenuPage> {
   void initState() {
     super.initState();
     final menu = widget.menu;
-    _namaMenuController = TextEditingController(text: (menu['nama_menu'] ?? menu['name'])?.toString() ?? '');
-    _deskripsiController = TextEditingController(text: (menu['deskripsi_menu'] ?? menu['desc'])?.toString() ?? '');
-    _hargaController = TextEditingController(text: (menu['harga'] ?? menu['price'])?.toString() ?? '');
-    _jumlahStokController = TextEditingController(text: (menu['jumlah_stok'] ?? menu['stock'])?.toString() ?? '');
+    _namaMenuController = TextEditingController(text: menu.namaMenu);
+    _deskripsiController = TextEditingController(text: menu.deskripsiMenu);
+    _hargaController = TextEditingController(text: menu.harga.toString());
+    _jumlahStokController = TextEditingController(text: menu.jumlahStok.toString());
 
-    // Robust parsing etalase (hanya satu, simpan sebagai list berisi satu map)
-    if (menu['etalase'] is Map) {
-      _selectedEtalase = [Map<String, dynamic>.from(menu['etalase'])];
-    } else if (menu['etalase'] is List) {
-      _selectedEtalase = (menu['etalase'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    // Parsing etalase
+    if (menu.idEtalase != null && _etalaseMaster.isNotEmpty) {
+      _selectedEtalase = _etalaseMaster.where((e) => e.idEtalase == menu.idEtalase).toList();
     } else {
       _selectedEtalase = [];
     }
 
-    // Robust parsing add_ons (selalu list)
-    if (menu['add_ons'] is List) {
-      _selectedAddOns = (menu['add_ons'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+    // Parsing add_ons
+    if (menu.addons != null) {
+      _selectedAddOns = menu.addons!;
     } else {
       _selectedAddOns = [];
     }
 
-    // Checkbox tersedia robust
-    final tersediaVal = menu['tersedia'];
-    _isTersedia = tersediaVal == true || tersediaVal == 1 || tersediaVal == '1';
+    // Checkbox tersedia
+    _isTersedia = menu.tersedia;
 
-    if (menu['gambar_menu'] != null && menu['gambar_menu'].toString().isNotEmpty) {
-      _menuImageUrl = menu['gambar_menu'];
+    if (menu.gambarMenu.isNotEmpty) {
+      _menuImageUrl = menu.gambarMenu;
     }
-    final kategoriDb = (menu['kategori'] ?? '').toString().toLowerCase();
+    final kategoriDb = menu.kategori.toLowerCase();
     _selectedKategori = _kategoriList.contains(kategoriDb) ? kategoriDb : _kategoriList.first;
     _fetchEtalaseAndAddOn();
   }
 
   Future<void> _fetchEtalaseAndAddOn() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final idUser = prefs.getString('id_users');
-      if (idUser != null) {
-        final responseGerai = await http.post(
-          Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
-          body: {'id_users': idUser},
-        );
-        final dataGerai = jsonDecode(responseGerai.body);
-        if (dataGerai['success'] == true && dataGerai['id_gerai'] != null) {
-          final idGerai = dataGerai['id_gerai'].toString();
-          // Etalase
-          final responseEtalase = await http.get(
-            Uri.parse('${getBaseUrl()}/get_etalase.php?id_gerai=$idGerai'),
-          );
-          final dataEtalase = jsonDecode(responseEtalase.body);
-          if (dataEtalase['success'] == true && dataEtalase['etalase'] != null) {
-            setState(() {
-              _etalaseMaster = List<Map<String, dynamic>>.from(dataEtalase['etalase']);
-            });
-          }
-          // Add On
-          final responseAddOn = await http.get(
-            Uri.parse('${getBaseUrl()}/get_addon.php?id_gerai=$idGerai'),
-          );
-          final dataAddOn = jsonDecode(responseAddOn.body);
-          if (dataAddOn['success'] == true && dataAddOn['addons'] != null) {
-            setState(() {
-              // _addOnMaster = List<Map<String, dynamic>>.from(dataAddOn['addons']);
-            });
-          }
+    final prefs = await SharedPreferences.getInstance();
+    final idUser = prefs.getString('id_users');
+    if (idUser != null) {
+      // Ambil semua etalase master untuk pilihan
+      final etalaseList = await MenuService.fetchEtalaseByUser(idUsers: idUser);
+      setState(() {
+        _etalaseMaster = etalaseList;
+      });
+      final idGerai = widget.menu.idGerai;
+      final idMenu = widget.menu.idMenu;
+      final menuDetail = await MenuService.fetchMenuDetail(idGerai: idGerai, idMenu: idMenu);
+      if (menuDetail != null) {
+        // Etalase
+        if (menuDetail['etalase'] != null && (menuDetail['etalase'] as List).isNotEmpty) {
+          setState(() {
+            _selectedEtalase = (menuDetail['etalase'] as List)
+                .map((e) => EtalaseModel.fromJson(e)).toList();
+          });
+        }
+        // Add-on
+        if (menuDetail['add_ons'] != null && (menuDetail['add_ons'] as List).isNotEmpty) {
+          setState(() {
+            _selectedAddOns = (menuDetail['add_ons'] as List)
+                .map((a) => AddonModel.fromJson(a)).toList();
+          });
         }
       }
-    } catch (e) {
-      // ignore error, fallback dummy
     }
   }
 
@@ -135,27 +110,16 @@ class _EditMenuPageState extends State<EditMenuPage> {
     super.dispose();
   }
 
-  Future<void> _pickMenuImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _menuImage = image;
-      });
-    }
-  }
 
   Future<void> _saveMenu() async {
-    final idMenu = widget.menu['id_menu'] ?? widget.menu['id'] ?? '';
+    final idMenu = widget.menu.idMenu;
     String gambarMenu = _menuImageUrl ?? '';
-
     if (_menuImage != null) {
-      final url = await _uploadToCloudinary(_menuImage!.path);
+      final url = await AddonService.uploadImageToCloudinary(_menuImage!.path);
       if (url != null) {
         gambarMenu = url;
       }
     }
-
     final bodyData = {
       'id_menu': idMenu.toString(),
       'nama_menu': _namaMenuController.text,
@@ -164,24 +128,14 @@ class _EditMenuPageState extends State<EditMenuPage> {
       'jumlah_stok': _jumlahStokController.text,
       'gambar_menu': gambarMenu,
       'kategori': _selectedKategori ?? '',
-      'etalase': _selectedEtalase.map((e) => e['id_etalase']).join(','),
-      'addon': _selectedAddOns.map((a) => a['id_addon']).join(','),
+      'etalase': _selectedEtalase.map((e) => e.idEtalase).join(','),
+      'addon': _selectedAddOns.map((a) => a.idAddon).join(','),
       'tersedia': _isTersedia ? '1' : '0',
     };
-
-    print("DATA DIKIRIM: $bodyData"); // Debugging
-
-    final response = await http.post(
-      Uri.parse('${getBaseUrl()}/update_menu.php'),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: jsonEncode(bodyData),
-    );
-
-    if (response.statusCode == 200) {
-      widget.onSave?.call({...widget.menu, ...bodyData});
-      Navigator.pop(context, true); // pop dengan result true agar parent bisa reload
+    final success = await MenuService.updateMenu(bodyData);
+    if (success) {
+      widget.onSave?.call({...widget.menu.toJson(), ...bodyData});
+      Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Gagal update menu!')),
@@ -191,27 +145,16 @@ class _EditMenuPageState extends State<EditMenuPage> {
 
 
   Future<void> _deleteMenu() async {
-  final idMenu = widget.menu['id_menu'] ?? widget.menu['id'] ?? '';
-  final response = await http.post(
-    Uri.parse('${getBaseUrl()}/delete_menu.php'),
-    body: {'id_menu': idMenu.toString()},
-  );
-
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    if (data['success'] == true) {
-      Navigator.pop(context, true); // trigger refresh di list
+    final idMenu = widget.menu.idMenu;
+    final success = await MenuService.deleteMenu(idMenu: idMenu);
+    if (success) {
+      Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(data['message']?.toString() ?? 'Gagal hapus menu!')),
+        const SnackBar(content: Text('Gagal hapus menu!')),
       );
     }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gagal hapus menu (HTTP error)!')),
-    );
   }
-}
 
 
   @override
@@ -284,45 +227,23 @@ class _EditMenuPageState extends State<EditMenuPage> {
                         ),
                         const SizedBox(height: 6),
                         _menuImage != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.file(
-                                  File(_menuImage!.path),
-                                  height: 120,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : (_menuImageUrl != null && _menuImageUrl!.isNotEmpty)
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(
-                                      _menuImageUrl!,
-                                      height: 120,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : Container(
-                                    height: 120,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Center(child: Text("Belum ada gambar")),
-                                  ),
-                        const SizedBox(height: 8),
-                        CustomButtonKotak(
-                          text: "Pilih gambar",
-                          onPressed: _pickMenuImage,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          "Ukuran gambar maksimal 2 MB. Pastikan kualitas gambar jelas dan menggugah selera.",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontFamily: 'Inter',
-                            color: Colors.black54,
+                            ? Image.file(File(_menuImage!.path), width: 100, height: 100, fit: BoxFit.cover)
+                            : (_menuImageUrl != null && _menuImageUrl!.isNotEmpty
+                                ? Image.network(_menuImageUrl!, width: 100, height: 100, fit: BoxFit.cover)
+                                : Image.asset('lib/assets/images/chalkboard_menu.jpeg', width: 100, height: 100, fit: BoxFit.cover)),
+                          const SizedBox(height: 8),
+                          CustomButtonKotak(
+                            text: "Edit Foto",
+                            onPressed: () async {
+                              final ImagePicker picker = ImagePicker();
+                              final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+                              if (pickedFile != null) {
+                                setState(() {
+                                  _menuImage = pickedFile;
+                                });
+                              }
+                            },
                           ),
-                        ),
                         const SizedBox(height: 12),
                         // Deskripsi
                         const Text(
@@ -398,7 +319,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
                           spacing: 8,
                           children: _selectedEtalase.isEmpty
                               ? [const Text('Belum ada etalase dipilih', style: TextStyle(color: Colors.black54))]
-                              : _selectedEtalase.map((e) => Chip(label: Text(e['nama_etalase'] ?? '-'))).toList(),
+                              : _selectedEtalase.map((e) => Chip(label: Text(e.namaEtalase))).toList(),
                         ),
                         const SizedBox(height: 8),
                         CustomButtonKotak(
@@ -408,16 +329,14 @@ class _EditMenuPageState extends State<EditMenuPage> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => PilihEtalasePage(
-                                  etalaseList: _etalaseMaster.map((e) => e['nama_etalase'].toString()).toList(),
-                                  selectedEtalase: _selectedEtalase.map((e) => e['nama_etalase'].toString()).toList(),
+                                  selectedEtalase: _selectedEtalase,
                                 ),
                               ),
                             );
-                            // Setelah kembali, fetch ulang etalase agar data terbaru
                             await _fetchEtalaseAndAddOn();
-                            if (result != null && result is List) {
+                            if (result != null && result is List<EtalaseModel>) {
                               setState(() {
-                                _selectedEtalase = _etalaseMaster.where((e) => result.contains(e['nama_etalase'])).toList();
+                                _selectedEtalase = result;
                               });
                             }
                           },
@@ -493,13 +412,13 @@ class _EditMenuPageState extends State<EditMenuPage> {
                           spacing: 8,
                           children: _selectedAddOns.isEmpty
                               ? [const Text('Belum ada add on', style: TextStyle(color: Colors.black54))]
-                              : _selectedAddOns.map((a) => Chip(label: Text(a['nama_addon'] ?? a['nama'] ?? '-'))).toList(),
+                              : _selectedAddOns.map((a) => Chip(label: Text(a.namaAddon))).toList(),
                         ),
                         const SizedBox(height: 8),
                         CustomButtonKotak(
                           text: "Tambah/Pilih Add On",
                           onPressed: () async {
-                            await _fetchEtalaseAndAddOn(); // fetch ulang add-on sebelum pilih
+                            await _fetchEtalaseAndAddOn();
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -508,9 +427,9 @@ class _EditMenuPageState extends State<EditMenuPage> {
                                 ),
                               ),
                             );
-                            if (result != null && result is List) {
+                            if (result != null && result is List<AddonModel>) {
                               setState(() {
-                                _selectedAddOns = result.map((a) => Map<String, dynamic>.from(a)).toList();
+                                _selectedAddOns = result;
                               });
                             }
                           },

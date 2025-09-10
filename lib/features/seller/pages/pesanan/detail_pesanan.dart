@@ -1,10 +1,9 @@
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:dpr_bites/models/order_api_model.dart';
-import 'package:dpr_bites/models/transaction_detail_model.dart';
+import 'package:dpr_bites/features/seller/models/pesanan/order_api_model.dart';
+import 'package:dpr_bites/features/seller/models/pesanan/transaction_detail_model.dart';
+import 'package:dpr_bites/features/seller/services/transaction_detail_service.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'delivery_map_page.dart';
@@ -39,34 +38,19 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                 );
                 try {
                   final idTransaksi = detail.idTransaksi;
-
-                  // 1. Update stok & konfirmasi ketersediaan
-                  final stokRes = await http.post(
-                    Uri.parse('http://10.0.2.2/dpr_bites_api/auto_decide_availability.php'),
-                    headers: {'Content-Type': 'application/json'},
-                    body: jsonEncode({
-                      "id_transaksi": idTransaksi,
-                      "available": true,
-                    }),
+                  final isCash = detail.metodePembayaran.toLowerCase().trim() == 'cash';
+                  final nextStatus = isCash ? 'disiapkan' : 'konfirmasi_pembayaran';
+                  final stokSuccess = await TransactionDetailService.confirmAvailability(
+                    idTransaksi: idTransaksi,
+                    available: true,
                   );
-
-                  if (stokRes.statusCode == 200 && stokRes.body.contains('success')) {
-                    // 2. Tentukan next status
-                    final isCash = detail.metodePembayaran.toLowerCase().trim() == 'cash';
-                    final nextStatus = isCash ? 'disiapkan' : 'konfirmasi_pembayaran';
-
-                    final statusRes = await http.post(
-                      Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                      headers: {'Content-Type': 'application/json'},
-                      body: jsonEncode({
-                        "id_transaksi": idTransaksi,
-                        "new_status": nextStatus,
-                      }),
+                  if (stokSuccess) {
+                    final statusSuccess = await TransactionDetailService.updateStatus(
+                      idTransaksi: idTransaksi,
+                      newStatus: nextStatus,
                     );
-
                     Navigator.of(context, rootNavigator: true).pop(); // close loading
-
-                    if (statusRes.statusCode == 200 && statusRes.body.contains('success')) {
+                    if (statusSuccess) {
                       Navigator.pop(context, {'status': nextStatus});
                     } else {
                       showDialog(
@@ -199,20 +183,13 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                   );
                   try {
                     final idTransaksi = detail.idTransaksi;
-
-                    final response = await http.post(
-                      Uri.parse('http://10.0.2.2/dpr_bites_api/auto_decide_availability.php'),
-                      headers: {'Content-Type': 'application/json'},
-                      body: jsonEncode({
-                        "id_transaksi": idTransaksi,
-                        "available": false,
-                        "alasan": alasan,
-                      }),
+                    final rejectSuccess = await TransactionDetailService.confirmAvailability(
+                      idTransaksi: idTransaksi,
+                      available: false,
+                      alasan: alasan,
                     );
-
                     Navigator.of(context, rootNavigator: true).pop(); // close loading
-
-                    if (response.statusCode == 200 && response.body.contains('success')) {
+                    if (rejectSuccess) {
                       Navigator.pop(context, {'status': 'canceled', 'alasan': alasan});
                     } else {
                       showDialog(
@@ -309,16 +286,12 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                     );
                     try {
                       final idTransaksi = detail.idTransaksi;
-                      final response = await http.post(
-                        Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                        headers: {'Content-Type': 'application/json'},
-                        body: jsonEncode({
-                          "id_transaksi": idTransaksi,
-                          "new_status": "disiapkan"
-                        }),
+                      final statusSuccess = await TransactionDetailService.updateStatus(
+                        idTransaksi: idTransaksi,
+                        newStatus: "disiapkan",
                       );
                       Navigator.of(context, rootNavigator: true).pop(); // close loading
-                      if (response.statusCode == 200 && response.body.contains('success')) {
+                      if (statusSuccess) {
                         Navigator.pop(context, {'status': 'disiapkan'});
                       } else {
                         showDialog(
@@ -361,16 +334,12 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
               );
               try {
                 final idTransaksi = detail.idTransaksi;
-                final response = await http.post(
-                  Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode({
-                    "id_transaksi": idTransaksi,
-                    "new_status": nextStatus
-                  }),
+                final statusSuccess = await TransactionDetailService.updateStatus(
+                  idTransaksi: idTransaksi,
+                  newStatus: nextStatus,
                 );
-                Navigator.of(context, rootNavigator: true).pop(); // close loading
-                if (response.statusCode == 200 && response.body.contains('success')) {
+                Navigator.of(context, rootNavigator: true).pop();
+                if (statusSuccess) {
                   Navigator.pop(context, {'status': nextStatus});
                 } else {
                   showDialog(
@@ -472,24 +441,16 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                           if (_buktiPembayaranFile != null && (detail.buktiPembayaran == null || detail.buktiPembayaran!.isEmpty)) {
                             setState(() { _isUploadingBukti = true; });
                             try {
-                              var request = http.MultipartRequest(
-                                'POST',
-                                Uri.parse('http://10.0.2.2/dpr_bites_api/upload_bukti_pembayaran.php'),
+                              final uploadSuccess = await TransactionDetailService.uploadBuktiPembayaran(
+                                idTransaksi: detail.idTransaksi,
+                                filePath: _buktiPembayaranFile!.path,
                               );
-                              request.fields['id_transaksi'] = detail.idTransaksi;
-                              request.files.add(await http.MultipartFile.fromPath('bukti', _buktiPembayaranFile!.path));
-                              var response = await request.send();
-                              if (response.statusCode == 200) {
-                                // After upload, update status to selesai
-                                final updateRes = await http.post(
-                                  Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                                  headers: {'Content-Type': 'application/json'},
-                                  body: jsonEncode({
-                                    "id_transaksi": detail.idTransaksi,
-                                    "new_status": "selesai"
-                                  }),
+                              if (uploadSuccess) {
+                                final statusSuccess = await TransactionDetailService.updateStatus(
+                                  idTransaksi: detail.idTransaksi,
+                                  newStatus: "selesai",
                                 );
-                                if (updateRes.statusCode == 200 && updateRes.body.contains('success')) {
+                                if (statusSuccess) {
                                   await fetchDetail();
                                   Navigator.pop(context, {'status': 'selesai'});
                                 } else {
@@ -515,16 +476,12 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                               builder: (context) => const Center(child: CircularProgressIndicator()),
                             );
                             try {
-                              final updateRes = await http.post(
-                                Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                                headers: {'Content-Type': 'application/json'},
-                                body: jsonEncode({
-                                  "id_transaksi": detail.idTransaksi,
-                                  "new_status": "selesai"
-                                }),
+                              final statusSuccess = await TransactionDetailService.updateStatus(
+                                idTransaksi: detail.idTransaksi,
+                                newStatus: "selesai",
                               );
                               Navigator.of(context, rootNavigator: true).pop();
-                              if (updateRes.statusCode == 200 && updateRes.body.contains('success')) {
+                              if (statusSuccess) {
                                 await fetchDetail();
                                 Navigator.pop(context, {'status': 'selesai'});
                               } else {
@@ -557,16 +514,12 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                             builder: (context) => const Center(child: CircularProgressIndicator()),
                           );
                           try {
-                            final updateRes = await http.post(
-                              Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                              headers: {'Content-Type': 'application/json'},
-                              body: jsonEncode({
-                                "id_transaksi": detail.idTransaksi,
-                                "new_status": "selesai"
-                              }),
+                            final statusSuccess = await TransactionDetailService.updateStatus(
+                              idTransaksi: detail.idTransaksi,
+                              newStatus: "selesai",
                             );
                             Navigator.of(context, rootNavigator: true).pop();
-                            if (updateRes.statusCode == 200 && updateRes.body.contains('success')) {
+                            if (statusSuccess) {
                               await fetchDetail();
                               Navigator.pop(context, {'status': 'selesai'});
                             } else {
@@ -610,16 +563,12 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                     builder: (context) => const Center(child: CircularProgressIndicator()),
                   );
                   try {
-                    final updateRes = await http.post(
-                      Uri.parse('http://10.0.2.2/dpr_bites_api/update_transaction_status.php'),
-                      headers: {'Content-Type': 'application/json'},
-                      body: jsonEncode({
-                        "id_transaksi": detail.idTransaksi,
-                        "new_status": "selesai"
-                      }),
+                    final statusSuccess = await TransactionDetailService.updateStatus(
+                      idTransaksi: detail.idTransaksi,
+                      newStatus: "selesai",
                     );
                     Navigator.of(context, rootNavigator: true).pop();
-                    if (updateRes.statusCode == 200 && updateRes.body.contains('success')) {
+                    if (statusSuccess) {
                       await fetchDetail();
                       Navigator.pop(context, {'status': 'selesai'});
                     } else {
@@ -926,7 +875,6 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                                               color: Color(0xFFD53D3D),
                                             ),
                                           ),
-  // ---
                                         ],
                                       ),
                                     ],
