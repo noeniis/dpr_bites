@@ -5,10 +5,9 @@ import 'rating_page.dart';
 import 'package:dpr_bites/features/user/pages/cart/cart.dart';
 import 'menu_detail_page.dart';
 import 'package:dpr_bites/features/user/pages/checkout/checkout_page.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dpr_bites/features/user/services/restaurant_detail_page_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// prefs handled in service layer
 
 class RestaurantDetailPage extends StatefulWidget {
   final String restaurantId;
@@ -42,7 +41,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
   // Cache apakah menu punya addon (menuId -> bool)
   final Map<String, bool> _menuHasAddon = {};
   // user id dari SharedPreferences (dapat null jika belum login)
-  int? _userId;
+  // user id handled internally by service
 
   @override
   void initState() {
@@ -51,89 +50,31 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
   }
 
   Future<void> _init() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _userId = prefs.getInt('id_users');
-    } catch (_) {
-      _userId = null;
-    }
-    _fetchDetail();
+    await _fetchDetail();
     await _loadExistingCart();
   }
 
   Future<void> _loadExistingCart() async {
-    try {
-      if (_userId == null) return; // tidak ada user, skip
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_cart.php?user_id=$_userId&gerai_id=${widget.restaurantId}',
-      );
-      final res = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          if (data is Map) {
-            final items = (data['items'] as List?) ?? [];
-            // Reset current selections to reflect up-to-date cart
-            final newSelected = <String, int>{};
-            selectedAddons.clear();
-            selectedNotes.clear();
-            _menuHasAddon.clear();
-            _multiVariantMenus.clear();
-            final Map<String, int> variantCount = {};
-            int tmpCartTotal = 0;
-            for (final it in items) {
-              if (it is Map) {
-                final menuId = (it['menu_id'] ?? '').toString();
-                variantCount[menuId] = (variantCount[menuId] ?? 0) + 1;
-                final qty = int.tryParse(it['qty'].toString()) ?? 0;
-                if (qty > 0) newSelected[menuId] = qty;
-                final addonList =
-                    (it['addons'] as List?)
-                        ?.map((e) => int.tryParse(e.toString()) ?? 0)
-                        .where((e) => e > 0)
-                        .toList() ??
-                    [];
-                if (addonList.isNotEmpty) {
-                  selectedAddons[menuId] = addonList;
-                  _menuHasAddon[menuId] =
-                      true; // mark has addon so inline +/- works
-                }
-                final noteVal = it['note'];
-                if (noteVal is String && noteVal.trim().isNotEmpty) {
-                  selectedNotes[menuId] = noteVal;
-                }
-                // Hitung subtotal server (prioritaskan field subtotal)
-                final subtotalVal = it['subtotal'];
-                int? subtotal = int.tryParse((subtotalVal ?? '').toString());
-                if (subtotal == null || subtotal == 0) {
-                  // fallback harga_satuan * qty
-                  final hs =
-                      int.tryParse((it['harga_satuan'] ?? '').toString()) ?? 0;
-                  subtotal = hs * qty;
-                }
-                tmpCartTotal += subtotal;
-              }
-            }
-            // Always set value (even if empty) so removed items disappear
-            selectedMenus.value = newSelected;
-            setState(() {
-              _cartTotalPrice = tmpCartTotal;
-              // Tandai multi varian
-              variantCount.forEach((k, v) {
-                if (v > 1) _multiVariantMenus.add(k);
-              });
-            });
-          }
-        }
+    final snap = await RestaurantDetailPageService.fetchCartSnapshot(
+      restaurantId: widget.restaurantId,
+    );
+    if (snap == null) return;
+    // Reset and apply snapshot
+    selectedAddons.clear();
+    selectedNotes.clear();
+    _menuHasAddon.clear();
+    _multiVariantMenus.clear();
+    selectedMenus.value = Map<String, int>.from(snap.selectedMenus);
+    selectedAddons.addAll(snap.selectedAddons);
+    selectedNotes.addAll(snap.selectedNotes);
+    _multiVariantMenus.addAll(snap.multiVariantMenus);
+    setState(() {
+      _cartTotalPrice = snap.totalPrice;
+      // Hint for menus having addon where present
+      for (final entry in snap.selectedAddons.entries) {
+        _menuHasAddon[entry.key] = entry.value.isNotEmpty;
       }
-    } catch (_) {}
+    });
   }
 
   Future<void> _fetchDetail() async {
@@ -141,104 +82,30 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
       _loading = true;
       _error = null;
     });
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_restaurant_detail.php?id=${Uri.encodeQueryComponent(widget.restaurantId)}',
-      );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          // Normalisasi struktur agar cocok dengan UI lama
-          if (data is Map) {
-            final resto = Map<String, dynamic>.from(data);
-            // Etalase list: ubah key ke label/image agar cocok
-            final rawEtalase = (resto['etalase'] as List?) ?? [];
-            final etalaseList = rawEtalase.map<Map<String, dynamic>>((e) {
-              final m = Map<String, dynamic>.from(e as Map);
-              return {
-                'label': m['label'] ?? m['nama_etalase'] ?? '',
-                'image': m['image'],
-              };
-            }).toList();
-            resto['etalase'] = etalaseList;
-
-            // Menus
-            final rawMenus = (resto['menus'] as List?) ?? [];
-            List<Map<String, dynamic>> menus = rawMenus
-                .map<Map<String, dynamic>>((e) {
-                  final m = Map<String, dynamic>.from(e as Map);
-                  // Samakan key sesuai penggunaan lama
-                  return {
-                    'id': m['id'],
-                    'name': m['name'] ?? m['nama_menu'],
-                    'price': m['price'] ?? m['harga'],
-                    'image': m['image'] ?? m['gambar_menu'],
-                    'desc': m['desc'] ?? m['deskripsi_menu'],
-                    'kategori': m['etalase_label'] ?? m['kategori'],
-                    'recommended': m['recommended'] == true,
-                    'orderCount': m['orderCount'] ?? 0,
-                    'addonOptions': m['addonOptions'] ?? [],
-                    'jumlah_stok':
-                        m['jumlah_stok'] ?? m['stock'] ?? m['stok'] ?? 0,
-                  };
-                })
-                .toList();
-
-            // Tandai recommended hanya jika sudah ada transaksi (orderCount > 0), ambil maksimum 2 teratas.
-            if (menus.any((m) => (m['orderCount'] as int) > 0)) {
-              menus.sort(
-                (a, b) =>
-                    (b['orderCount'] as int).compareTo(a['orderCount'] as int),
-              );
-              int taken = 0;
-              for (final m in menus) {
-                if ((m['orderCount'] as int) > 0 && taken < 2) {
-                  m['recommended'] = true;
-                  taken++;
-                } else {
-                  m['recommended'] = false;
-                }
-              }
-            } else {
-              // Tidak ada transaksi sama sekali: kosongkan recommended
-              for (final m in menus) {
-                m['recommended'] = false;
-              }
-            }
-
-            // Init etalase keys
-            for (var e in etalaseList) {
-              final label = e['label'] ?? '';
-              if (label != '' && !_etalaseKeys.containsKey(label)) {
-                _etalaseKeys[label] = GlobalKey();
-              }
-            }
-
-            setState(() {
-              _resto = resto;
-              _menus = menus;
-              _loading = false;
-            });
-            // Prefetch addon availability (non-blocking)
-            _prefetchAddonAvailability();
-            return;
-          }
+    final res = await RestaurantDetailPageService.fetchDetail(
+      widget.restaurantId,
+    );
+    if (!mounted) return;
+    if (res.success) {
+      final resto = res.resto!;
+      final menus = res.menus;
+      // Init etalase keys for scrolling
+      final etalaseList = (resto['etalase'] as List?) ?? [];
+      for (var e in etalaseList) {
+        final label = (e['label'] ?? '').toString();
+        if (label.isNotEmpty && !_etalaseKeys.containsKey(label)) {
+          _etalaseKeys[label] = GlobalKey();
         }
-        setState(() {
-          _error = 'Data tidak valid';
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'Gagal memuat (${res.statusCode})';
-          _loading = false;
-        });
       }
-    } catch (e) {
       setState(() {
-        _error = 'Error: $e';
+        _resto = resto;
+        _menus = menus;
+        _loading = false;
+      });
+      _prefetchAddonAvailability();
+    } else {
+      setState(() {
+        _error = res.error ?? 'Gagal memuat';
         _loading = false;
       });
     }
@@ -251,51 +118,20 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
       if (menuId == null) continue;
       final idStr = menuId.toString();
       if (_menuHasAddon.containsKey(idStr)) continue;
-      try {
-        final uri = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
-              Uri.encodeQueryComponent(idStr),
-        );
-        final res = await http.get(
-          uri,
-          headers: {'Accept': 'application/json'},
-        );
-        if (res.statusCode == 200) {
-          final body = jsonDecode(res.body);
-          if (body is Map && body['success'] == true) {
-            final data = body['data'];
-            if (data is Map) {
-              final addons = data['addonOptions'] ?? data['add_ons'];
-              if (addons is List && addons.isNotEmpty) {
-                _menuHasAddon[idStr] = true;
-                // Simpan daftar addon ke menu untuk akses cepat (opsional)
-                m['addonOptions'] = addons;
-              } else {
-                _menuHasAddon[idStr] = false;
-              }
-            }
-          }
-        }
-      } catch (_) {}
+      final detail = await RestaurantDetailPageService.fetchMenuDetail(idStr);
+      final addons = detail == null
+          ? null
+          : (detail['addonOptions'] ?? detail['add_ons']);
+      if (addons is List && addons.isNotEmpty) {
+        _menuHasAddon[idStr] = true;
+        m['addonOptions'] = addons;
+      } else {
+        _menuHasAddon[idStr] = false;
+      }
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchMenuDetail(String menuId) async {
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
-            Uri.encodeQueryComponent(menuId),
-      );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          return Map<String, dynamic>.from(body['data'] ?? {});
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
+  // removed old _fetchMenuDetail; use RestaurantDetailPageService.fetchMenuDetail instead
 
   Future<void> _addOrUpdateCart({
     required String menuId,
@@ -304,31 +140,14 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
     String? note,
     bool noteProvided = false,
   }) async {
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-      );
-      final mapPayload = <String, dynamic>{
-        'gerai_id': widget.restaurantId,
-        'menu_id': int.tryParse(menuId) ?? menuId,
-        'qty': qty,
-      };
-      if (_userId != null) mapPayload['user_id'] = _userId;
-      if (addonIds.isNotEmpty) mapPayload['addons'] = addonIds;
-      if (noteProvided) mapPayload['note'] = note ?? '';
-      final payload = jsonEncode(mapPayload);
-      await http.post(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-        body: payload,
-      );
-    } catch (_) {
-      // Diamkan (optimistic UI). Bisa tambahkan snackBar jika perlu.
-    }
+    await RestaurantDetailPageService.addOrUpdateCart(
+      restaurantId: widget.restaurantId,
+      menuId: menuId,
+      qty: qty,
+      addonIds: addonIds,
+      note: note,
+      noteProvided: noteProvided,
+    );
   }
 
   Future<void> _handleAddPressed(Map<String, dynamic> m, int currentQty) async {
@@ -459,7 +278,7 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
 
     bool? hasAddon = _menuHasAddon[menuId];
     if (hasAddon == null) {
-      final detail = await _fetchMenuDetail(menuId);
+      final detail = await RestaurantDetailPageService.fetchMenuDetail(menuId);
       final addonOpts =
           (detail != null ? detail['addonOptions'] : null) as List? ?? [];
       hasAddon = addonOpts.isNotEmpty;
@@ -754,18 +573,45 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black),
-            onPressed: () async {
-              final changed = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(builder: (_) => const CartPage()),
-              );
-              if (changed == true) {
-                await _loadExistingCart();
-                setState(() {}); // trigger rebuild for dependent UI
-              }
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: GestureDetector(
+              onTap: () async {
+                final changed = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartPage()),
+                );
+                if (changed == true) {
+                  await _loadExistingCart();
+                  setState(() {}); // trigger rebuild for dependent UI
+                }
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFD53D3D), Color(0xFFB03056)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD53D3D).withOpacity(0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.shopping_cart_outlined,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -956,11 +802,31 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                                       size: 18,
                                     ),
                                     const SizedBox(width: 2),
-                                    Text(
-                                      "${resto['rating'] ?? 0}",
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    Builder(
+                                      builder: (_) {
+                                        final raw = resto['rating'];
+                                        double val;
+                                        if (raw is num) {
+                                          val = raw.toDouble();
+                                        } else {
+                                          val =
+                                              double.tryParse(
+                                                raw?.toString() ?? '',
+                                              ) ??
+                                              0;
+                                        }
+                                        final formatted =
+                                            ((val * 10).round() / 10)
+                                                .toStringAsFixed(
+                                                  1,
+                                                ); // 4.25 -> 4.3
+                                        return Text(
+                                          formatted,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        );
+                                      },
                                     ),
                                     const SizedBox(width: 2),
                                     Text(
@@ -1588,25 +1454,12 @@ class _RestaurantDetailPageState extends State<RestaurantDetailPage> {
                       ),
                     ),
                     builder: (context) {
-                      return FutureBuilder<http.Response>(
-                        future: http.get(
-                          Uri.parse(
-                            'http://10.0.2.2/dpr_bites_api/get_restaurant_etalase.php?id=${Uri.encodeQueryComponent(widget.restaurantId)}',
-                          ),
-                          headers: {'Accept': 'application/json'},
+                      return FutureBuilder<List<Map<String, dynamic>>>(
+                        future: RestaurantDetailPageService.fetchEtalaseList(
+                          widget.restaurantId,
                         ),
                         builder: (context, snap) {
-                          List etalase = [];
-                          if (snap.hasData && snap.data!.statusCode == 200) {
-                            try {
-                              final body = jsonDecode(snap.data!.body);
-                              if (body is Map && body['success'] == true) {
-                                etalase = (body['data'] as List?) ?? [];
-                              }
-                            } catch (_) {
-                              /* ignore */
-                            }
-                          }
+                          final etalase = snap.data ?? const [];
                           return SafeArea(
                             child: SingleChildScrollView(
                               child: Column(

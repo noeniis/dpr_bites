@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/user/models/review_page_model.dart';
+import 'package:dpr_bites/features/user/services/review_page_service.dart';
 
 class ReviewPage extends StatefulWidget {
   final int idTransaksi;
@@ -51,23 +50,9 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Future<void> _fetchUserIdFromPrefs() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final candKeys = ['id_users', 'id_user', 'user_id'];
-      for (final k in candKeys) {
-        if (prefs.containsKey(k)) {
-          final v = prefs.get(k);
-          if (v != null) {
-            setState(() {
-              _idUser = int.tryParse(v.toString()) ?? 0;
-            });
-            break;
-          }
-        }
-      }
-    } catch (e) {
-      // ignore error
-    }
+    final id = await ReviewService.getUserIdFromPrefs();
+    if (!mounted) return;
+    setState(() => _idUser = id ?? 0);
   }
 
   Future<void> _submit() async {
@@ -81,26 +66,16 @@ class _ReviewPageState extends State<ReviewPage> {
       if (_idUser == null || _idUser == 0) {
         throw Exception('User ID tidak ditemukan. Silakan login ulang.');
       }
-      final resp = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/add_ulasan.php'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'id_transaksi': widget.idTransaksi,
-          'id_users': _idUser,
-          'rating': _rating,
-          'komentar': _controller.text.trim(),
-          'anonymous': _anonymous ? 1 : 0,
-        }),
+      final model = ReviewModel(
+        idTransaksi: widget.idTransaksi,
+        idUsers: _idUser!,
+        rating: _rating,
+        komentar: _controller.text.trim(),
+        anonymous: _anonymous,
       );
-      if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
-      final j = jsonDecode(resp.body);
-      if (j is! Map || j['success'] != true) {
-        throw Exception(
-          j is Map ? (j['message'] ?? 'Gagal') : 'Respon tidak valid',
-        );
+      final result = await ReviewService.submitReview(model);
+      if (!result.success) {
+        throw Exception(result.message ?? 'Gagal');
       }
       if (!mounted) return;
       await _showResultDialog(success: true);

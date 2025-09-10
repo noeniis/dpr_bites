@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
+import 'models/register_page_model.dart';
+import 'services/register_page_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -76,31 +76,16 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<bool> registerUser(Map<String, dynamic> data) async {
-    try {
-      // Jika menggunakan emulator Android, ganti 'localhost' dengan '10.0.2.2'
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/register.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(data),
-      );
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result is Map && result.containsKey('success')) {
-          return result['success'];
-        } else {
-          debugPrint(
-            'Response JSON tidak mengandung kunci success: \\${response.body}',
-          );
-          return false;
-        }
-      } else {
-        debugPrint('HTTP error: \\${response.statusCode} - \\${response.body}');
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Exception saat register: \\${e.toString()}');
-      return false;
-    }
+    final req = RegisterRequest(
+      namaLengkap: data['nama_lengkap'] ?? '',
+      username: data['username'] ?? '',
+      email: data['email'] ?? '',
+      noHp: data['no_hp'] ?? '',
+      password: data['password'] ?? '',
+      role: data['role'] ?? '0',
+    );
+    final result = await RegisterPageService.register(req);
+    return result.success;
   }
 
   @override

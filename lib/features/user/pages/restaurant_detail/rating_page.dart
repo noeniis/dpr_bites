@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dpr_bites/features/user/services/rating_page_service.dart';
 
 class RestaurantRatingPage extends StatefulWidget {
   final String restaurantId;
@@ -15,6 +14,7 @@ class RestaurantRatingPage extends StatefulWidget {
 class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
   double rating = 0.0;
   int ratingCount = 0;
+  String? geraiName;
   List<Map<String, dynamic>> breakdown = [
     {'star': 5, 'count': 0},
     {'star': 4, 'count': 0},
@@ -37,55 +37,21 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
       _loading = true;
       _error = null;
     });
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_restaurant_ratings.php?id=${Uri.encodeQueryComponent(widget.restaurantId)}',
-      );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'] as Map? ?? {};
-          final br =
-              (data['breakdown'] as List?)?.whereType<Map>().toList() ??
-              breakdown;
-          final rev =
-              (data['reviews'] as List?)?.whereType<Map>().toList() ?? [];
-          setState(() {
-            rating = (data['rating'] is num)
-                ? (data['rating'] as num).toDouble()
-                : 0.0;
-            ratingCount = (data['ratingCount'] is num)
-                ? (data['ratingCount'] as num).toInt()
-                : 0;
-            breakdown = br
-                .map((e) => {'star': e['star'] ?? 0, 'count': e['count'] ?? 0})
-                .toList();
-            reviews = rev
-                .map(
-                  (e) => {
-                    'name': e['name'] ?? 'Pengguna',
-                    'pesanan': e['pesanan'] ?? '',
-                    'rating': e['rating'] ?? 0,
-                    'komentar': e['komentar'] ?? '',
-                    'photo': e['photo'],
-                    'tanggal': e['tanggal'] ?? '',
-                  },
-                )
-                .toList();
-            _loading = false;
-          });
-          return;
-        }
-      }
+    final res = await RatingPageService.fetchRatings(widget.restaurantId);
+    if (!mounted) return;
+    if (res.success) {
       setState(() {
+        geraiName = res.geraiName;
+        rating = res.rating;
+        ratingCount = res.ratingCount;
+        breakdown = res.breakdown;
+        reviews = res.reviews;
         _loading = false;
-        _error = 'Gagal memuat';
       });
-    } catch (e) {
+    } else {
       setState(() {
         _loading = false;
-        _error = 'Error: $e';
+        _error = res.error ?? 'Gagal memuat';
       });
     }
   }
@@ -255,6 +221,8 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                           final rStar = r['rating'] as int? ?? 0;
                           final komentar = (r['komentar'] as String? ?? '')
                               .trim();
+                          final balasan = (r['balasan'] as String? ?? '')
+                              .trim();
                           final photo = r['photo'];
                           final tanggalRaw = r['tanggal'] as String? ?? '';
                           String tanggalFormatted = '';
@@ -350,6 +318,75 @@ class _RestaurantRatingPageState extends State<RestaurantRatingPage> {
                                         fontSize: 13.5,
                                         color: Colors.black87,
                                         height: 1.3,
+                                      ),
+                                    ),
+                                  ],
+                                  if (balasan.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8F9FB),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E4EA),
+                                          width: 1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.fromLTRB(
+                                        12,
+                                        10,
+                                        12,
+                                        12,
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFFD53D3D,
+                                              ).withOpacity(0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(
+                                              Icons.reply,
+                                              size: 18,
+                                              color: Color(0xFFD53D3D),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  (geraiName != null &&
+                                                          geraiName!.isNotEmpty)
+                                                      ? 'Balasan ${geraiName!}'
+                                                      : 'Balasan',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 13.5,
+                                                    color: Color(0xFF2F2F2F),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  balasan,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    height: 1.35,
+                                                    color: Color(0xFF444A53),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],

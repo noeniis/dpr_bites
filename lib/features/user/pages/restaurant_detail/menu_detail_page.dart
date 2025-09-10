@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:dpr_bites/common/utils/prefs_helper.dart';
+import 'package:dpr_bites/features/user/services/menu_detail_page_service.dart';
 
 class MenuDetailPage extends StatefulWidget {
   final Map<String, dynamic> menu;
@@ -30,7 +27,7 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   final TextEditingController noteController = TextEditingController();
   // Simpan ID addon (int)
   List<int> selectedAddons = [];
-  int? _userId; // loaded from SharedPreferences
+  // user handled via service
   bool _favorited = false;
   bool _favBusy = false;
 
@@ -78,18 +75,6 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   }
 
   Future<void> _init(String? id) async {
-    // Ambil user id dengan helper, fallback ke string jika null
-    _userId = await Prefs.getUserIdInt();
-    if (_userId == null) {
-      final prefs = await SharedPreferences.getInstance();
-      final s = prefs.getString('id_users');
-      if (s != null) {
-        _userId = int.tryParse(s);
-      }
-    }
-    if (_userId == null) {
-      debugPrint('User id null di _init');
-    }
     if (id != null) {
       await _fetchMenuDetail(id);
       await _loadFavoriteStatus(id);
@@ -97,36 +82,9 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
   }
 
   Future<void> _loadFavoriteStatus(String id) async {
-    try {
-      if (_userId == null) {
-        setState(() => _favorited = false);
-        debugPrint('User id null di _loadFavoriteStatus');
-        return;
-      }
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/favorite.php?user_id=${_userId}&menu_id=$id',
-      );
-      final res = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'X-User-Id': _userId.toString(),
-        },
-      );
-      debugPrint(
-        'favorite GET -> status: \\${res.statusCode}, body: \\${res.body}',
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          setState(() {
-            _favorited = body['favorited'] == true;
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Error _loadFavoriteStatus: $e');
-    }
+    final st = await MenuDetailPageService.getFavoriteStatus(id);
+    if (!mounted) return;
+    setState(() => _favorited = st.favorited);
   }
 
   Future<void> _toggleFavorite() async {
@@ -137,79 +95,18 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
       _favBusy = false;
       return;
     }
-    try {
-      // If we don't have a user id loaded yet, try to read it now.
-      if (_userId == null) {
-        _userId = await Prefs.getUserIdInt();
-        if (_userId == null) {
-          final prefs = await SharedPreferences.getInstance();
-          final s = prefs.getString('id_users');
-          if (s != null) {
-            _userId = int.tryParse(s);
-          }
-        }
-      }
-      if (_userId == null) {
-        debugPrint('User id null di _toggleFavorite');
-        _favBusy = false;
-        return;
-      }
-
-      // Optimistic UI: flip the local state first for snappy feedback.
-      final prev = _favorited;
-      setState(() => _favorited = !prev);
-
-      final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/favorite.php');
-      final Map<String, dynamic> payload = {
-        'user_id': _userId!,
-        'menu_id': int.tryParse(id.toString()) ?? id,
-        'action': 'toggle',
-      };
-      final res = await http.post(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-User-Id': _userId.toString(),
-        },
-        body: jsonEncode(payload),
-      );
-      debugPrint(
-        'favorite POST -> status: \\${res.statusCode}, body: \\${res.body}',
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          // trust server response; keep local state in sync
-          setState(() {
-            _favorited = body['favorited'] == true;
-          });
-        } else {
-          // server reported failure -> revert optimistic state
-          setState(() => _favorited = prev);
-          final msg = (body is Map && body['message'] != null)
-              ? body['message'].toString()
-              : 'Gagal update favorite';
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(msg)));
-        }
-      } else {
-        // HTTP failure -> revert optimistic state
-        setState(() => _favorited = prev);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('HTTP ${res.statusCode}')));
-      }
-    } catch (e) {
-      debugPrint('Error _toggleFavorite: $e');
-      // on exception, revert optimistic state
-      try {
-        setState(() => _favorited = !_favorited);
-      } catch (_) {}
-    } finally {
-      _favBusy = false;
+    final prev = _favorited;
+    setState(() => _favorited = !prev); // optimistic
+    final res = await MenuDetailPageService.toggleFavorite(id.toString());
+    if (!mounted) return;
+    if (res.success) {
+      setState(() => _favorited = res.favorited);
+    } else {
+      setState(() => _favorited = prev); // revert on failure
+      final msg = res.error ?? 'Gagal update favorite';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
+    _favBusy = false;
   }
 
   Future<void> _fetchMenuDetail(String id) async {
@@ -217,64 +114,21 @@ class _MenuDetailPageState extends State<MenuDetailPage> {
       _loading = true;
       _error = null;
     });
-    try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=' +
-            Uri.encodeQueryComponent(id),
-      );
-      final res = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          if (data is Map) {
-            final menu = Map<String, dynamic>.from(data);
-            // Normalize keys to match existing UI usage
-            _menuData = {
-              'id': menu['id'],
-              'name': menu['name'] ?? menu['nama_menu'],
-              'desc': menu['desc'] ?? menu['deskripsi_menu'] ?? '',
-              'price': menu['price'] ?? menu['harga'] ?? 0,
-              'image': menu['image'] ?? menu['gambar_menu'],
-              'addonOptions':
-                  (menu['addonOptions'] as List?)?.map((a) {
-                    final am = Map<String, dynamic>.from(a as Map);
-                    return {
-                      'id': am['id'] ?? am['id_addon'],
-                      'label': am['label'] ?? am['nama_addon'] ?? '',
-                      'price': am['price'] ?? am['harga'] ?? 0,
-                      'image': am['image'] ?? am['image_path'],
-                    };
-                  }).toList() ??
-                  [],
-            };
-            // Filter selectedAddons agar hanya ID yang masih ada
-            selectedAddons = selectedAddons
-                .where(
-                  (aid) => (_menuData!['addonOptions'] as List).any(
-                    (o) => o['id'] == aid,
-                  ),
-                )
-                .toList();
-          }
-          setState(() {
-            _loading = false;
-          });
-          return;
-        }
-        setState(() {
-          _error = 'Data tidak valid';
-          _loading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'Gagal memuat (${res.statusCode})';
-          _loading = false;
-        });
-      }
-    } catch (e) {
+    final res = await MenuDetailPageService.fetchMenuDetail(id);
+    if (!mounted) return;
+    if (res.success) {
+      _menuData = res.menu;
+      // Filter selectedAddons agar hanya ID yang masih ada
+      selectedAddons = selectedAddons
+          .where(
+            (aid) =>
+                (_menuData!['addonOptions'] as List).any((o) => o['id'] == aid),
+          )
+          .toList();
+      setState(() => _loading = false);
+    } else {
       setState(() {
-        _error = 'Error: $e';
+        _error = res.error ?? 'Gagal memuat';
         _loading = false;
       });
     }

@@ -1,45 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dpr_bites/features/user/services/address_page_service.dart';
+import 'package:dpr_bites/features/user/models/address_page_model.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'address_add_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// shared_preferences no longer used here; handled in service
 
-// Data model yang mencerminkan struktur alamat dari API
-class ApiAddress {
-  final int? id;
-  final String namaPenerima;
-  final String namaGedung;
-  final String detailPengantaran;
-  final String noHp;
-  bool isDefault;
-
-  ApiAddress({
-    this.id,
-    required this.namaPenerima,
-    required this.namaGedung,
-    required this.detailPengantaran,
-    required this.noHp,
-    this.isDefault = false,
-  });
-
-  factory ApiAddress.fromMap(Map<String, dynamic> m) {
-    return ApiAddress(
-      id: (m['id'] ?? m['id_alamat']) is int
-          ? (m['id'] ?? m['id_alamat']) as int
-          : int.tryParse((m['id'] ?? m['id_alamat'] ?? '').toString()),
-      namaPenerima: (m['nama_penerima'] ?? '').toString(),
-      namaGedung: (m['nama_gedung'] ?? '').toString(),
-      detailPengantaran: (m['detail_pengantaran'] ?? '').toString(),
-      noHp: (m['no_hp'] ?? '').toString(),
-      isDefault:
-          (m['alamat_utama'] == 1 ||
-          m['alamat_utama'] == true ||
-          (m['alamat_utama']?.toString() == '1')),
-    );
-  }
-}
+typedef ApiAddress =
+    AddressModel; // legacy alias; UI will use AddressModel directly
 
 class AddressPage extends StatefulWidget {
   final bool popOnPick; // if true, pop with result on pick (used by Checkout)
@@ -55,8 +23,8 @@ class AddressPage extends StatefulWidget {
 }
 
 class _AddressPageState extends State<AddressPage> {
-  List<ApiAddress> _addresses = [];
-  ApiAddress? _selected;
+  List<AddressModel> _addresses = [];
+  AddressModel? _selected;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -65,7 +33,7 @@ class _AddressPageState extends State<AddressPage> {
     _fetchAddresses();
   }
 
-  bool _isSame(ApiAddress a, ApiAddress? b) {
+  bool _isSame(AddressModel a, AddressModel? b) {
     if (b == null) return false;
     return a.namaGedung == b.namaGedung &&
         a.namaPenerima == b.namaPenerima &&
@@ -85,97 +53,73 @@ class _AddressPageState extends State<AddressPage> {
     });
   }
 
-  Future<bool> _setDefaultOnServer(ApiAddress target) async {
-    final int idUsers = await _getCurrentUserId();
-    if (target.id == null) return false;
-    final url = Uri.parse(
-      'http://10.0.2.2/dpr_bites_api/set_default_address.php', // server should update alamat_utama
+  Future<bool> _setDefaultOnServer(AddressModel target) async {
+    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers <= 0 || target.id == null) return false;
+    return AddressPageService.setDefaultAddress(
+      userId: idUsers,
+      addressId: target.id!,
     );
-    try {
-      final res = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': idUsers.toString(),
-        },
-        body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        return body['success'] == true;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
   }
 
   Future<void> _fetchAddresses() async {
-    final int idUsers = await _getCurrentUserId();
-    if (idUsers <= 0) {
+    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers <= 0) {
       // tidak ada user login, kosongkan list
       setState(() => _addresses = []);
       return;
     }
-    final url = Uri.parse(
-      'http://10.0.2.2/dpr_bites_api/get_user_addresses.php',
-    );
-    try {
-      final res = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': idUsers.toString(),
-        },
-        body: jsonEncode({'id_users': idUsers}),
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        final list = (body['addresses'] as List?) ?? [];
-        final fetched = list
-            .map((e) => ApiAddress.fromMap(e as Map<String, dynamic>))
-            .toList();
-        setState(() {
-          _addresses = fetched;
-          // Prioritas: selectedAddressId -> default -> none
-          if (widget.selectedAddressId != null) {
-            _selected = _addresses.firstWhere(
-              (a) => a.id == widget.selectedAddressId,
-              orElse: () => _addresses.firstWhere(
-                (a) => a.isDefault,
-                orElse: () => _addresses.isNotEmpty
-                    ? _addresses.first
-                    : ApiAddress(
-                        namaPenerima: '',
-                        namaGedung: '',
-                        detailPengantaran: '',
-                        noHp: '',
-                      ),
-              ),
-            );
-          } else {
-            _selected = _addresses
-                .where((a) => a.isDefault)
-                .cast<ApiAddress?>()
-                .firstOrNull;
-          }
-          _sortWithSelectedFirst();
-        });
-      } else {
-        setState(() => _addresses = []);
-      }
-    } catch (_) {
+    final res = await AddressPageService.fetchAddresses(idUsers);
+    if (res.error != null) {
       setState(() => _addresses = []);
+      return;
     }
+    final fetched = res.addresses.map((e) => AddressModel.fromJson(e)).toList();
+    setState(() {
+      _addresses = fetched;
+      if (widget.selectedAddressId != null) {
+        _selected = _addresses.firstWhere(
+          (a) => a.id == widget.selectedAddressId,
+          orElse: () => _addresses.firstWhere(
+            (a) => a.isDefault,
+            orElse: () => _addresses.isNotEmpty
+                ? _addresses.first
+                : const AddressModel(
+                    id: null,
+                    namaPenerima: '',
+                    namaGedung: '',
+                    detailPengantaran: '',
+                    noHp: '',
+                    isDefault: false,
+                  ),
+          ),
+        );
+      } else {
+        _selected = _addresses
+            .where((a) => a.isDefault)
+            .cast<AddressModel?>()
+            .firstOrNull;
+      }
+      _sortWithSelectedFirst();
+    });
   }
 
   Future<void> _makeDefault(int index) async {
     final target = _addresses[index];
     // Optimistic update (UI instant), then sync with server
-    for (final a in _addresses) {
-      a.isDefault = identical(a, target);
-    }
     _selected = target;
+    _addresses = _addresses
+        .map(
+          (a) => AddressModel(
+            id: a.id,
+            namaPenerima: a.namaPenerima,
+            namaGedung: a.namaGedung,
+            detailPengantaran: a.detailPengantaran,
+            noHp: a.noHp,
+            isDefault: identical(a, target),
+          ),
+        )
+        .toList();
     _sortWithSelectedFirst();
     setState(() {});
 
@@ -200,27 +144,13 @@ class _AddressPageState extends State<AddressPage> {
     });
   }
 
-  Future<bool> _deleteOnServer(ApiAddress target) async {
-    final int idUsers = await _getCurrentUserId();
-    if (target.id == null) return false;
-    final url = Uri.parse('http://10.0.2.2/dpr_bites_api/delete_address.php');
-    try {
-      final res = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': idUsers.toString(),
-        },
-        body: jsonEncode({'id_users': idUsers, 'id_alamat': target.id}),
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        return body['success'] == true;
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
+  Future<bool> _deleteOnServer(AddressModel target) async {
+    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers <= 0 || target.id == null) return false;
+    return AddressPageService.deleteAddress(
+      userId: idUsers,
+      addressId: target.id!,
+    );
   }
 
   Future<void> _confirmHapus(int index) async {
@@ -366,20 +296,7 @@ class _AddressPageState extends State<AddressPage> {
     super.dispose();
   }
 
-  Future<int> _getCurrentUserId() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      // Cek dulu int, fallback ke string jika tidak ada
-      int? id = prefs.getInt('id_users');
-      if (id != null) return id;
-      final s = prefs.getString('id_users');
-      if (s == null) return 0;
-      final v = int.tryParse(s);
-      return v ?? 0;
-    } catch (_) {
-      return 0;
-    }
-  }
+  // Removed inline user id util; now using AddressPageService.getUserIdFromPrefs()
 
   @override
   Widget build(BuildContext context) {

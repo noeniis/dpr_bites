@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,11 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter/rendering.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
+import 'package:dpr_bites/features/user/models/address_maps_page_model.dart';
+import 'package:dpr_bites/features/user/services/address_maps_page_service.dart';
 
 class AddressMapsPage extends StatefulWidget {
   final double? initialLat;
@@ -45,66 +45,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
   double _bottomSheetHeight = 0;
 
   // Allowed center: Kompleks DPR/MPR RI (approx)
-  static const LatLng _allowedCenter = LatLng(
-    -6.209064130877545,
-    106.79965206041742,
-  );
-  static const double _allowedRadiusMeters = 400; // 400 m
-  static final Distance _geo = const Distance();
-
-  // Polygon boundary (Kompleks DPR/MPR) provided by user
-  static const List<LatLng> _allowedPolygon = [
-    LatLng(-6.212730101218966, 106.79752892595128),
-    LatLng(-6.212360574458213, 106.798097869374),
-    LatLng(-6.212254995336067, 106.79870474235824),
-    LatLng(-6.212119250719337, 106.79900817885036),
-    LatLng(-6.212126792087837, 106.7994405758516),
-    LatLng(-6.212481236286165, 106.79948609132542),
-    LatLng(-6.211832678635703, 106.80204254377149),
-    LatLng(-6.211712016659093, 106.80219426201755),
-    LatLng(-6.211568730525919, 106.80223219157904),
-    LatLng(-6.211206744302917, 106.80260390132642),
-    LatLng(-6.210248987963318, 106.80380247547028),
-    LatLng(-6.209796504047311, 106.80352179671507),
-    LatLng(-6.209585344753447, 106.803870748681),
-    LatLng(-6.210000121857643, 106.80415142743621),
-    LatLng(-6.210060453045579, 106.80436383298067),
-    LatLng(-6.210075535841469, 106.80461416808669),
-    LatLng(-6.210000121857643, 106.8049251904911),
-    LatLng(-6.208853827930598, 106.80402246692121),
-    LatLng(-6.20837871854989, 106.80359006991996),
-    LatLng(-6.2079941058801715, 106.80331697707706),
-    LatLng(-6.2074435813740605, 106.80282389277737),
-    LatLng(-6.20719471394273, 106.80258114358368),
-    LatLng(-6.206470735292228, 106.80193634103793),
-    LatLng(-6.208484298449314, 106.79953919275025),
-    LatLng(-6.208318387169288, 106.79947850545183),
-    LatLng(-6.2076547415266115, 106.79893231976602),
-    LatLng(-6.20759441006717, 106.79873508602888),
-    LatLng(-6.207624575799798, 106.79854543822132),
-    LatLng(-6.207858360169064, 106.79826475946612),
-    LatLng(-6.207865901598605, 106.79815855669386),
-    LatLng(-6.208016730166707, 106.79787029202636),
-    LatLng(-6.208137392990108, 106.79761237100809),
-    LatLng(-6.208318387173359, 106.79755168370966),
-    LatLng(-6.208378718553962, 106.79767305830649),
-    LatLng(-6.209954873423296, 106.79688412342699),
-    LatLng(-6.210241446569706, 106.79683860794492),
-    LatLng(-6.21070147149229, 106.79692963889256),
-    LatLng(-6.210927713110037, 106.79693722480486),
-    LatLng(-6.2110936235679395, 106.79707377122632),
-    LatLng(-6.211432985705341, 106.7973241063323),
-    LatLng(-6.211704475257758, 106.7970206698402),
-    LatLng(-6.212737642551843, 106.79749858231528),
-  ];
-
-  // World polygon to create a mask (outer) with allowed polygon as a hole
-  static const List<LatLng> _worldMask = [
-    LatLng(-89, -180),
-    LatLng(-89, 180),
-    LatLng(89, 180),
-    LatLng(89, -180),
-  ];
+  // Geometry and constraints pulled from MapsGeometry model
 
   @override
   void initState() {
@@ -112,7 +53,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
     // If there is an initial location (from previous selection), center to it
     if (widget.initialLat != null && widget.initialLon != null) {
       final p = LatLng(widget.initialLat!, widget.initialLon!);
-      if (_isAllowed(p)) {
+      if (MapsGeometry.isAllowed(p)) {
         _centerTo(p, setPicked: true);
         if ((widget.initialAddress ?? '').isNotEmpty) {
           _pickedAddress = widget.initialAddress!;
@@ -120,14 +61,14 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
           _reverseGeocode(p);
         }
       } else {
-        final c = _defaultCenter;
+        final c = MapsGeometry.defaultCenter;
         // don't move map yet; we'll fit to polygon on ready
         _picked = c;
         _reverseGeocode(c);
       }
     } else {
       // Default open: pick polygon centroid if available; map will fit to polygon on ready
-      final c = _defaultCenter;
+      final c = MapsGeometry.defaultCenter;
       _picked = c;
       _reverseGeocode(c);
     }
@@ -152,20 +93,20 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
       if (granted == LocationPermission.deniedForever ||
           granted == LocationPermission.denied) {
         setState(() => _locPermDenied = true);
-        _centerTo(_allowedCenter, setPicked: false);
+        _centerTo(MapsGeometry.allowedCenter, setPicked: false);
       } else {
         final pos = await Geolocator.getCurrentPosition();
         final me = LatLng(pos.latitude, pos.longitude);
-        if (_isAllowed(me)) {
+        if (MapsGeometry.isAllowed(me)) {
           _centerTo(me, setPicked: true);
           await _reverseGeocode(me);
         } else {
           _showInfo('Lokasi Anda di luar jangkauan Kompleks DPR/MPR.');
-          _centerTo(_allowedCenter, setPicked: false);
+          _centerTo(MapsGeometry.allowedCenter, setPicked: false);
         }
       }
     } catch (_) {
-      _centerTo(_allowedCenter, setPicked: false);
+      _centerTo(MapsGeometry.allowedCenter, setPicked: false);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -185,34 +126,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
     }
   }
 
-  bool _isAllowed(LatLng p) {
-    // Prefer polygon check when available; fallback to circle radius
-    if (_allowedPolygon.isNotEmpty) {
-      return _isInPolygon(p, _allowedPolygon);
-    }
-    final d = _geo.distance(_allowedCenter, p); // meters
-    return d <= _allowedRadiusMeters;
-  }
-
-  // Ray-casting algorithm for point in polygon
-  bool _isInPolygon(LatLng point, List<LatLng> polygon) {
-    final x = point.longitude;
-    final y = point.latitude;
-    bool inside = false;
-    for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      final xi = polygon[i].longitude;
-      final yi = polygon[i].latitude;
-      final xj = polygon[j].longitude;
-      final yj = polygon[j].latitude;
-
-      final intersect =
-          ((yi > y) != (yj > y)) &&
-          (x <
-              (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
-      if (intersect) inside = !inside;
-    }
-    return inside;
-  }
+  // Allowed checks now via MapsGeometry
 
   void _onSearchChanged() {
     final text = _searchC.text;
@@ -223,22 +137,8 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
   }
 
   Future<void> _reverseGeocode(LatLng latLng) async {
-    try {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latLng.latitude}&lon=${latLng.longitude}',
-      );
-      final res = await http.get(
-        url,
-        headers: {'User-Agent': 'dpr-bites/1.0 (contact: example@example.com)'},
-      );
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final disp = (data['display_name'] ?? '') as String;
-        setState(() => _pickedAddress = disp);
-      }
-    } catch (_) {
-      // ignore
-    }
+    final disp = await AddressMapsPageService.reverseGeocode(latLng);
+    if (disp != null && mounted) setState(() => _pickedAddress = disp);
   }
 
   Future<void> _searchAddress(String query) async {
@@ -246,36 +146,21 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
     if (q.isEmpty) return;
     setState(() => _loading = true);
     try {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(q)}&format=json&limit=1',
-      );
-      final res = await http.get(
-        url,
-        headers: {'User-Agent': 'dpr-bites/1.0 (contact: example@example.com)'},
-      );
-      if (res.statusCode == 200) {
-        final list = jsonDecode(res.body) as List<dynamic>;
-        if (list.isNotEmpty) {
-          final m = list.first as Map<String, dynamic>;
-          final lat = double.tryParse(m['lat'] as String? ?? '');
-          final lon = double.tryParse(m['lon'] as String? ?? '');
-          if (lat != null && lon != null) {
-            final p = LatLng(lat, lon);
-            if (_isAllowed(p)) {
-              FocusScope.of(context).unfocus();
-              setState(() {
-                _picked = p;
-                _pickedAddress = (m['display_name'] as String?) ?? '';
-              });
-              _centerTo(p, setPicked: false);
-              // Clear search text after applying the result
-              _searchC.clear();
-              // refine address in background
-              unawaited(_reverseGeocode(p));
-            } else {
-              _showInfo('Lokasi di luar jangkauan Kompleks DPR/MPR.');
-            }
-          }
+      final list = await AddressMapsPageService.search(q, limit: 1);
+      if (list.isNotEmpty) {
+        final s = list.first;
+        final p = s.point;
+        if (MapsGeometry.isAllowed(p)) {
+          FocusScope.of(context).unfocus();
+          setState(() {
+            _picked = p;
+            _pickedAddress = s.name;
+          });
+          _centerTo(p, setPicked: false);
+          _searchC.clear();
+          unawaited(_reverseGeocode(p));
+        } else {
+          _showInfo('Lokasi di luar jangkauan Kompleks DPR/MPR.');
         }
       }
     } catch (_) {
@@ -292,37 +177,23 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
       return;
     }
     try {
-      final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(q)}&format=json&limit=5',
-      );
-      final res = await http.get(
-        url,
-        headers: {'User-Agent': 'dpr-bites/1.0 (contact: example@example.com)'},
-      );
-      if (res.statusCode == 200) {
-        final list = (jsonDecode(res.body) as List<dynamic>)
-            .whereType<Map<String, dynamic>>()
-            .map((m) {
-              final lat = double.tryParse(m['lat'] as String? ?? '');
-              final lon = double.tryParse(m['lon'] as String? ?? '');
-              final name = (m['display_name'] as String?) ?? '';
-              return (lat != null && lon != null)
-                  ? _Suggestion(LatLng(lat, lon), name)
-                  : null;
-            })
-            .whereType<_Suggestion>()
-            .toList();
-        // Filter to allowed radius only
-        final filtered = list.where((s) => _isAllowed(s.point)).toList();
-        if (mounted) setState(() => _suggestions = filtered);
-      }
+      final list = await AddressMapsPageService.search(q, limit: 5);
+      final filtered = list
+          .where((s) => MapsGeometry.isAllowed(s.point))
+          .toList();
+      if (mounted)
+        setState(
+          () => _suggestions = filtered
+              .map((s) => _Suggestion(s.point, s.name))
+              .toList(),
+        );
     } catch (_) {
       // ignore errors
     }
   }
 
   void _applySuggestion(_Suggestion s) async {
-    if (_isAllowed(s.point)) {
+    if (MapsGeometry.isAllowed(s.point)) {
       FocusScope.of(context).unfocus();
       setState(() {
         _picked = s.point;
@@ -346,7 +217,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
   }
 
   Widget _buildMap() {
-    final center = _picked ?? _allowedCenter;
+    final center = _picked ?? MapsGeometry.allowedCenter;
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
@@ -357,7 +228,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
           // First time: fit to polygon if no explicit initialLat/Lon
           if (widget.initialLat == null &&
               widget.initialLon == null &&
-              _allowedPolygon.isNotEmpty) {
+              MapsGeometry.allowedPolygon.isNotEmpty) {
             _fitToPolygon();
           } else if (_pendingCenter != null) {
             _mapController.move(_pendingCenter!, _pendingZoom);
@@ -365,7 +236,7 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
           }
         },
         onTap: (tapPos, latLng) async {
-          if (_isAllowed(latLng)) {
+          if (MapsGeometry.isAllowed(latLng)) {
             FocusScope.of(context).unfocus();
             setState(() {
               _picked = latLng;
@@ -384,23 +255,23 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
           userAgentPackageName: 'com.example.dpr_bites',
         ),
         // Dim outside allowed area by drawing a world polygon with a hole
-        if (_allowedPolygon.isNotEmpty)
+        if (MapsGeometry.allowedPolygon.isNotEmpty)
           PolygonLayer(
             polygons: [
               Polygon(
-                points: _worldMask,
-                holePointsList: [_allowedPolygon],
+                points: MapsGeometry.worldMask,
+                holePointsList: [MapsGeometry.allowedPolygon],
                 color: Colors.black.withOpacity(0.5),
                 borderColor: Colors.transparent,
               ),
             ],
           ),
         // Visualize allowed polygon
-        if (_allowedPolygon.isNotEmpty)
+        if (MapsGeometry.allowedPolygon.isNotEmpty)
           PolygonLayer(
             polygons: [
               Polygon(
-                points: _allowedPolygon,
+                points: MapsGeometry.allowedPolygon,
                 color: const Color(0x22D53D3D), // subtle fill to highlight area
                 borderColor: const Color(0xFFD53D3D),
                 borderStrokeWidth: 1.5,
@@ -550,7 +421,9 @@ class _AddressMapsPageState extends State<AddressMapsPage> {
                         const SizedBox(height: 12),
                         CustomButtonKotak(
                           text: 'Pilih Titik Lokasi',
-                          onPressed: (_picked != null && _isAllowed(_picked!))
+                          onPressed:
+                              (_picked != null &&
+                                  MapsGeometry.isAllowed(_picked!))
                               ? () {
                                   Navigator.pop(context, {
                                     'lat': _picked!.latitude,
@@ -621,30 +494,13 @@ class _Suggestion {
 
 // Helpers for polygon center and camera fitting
 extension on _AddressMapsPageState {
-  LatLng get _defaultCenter {
-    if (_AddressMapsPageState._allowedPolygon.isNotEmpty) {
-      return _polygonCentroid(_AddressMapsPageState._allowedPolygon);
-    }
-    return _AddressMapsPageState._allowedCenter;
-  }
-
-  LatLng _polygonCentroid(List<LatLng> pts) {
-    // Simple average of vertices; adequate for small areas
-    double lat = 0, lon = 0;
-    for (final p in pts) {
-      lat += p.latitude;
-      lon += p.longitude;
-    }
-    return LatLng(lat / pts.length, lon / pts.length);
-  }
-
   void _fitToPolygon() {
-    if (_AddressMapsPageState._allowedPolygon.isEmpty) return;
-    double minLat = _AddressMapsPageState._allowedPolygon.first.latitude;
-    double maxLat = _AddressMapsPageState._allowedPolygon.first.latitude;
-    double minLon = _AddressMapsPageState._allowedPolygon.first.longitude;
-    double maxLon = _AddressMapsPageState._allowedPolygon.first.longitude;
-    for (final p in _AddressMapsPageState._allowedPolygon) {
+    if (MapsGeometry.allowedPolygon.isEmpty) return;
+    double minLat = MapsGeometry.allowedPolygon.first.latitude;
+    double maxLat = MapsGeometry.allowedPolygon.first.latitude;
+    double minLon = MapsGeometry.allowedPolygon.first.longitude;
+    double maxLon = MapsGeometry.allowedPolygon.first.longitude;
+    for (final p in MapsGeometry.allowedPolygon) {
       if (p.latitude < minLat) minLat = p.latitude;
       if (p.latitude > maxLat) maxLat = p.latitude;
       if (p.longitude < minLon) minLon = p.longitude;

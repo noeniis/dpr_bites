@@ -5,9 +5,7 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/user/services/favorit_service.dart';
 
 class FavoritPage extends StatefulWidget {
   const FavoritPage({super.key});
@@ -43,12 +41,7 @@ class _FavoritPageState extends State<FavoritPage> {
   }
 
   Future<void> _init() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _userId = prefs.getInt('id_users');
-    } catch (_) {
-      _userId = null;
-    }
+    _userId = await FavoritService.getUserIdFromPrefs();
     await _fetchFavorites();
   }
 
@@ -61,50 +54,14 @@ class _FavoritPageState extends State<FavoritPage> {
         _error = null;
         return;
       }
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_favorites.php?user_id=${_userId}',
-      );
-      final res = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final list = (body['data'] as List?) ?? [];
-          _favorites = list.whereType<Map>().map((m) {
-            final menu = Map<String, dynamic>.from(m);
-            final r = menu['restaurant'];
-            if (r is Map) {
-              final rid = (r['id'] ?? '').toString();
-              _restaurants[rid] = {
-                'id': rid,
-                'name': r['name'] ?? '',
-                'desc': r['desc'] ?? '',
-                'rating': r['rating'] ?? 0,
-                'ratingCount': r['ratingCount'] ?? 0,
-                'minPrice': r['minPrice'],
-                'maxPrice': r['maxPrice'],
-              };
-              menu['restaurantId'] = rid;
-            }
-            menu['id'] = (menu['menu_id'] ?? '').toString();
-            return menu;
-          }).toList();
-          _error = null;
-          // Setelah favorit berhasil dimuat, ambil qty keranjang untuk menu favorit
-          await _fetchCartQuantities();
-        } else {
-          _error = body is Map
-              ? (body['message']?.toString() ?? 'Gagal memuat')
-              : 'Gagal memuat';
-        }
-      } else {
-        _error = 'HTTP ${res.statusCode}';
-      }
+      final result = await FavoritService.fetchFavorites(_userId!);
+      _favorites = result.favorites;
+      _restaurants
+        ..clear()
+        ..addAll(result.restaurants);
+      _error = result.error;
+      // Setelah favorit berhasil dimuat, ambil qty keranjang untuk menu favorit
+      await _fetchCartQuantities();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -115,57 +72,13 @@ class _FavoritPageState extends State<FavoritPage> {
   Future<void> _fetchCartQuantities() async {
     try {
       if (_userId == null) return;
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/get_user_cart.php?user_id=${_userId}',
-      );
-      final res = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          final Map<String, int> rebuilt = {};
-          if (data is List) {
-            for (final cart in data) {
-              if (cart is Map) {
-                final menus = cart['menus'];
-                if (menus is List) {
-                  for (final mi in menus) {
-                    if (mi is Map) {
-                      final mid = (mi['menu_id'] ?? mi['id'] ?? '').toString();
-                      final qty = mi['qty'];
-                      if (mid.isNotEmpty && qty is int && qty > 0) {
-                        rebuilt[mid] = qty;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          if (mounted) {
-            setState(() {
-              qtyMap
-                ..clear()
-                ..addAll(rebuilt);
-            });
-          }
-        } else {
-          if (mounted)
-            setState(() {
-              qtyMap.clear();
-            });
-        }
-      } else {
-        if (mounted)
-          setState(() {
-            qtyMap.clear();
-          });
+      final rebuilt = await FavoritService.fetchCartQuantities(_userId!);
+      if (mounted) {
+        setState(() {
+          qtyMap
+            ..clear()
+            ..addAll(rebuilt);
+        });
       }
     } catch (_) {
       if (mounted)
@@ -181,52 +94,20 @@ class _FavoritPageState extends State<FavoritPage> {
       qtyMap[menuId] = newQty;
     });
     try {
-      final uri = Uri.parse(
-        'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
+      final result = await FavoritService.setCartQty(
+        userId: _userId,
+        menuId: menuId,
+        geraiId: geraiId,
+        qty: newQty,
       );
-      final Map<String, dynamic> payload = {
-        'gerai_id': int.tryParse(geraiId) ?? geraiId,
-        'menu_id': int.tryParse(menuId) ?? menuId,
-        'qty': newQty,
-      };
-      if (_userId != null) payload['user_id'] = _userId!;
-      final res = await http.post(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-        body: jsonEncode(payload),
-      );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final data = body['data'];
-          if (data is Map) {
-            if (data['deleted'] == true) {
-              setState(() {
-                qtyMap[menuId] = 0;
-              });
-            } else {
-              // sync qty from response if provided
-              final item = data['item'];
-              if (item is Map && item['qty'] is int) {
-                setState(() {
-                  qtyMap[menuId] = item['qty'];
-                });
-              }
-            }
-          }
-        } else {
-          setState(() {
-            qtyMap[menuId] = prev;
-          });
-        }
-      } else {
-        setState(() {
-          qtyMap[menuId] = prev;
-        });
+      if (!result.success) {
+        setState(() => qtyMap[menuId] = prev);
+        return;
+      }
+      if (result.deleted) {
+        setState(() => qtyMap[menuId] = 0);
+      } else if (result.qty != null) {
+        setState(() => qtyMap[menuId] = result.qty!);
       }
     } catch (_) {
       setState(() {
@@ -248,35 +129,17 @@ class _FavoritPageState extends State<FavoritPage> {
       }
     });
     try {
-      final uri = Uri.parse('http://10.0.2.2/dpr_bites_api/favorite.php');
-      final Map<String, dynamic> bodyPayload = {
-        'menu_id': menuId,
-        'action': 'toggle',
-      };
-      if (_userId != null) bodyPayload['user_id'] = _userId!;
-      final res = await http.post(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          if (_userId != null) 'X-User-Id': _userId.toString(),
-        },
-        body: jsonEncode(bodyPayload),
+      final resp = await FavoritService.toggleFavorite(
+        menuId: menuId,
+        userId: _userId,
       );
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body);
-        if (body is Map && body['success'] == true) {
-          final fav = body['favorited'] == true;
-          if (fav && !exists) {
-            // Re-fetch for full data
-            await _fetchFavorites();
-          } else if (!fav && exists) {
-            // already removed optimistic
-          } else if (!fav && !exists) {
-            // inconsistent, refresh
-            await _fetchFavorites();
-          }
-        } else {
+      if (resp.success) {
+        final fav = resp.favorited == true;
+        if (fav && !exists) {
+          await _fetchFavorites();
+        } else if (!fav && exists) {
+          // already removed
+        } else if (!fav && !exists) {
           await _fetchFavorites();
         }
       } else {
@@ -317,28 +180,9 @@ class _FavoritPageState extends State<FavoritPage> {
           ),
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: ElevatedButton.icon(
-                icon: const Icon(
-                  Icons.shopping_cart_outlined,
-                  size: 20,
-                  color: Colors.white,
-                ),
-                label: const Text(
-                  "Keranjang",
-                  style: TextStyle(color: Colors.white),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                ),
-                onPressed: () async {
+              padding: const EdgeInsets.only(right: 14, top: 4),
+              child: GestureDetector(
+                onTap: () async {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const CartPage()),
@@ -348,6 +192,34 @@ class _FavoritPageState extends State<FavoritPage> {
                     setState(() {});
                   }
                 },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.primaryColor,
+                        AppTheme.primaryColor.withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryColor.withOpacity(0.30),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.shopping_cart_outlined,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -435,30 +307,49 @@ class _FavoritPageState extends State<FavoritPage> {
                                     ),
                                     Row(
                                       children: [
-                                        const Icon(
-                                          Icons.star,
-                                          color: Colors.amber,
-                                          size: 18,
-                                        ),
-                                        Text(
-                                          (resto?['rating'] ?? 0).toString(),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        const Icon(
-                                          Icons.monetization_on,
-                                          color: Colors.amber,
-                                          size: 16,
-                                        ),
-                                        Text(
-                                          _formatPriceRange(
-                                            resto?['minPrice'],
-                                            resto?['maxPrice'],
-                                          ),
-                                          style: const TextStyle(fontSize: 13),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.star,
+                                                  color: Colors.amber,
+                                                  size: 18,
+                                                ),
+                                                Text(
+                                                  _formatRating1Decimal(
+                                                    resto?['rating'],
+                                                  ),
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.monetization_on,
+                                                  color: Colors.amber,
+                                                  size: 16,
+                                                ),
+                                                Text(
+                                                  _formatPriceRange(
+                                                    resto?['minPrice'],
+                                                    resto?['maxPrice'],
+                                                  ),
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -700,8 +591,6 @@ class _FavoritPageState extends State<FavoritPage> {
                                                         menu['id'],
                                                       );
                                                     }
-                                                  } else {
-                                                    toggleFavorite(menu['id']);
                                                   }
                                                 },
                                                 child: Container(
@@ -791,48 +680,98 @@ class _FavoritPageState extends State<FavoritPage> {
                   ),
                 ),
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          backgroundColor: const Color(0xFFF9D3D3).withOpacity(0.85),
-          selectedItemColor: AppTheme.primaryColor,
-          unselectedItemColor: Colors.black54,
-          currentIndex: 2,
-          selectedFontSize: 14,
-          unselectedFontSize: 13,
-          iconSize: 30,
-          onTap: (i) {
-            if (i == 0) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const HomePage()),
-              );
-            } else if (i == 1) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const HistoryPage()),
-              );
-            } else if (i == 2) {
-              // already here
-            } else if (i == 3) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            }
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history),
-              label: "History",
+        bottomNavigationBar: _MinimalBottomNavFavorit(currentIndex: 2),
+      ),
+    );
+  }
+}
+
+class _MinimalBottomNavFavorit extends StatelessWidget {
+  final int currentIndex;
+  const _MinimalBottomNavFavorit({required this.currentIndex});
+
+  Color get _primary => AppTheme.primaryColor;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget buildItem({required IconData icon, required int index}) {
+      final active = index == currentIndex;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: active
+              ? null
+              : () {
+                  switch (index) {
+                    case 0:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HomePage()),
+                      );
+                      break;
+                    case 1:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HistoryPage()),
+                      );
+                      break;
+                    case 2:
+                      // already here
+                      break;
+                    case 3:
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      );
+                      break;
+                  }
+                },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: active
+                    ? LinearGradient(
+                        colors: [_primary, _primary.withOpacity(0.75)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: active ? null : Colors.transparent,
+              ),
+              child: Icon(
+                icon,
+                size: 26,
+                color: active ? Colors.white : _primary.withOpacity(0.7),
+              ),
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.favorite),
-              label: "Favorit",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              label: "Profil",
-            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(12),
+            topRight: Radius.circular(12),
+          ),
+        ),
+        child: Row(
+          children: [
+            buildItem(icon: Icons.home_rounded, index: 0),
+            buildItem(icon: Icons.history_rounded, index: 1),
+            buildItem(icon: Icons.favorite_rounded, index: 2),
+            buildItem(icon: Icons.person_rounded, index: 3),
           ],
         ),
       ),
@@ -974,4 +913,17 @@ String _formatRupiah(int v) {
     if ((i + 1) % 3 == 0 && idx != 0) buf.write('.');
   }
   return buf.toString().split('').reversed.join();
+}
+
+String _formatRating1Decimal(dynamic raw) {
+  if (raw == null) return '0.0';
+  double? v;
+  if (raw is num)
+    v = raw.toDouble();
+  else {
+    v = double.tryParse(raw.toString());
+  }
+  v ??= 0.0;
+  final rounded = (v * 10).round() / 10.0; // nearest tenth, 4.25 -> 4.3
+  return rounded.toStringAsFixed(1);
 }

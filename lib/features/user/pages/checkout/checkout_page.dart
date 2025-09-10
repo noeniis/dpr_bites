@@ -1,15 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
-import 'package:dpr_bites/common/data/dummy_checkout.dart'; // tetap dipakai utk icon/location fallback
+import 'package:dpr_bites/common/data/dummy_checkout.dart';
 import 'package:dpr_bites/common/data/address_store.dart';
 import 'package:dpr_bites/features/user/pages/address/address_page.dart';
-import 'package:http/http.dart' as http;
 import 'checkout_process_page.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
-
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dpr_bites/features/user/services/checkout_page_service.dart';
 
 class CheckoutPage extends StatefulWidget {
   const CheckoutPage({Key? key}) : super(key: key);
@@ -43,71 +40,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
   List<int> _selectedCartItemIds = [];
   bool _didFetch = false;
   bool _cartDirty = false;
+  bool _creatingTransaction = false; // guard to prevent double tap Pesan
 
-  Future<void> _prefetchSelectedItemsDetail(String baseUrl) async {
+  Future<void> _prefetchSelectedItemsDetail() async {
     if (_selectedCartItemIds.isEmpty) return; // hanya saat dari cart
-    final futures = <Future>[];
-    for (int i = 0; i < items.length; i++) {
-      final it = items[i];
-      // Jika sudah punya addonOptions dan desc skip
-      final hasAddons =
-          (it['addonOptions'] is List) &&
-          (it['addonOptions'] as List).isNotEmpty;
-      final hasDesc =
-          (it['desc']?.toString().isNotEmpty ?? false) ||
-          (it['description']?.toString().isNotEmpty ?? false);
-      if (hasAddons && hasDesc) continue;
-      final menuId = it['menu_id'] ?? it['id_menu'] ?? it['id'];
-      if (menuId == null) continue;
-      final mid = int.tryParse(menuId.toString());
-      if (mid == null) continue;
-      futures.add(_fetchSingleMenuDetail(baseUrl, mid, i));
-    }
-    if (futures.isEmpty) return;
-    try {
-      await Future.wait(futures);
-      if (mounted) setState(() {}); // refresh UI
-    } catch (_) {}
-  }
-
-  Future<void> _fetchSingleMenuDetail(
-    String baseUrl,
-    int menuId,
-    int index,
-  ) async {
-    try {
-      final uri = Uri.parse(
-        '$baseUrl/dpr_bites_api/get_menu_detail_user.php?id=$menuId',
-      );
-      final resp = await http.get(uri, headers: {'Accept': 'application/json'});
-      if (resp.statusCode != 200) return;
-      dynamic data;
-      try {
-        var raw = resp.body.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
-        data = jsonDecode(raw);
-      } catch (_) {
-        return;
-      }
-      if (data is Map && data['success'] == true) {
-        final d = data['data'];
-        if (d is Map) {
-          final updated = Map<String, dynamic>.from(items[index]);
-          // desc
-          if (!(updated['desc']?.toString().isNotEmpty ?? false)) {
-            updated['desc'] = d['description'] ?? d['desc'] ?? updated['desc'];
-          }
-          // addonOptions
-          if (!(updated['addonOptions'] is List) ||
-              (updated['addonOptions'] as List).isEmpty) {
-            final opts = d['addons'] ?? d['addonOptions'];
-            if (opts is List) {
-              updated['addonOptions'] = opts;
-            }
-          }
-          items[index] = updated;
-        }
-      }
-    } catch (_) {}
+    await CheckoutPageService.prefetchSelectedItemsDetail(items: items);
+    if (mounted) setState(() {});
   }
 
   @override
@@ -142,20 +80,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _addressStore.addListener(_onAddressChanged);
     // Populate selectedAddress awal jika sudah ada
     _onAddressChanged();
-    // Ambil id_users dari SharedPreferences
+    // Ambil id_users dari SharedPreferences via service
     _loadUserId();
   }
 
   Future<void> _loadUserId() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final id = prefs.getInt('id_users');
-      if (id != null && mounted) {
-        setState(() {
-          _userId = id;
-        });
-      }
-    } catch (_) {}
+    final id = await CheckoutPageService.getUserId();
+    if (id != null && mounted) {
+      setState(() {
+        _userId = id;
+      });
+    }
   }
 
   Future<void> _fetchCheckoutData() async {
@@ -165,148 +100,31 @@ class _CheckoutPageState extends State<CheckoutPage> {
       _noSelectionMatch = false;
     });
     try {
-      final baseUrl = 'http://10.0.2.2';
-      // Tunggu userId jika belum ada
-      if (_userId == null) {
-        final prefs = await SharedPreferences.getInstance();
-        _userId = prefs.getInt('id_users');
-      }
-      final uri = Uri.parse(
-        '$baseUrl/dpr_bites_api/get_checkout_data.php?user_id=${_userId ?? ''}&gerai_id=$_geraiId',
+      final result = await CheckoutPageService.fetchCheckoutData(
+        geraiId: _geraiId,
+        selectedCartItemIds: _selectedCartItemIds,
       );
-      debugPrint('[CHECKOUT] Fetching: $uri');
-      final resp = await http.get(uri, headers: {'Accept': 'application/json'});
-      debugPrint('[CHECKOUT] Status: ${resp.statusCode}');
-      debugPrint(
-        '[CHECKOUT] Raw body (first 300 chars): ${resp.body.length > 300 ? resp.body.substring(0, 300) : resp.body}',
-      );
-      if (resp.statusCode == 200) {
-        dynamic data;
-        try {
-          var raw = resp.body;
-          // Bersihkan BOM & spasi tak perlu
-          raw = raw.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
-          data = jsonDecode(raw);
-        } catch (e) {
-          _error = 'Format JSON tidak valid: $e';
-          if (mounted)
-            setState(() {
-              _loading = false;
-            });
-          return;
-        }
-        if (data is Map && data['success'] == true) {
-          final d = data['data'] as Map? ?? {};
-          restaurantName = (d['restaurantName'] ?? '').toString();
-          deliveryFee = (d['deliveryFee'] is num)
-              ? (d['deliveryFee'] as num).toInt()
-              : 0;
-          qrisPath = (d['qrisPath']?.toString().isNotEmpty ?? false)
-              ? d['qrisPath'].toString()
-              : null;
-          if (d['latitude'] != null && d['longitude'] != null) {
-            geraiLat = double.tryParse(d['latitude'].toString());
-            geraiLng = double.tryParse(d['longitude'].toString());
-          }
-          final allItems = ((d['items'] as List?) ?? [])
-              .whereType<Map>()
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-          if (allItems.isNotEmpty) {
-            try {
-              debugPrint(
-                '[CHECKOUT] allItems count=${allItems.length}; first keys=${allItems.first.keys.join(',')}',
-              );
-            } catch (_) {}
-          } else {
-            debugPrint('[CHECKOUT] allItems empty from API');
-          }
-          if (_selectedCartItemIds.isNotEmpty) {
-            // Tambahkan variasi key id item dari API (camelCase, snake_case, dll)
-            const possibleIdKeys = [
-              'id_keranjang_item',
-              'cart_item_id',
-              'keranjang_item_id',
-              'id_item',
-              'cartItemId', // key yang muncul di response API sekarang
-              'cartItemID',
-              'cartItem_id',
-            ];
-            final allFoundIds = <int>{};
-            for (final m in allItems) {
-              for (final k in possibleIdKeys) {
-                if (m[k] != null) {
-                  final id = int.tryParse(m[k].toString());
-                  if (id != null) allFoundIds.add(id);
-                }
-              }
-            }
-            debugPrint(
-              '[CHECKOUT] API ids=$allFoundIds selected=$_selectedCartItemIds',
-            );
-            items = allItems.where((m) {
-              for (final k in possibleIdKeys) {
-                if (m[k] != null) {
-                  final id = int.tryParse(m[k].toString());
-                  if (id != null && _selectedCartItemIds.contains(id)) {
-                    m['id_keranjang_item'] = id; // normalize
-                    return true;
-                  }
-                }
-              }
-              return false;
-            }).toList();
-            if (items.isEmpty) {
-              if (!_retryAfterMismatch) {
-                _retryAfterMismatch = true;
-                debugPrint('[CHECKOUT] No match, retry in 400ms');
-                Future.delayed(const Duration(milliseconds: 400), () {
-                  if (mounted) _fetchCheckoutData();
-                });
-              } else {
-                _noSelectionMatch = true;
-              }
-            } else {
-              final foundIds = items
-                  .map((e) => e['id_keranjang_item'] as int)
-                  .toSet();
-              _missingSelectedIds = _selectedCartItemIds
-                  .where((id) => !foundIds.contains(id))
-                  .toList();
-              if (_missingSelectedIds.isNotEmpty) {
-                debugPrint(
-                  '[CHECKOUT] Partial missing ids: $_missingSelectedIds',
-                );
-              }
-              await _prefetchSelectedItemsDetail(baseUrl);
-            }
-          } else {
-            items = allItems; // fallback mode: no explicit selection passed
-          }
-          final addr = d['address'];
-          if (addr is Map) {
-            selectedAddress = Map<String, dynamic>.from(addr);
-            // Set id alamat jika tersedia
-            // Tangkap berbagai kemungkinan nama key id alamat dari API
-            final dynamic rawId =
-                addr['id_alamat'] ?? addr['id'] ?? addr['address_id'];
-            if (rawId != null) {
-              final parsed = int.tryParse(rawId.toString());
-              if (parsed != null) {
-                selectedAddressId = parsed;
-                debugPrint(
-                  '[CHECKOUT] Set selectedAddressId from API address=$selectedAddressId',
-                );
-              }
-            }
-          }
-        } else {
-          _error = data is Map
-              ? (data['message']?.toString() ?? 'Gagal memuat')
-              : 'Format tidak dikenali';
-        }
+      if (!result.success) {
+        _error = 'Gagal memuat';
       } else {
-        _error = 'HTTP ${resp.statusCode}';
+        restaurantName = result.restaurantName;
+        deliveryFee = result.deliveryFee;
+        qrisPath = result.qrisPath;
+        geraiLat = result.latitude;
+        geraiLng = result.longitude;
+        items = result.items;
+        selectedAddress = result.address;
+        selectedAddressId = result.selectedAddressId;
+        _noSelectionMatch = result.noSelectionMatch;
+        _missingSelectedIds = result.missingSelectedIds;
+        if (!_noSelectionMatch) {
+          await _prefetchSelectedItemsDetail();
+        } else if (!_retryAfterMismatch) {
+          _retryAfterMismatch = true;
+          Future.delayed(const Duration(milliseconds: 400), () {
+            if (mounted) _fetchCheckoutData();
+          });
+        }
       }
     } catch (e) {
       _error = e.toString();
@@ -358,93 +176,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (mounted) setState(() {});
     try {
       final userId = _userId;
-      final geraiId = _geraiId;
-      final menuId =
-          item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
-      final qty = item['qty'];
-      if (menuId == null || qty == null) return;
-      // Pastikan kita tidak mengirim addons kosong yang akan menghapus addon di server.
-      // Prefer gunakan field 'addonIds' (list int). Jika belum ada, turunkan dari label 'addon' menggunakan 'addonOptions'.
-      List<int> derivedAddonIds = [];
-      if (item['addonIds'] is List) {
-        derivedAddonIds = (item['addonIds'] as List)
-            .map((e) => int.tryParse(e.toString()) ?? 0)
-            .where((e) => e > 0)
-            .toList();
-      } else {
-        // Turunkan dari label => id di addonOptions
-        final labels =
-            (item['addon'] as List?)?.map((e) => e.toString()).toList() ??
-            const [];
-        if (labels.isNotEmpty) {
-          final opts = (item['addonOptions'] as List?) ?? const [];
-          for (final lab in labels) {
-            try {
-              final opt = opts.firstWhere(
-                (o) => (o is Map) && (o['label']?.toString() == lab),
-                orElse: () => const {},
-              );
-              if (opt is Map && opt['id'] != null) {
-                final pid = int.tryParse(opt['id'].toString());
-                if (pid != null && pid > 0) derivedAddonIds.add(pid);
-              }
-            } catch (_) {}
-          }
-          if (derivedAddonIds.isNotEmpty) {
-            item['addonIds'] = derivedAddonIds; // cache
-          }
+      if (userId == null) return;
+      final res = await CheckoutPageService.syncItemQtyToServer(
+        item: item,
+        userId: userId,
+        geraiId: _geraiId,
+      );
+      if (res.updatedItem != null) {
+        final it = res.updatedItem!;
+        item['subtotal'] = it['subtotal'];
+        item['harga_satuan'] = it['harga_satuan'];
+        if (it['addons'] is List) {
+          item['addonIds'] = (it['addons'] as List)
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((e) => e > 0)
+              .toList();
         }
+        _cartDirty = true;
+        if (mounted) setState(() {});
       }
-      final payload = <String, dynamic>{
-        'user_id': userId,
-        'gerai_id': geraiId,
-        'menu_id': int.tryParse(menuId.toString()) ?? menuId,
-        'qty': qty,
-      };
-      // sertakan item_id agar server update baris yang tepat
-      final cartItemId = item['id_keranjang_item'] ?? item['cartItemId'];
-      if (cartItemId != null) {
-        final cid = int.tryParse(cartItemId.toString());
-        if (cid != null && cid > 0) payload['item_id'] = cid;
-      }
-      // Selalu kirim 'addons', meskipun kosong, agar backend tahu user ingin menghapus semua addon
-      payload['addons'] = derivedAddonIds;
-      await http
-          .post(
-            Uri.parse(
-              'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-            ),
-            headers: const {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(payload),
-          )
-          .then((res) {
-            if (res.statusCode == 200) {
-              try {
-                final json = jsonDecode(res.body);
-                if (json is Map && json['success'] == true) {
-                  final data = json['data'];
-                  if (data is Map && data['item'] is Map) {
-                    final it = Map<String, dynamic>.from(data['item']);
-                    // Update local item with authoritative pricing
-                    item['subtotal'] = it['subtotal'];
-                    item['harga_satuan'] = it['harga_satuan'];
-                    _cartDirty = true; // ada perubahan
-                    // Simpan kembali addon ids dari server (jika ada) agar qty berikutnya tetap konsisten
-                    if (it['addons'] is List) {
-                      item['addonIds'] = (it['addons'] as List)
-                          .map((e) => int.tryParse(e.toString()) ?? 0)
-                          .where((e) => e > 0)
-                          .toList();
-                    }
-                  }
-                }
-              } catch (_) {}
-            }
-          });
-      if (mounted) setState(() {});
     } catch (_) {
     } finally {
       item['__busy'] = false;
@@ -460,38 +210,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final menuId =
         item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
     if (menuId == null) return;
-    final payload = {
-      'user_id': _userId,
-      'gerai_id': _geraiId,
-      'menu_id': int.tryParse(menuId.toString()) ?? menuId,
-      'qty': 0,
-    };
-    final cartItemId = item['id_keranjang_item'] ?? item['cartItemId'];
-    if (cartItemId != null) {
-      final cid = int.tryParse(cartItemId.toString());
-      if (cid != null && cid > 0) payload['item_id'] = cid;
-    }
     _cartDirty = true;
-    try {
-      final res = await http.post(
-        Uri.parse('http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(payload),
-      );
-      if (res.statusCode == 200) {
-        try {
-          final json = jsonDecode(res.body);
-          if (json is Map && json['success'] == true) {
-            // Remove locally
-            items.removeAt(index);
-            if (mounted) setState(() {});
-          }
-        } catch (_) {}
-      }
-    } catch (_) {}
+    final userId = _userId;
+    if (userId == null) return;
+    final ok = await CheckoutPageService.deleteItem(
+      item: item,
+      userId: userId,
+      geraiId: _geraiId,
+    );
+    if (ok) {
+      items.removeAt(index);
+      if (mounted) setState(() {});
+    }
     if (navigateBackAfter) {
       if (mounted) Navigator.of(context).pop();
       return;
@@ -652,44 +382,17 @@ class _CheckoutPageState extends State<CheckoutPage> {
     try {
       final dynamic menuId = menu['menuId'] ?? menu['menu_id'] ?? menu['id'];
       if (menuId != null) {
-        final uri = Uri.parse(
-          'http://10.0.2.2/dpr_bites_api/get_menu_detail_user.php?id=${Uri.encodeQueryComponent(menuId.toString())}',
+        final res = await CheckoutPageService.fetchMenuDetailUser(
+          menuId: int.tryParse(menuId.toString()) ?? 0,
         );
-        final resp = await http.get(
-          uri,
-          headers: {'Accept': 'application/json'},
-        );
-        if (resp.statusCode == 200) {
-          final body = jsonDecode(resp.body);
-          if (body is Map && body['success'] == true) {
-            final data = body['data'];
-            if (data is Map && data['addonOptions'] is List) {
-              final listRaw = (data['addonOptions'] as List).whereType<Map>();
-              final full = <Map<String, dynamic>>[];
-              for (final m in listRaw) {
-                final idVal = m['id'] ?? m['id_addon'];
-                final labelVal = m['label'] ?? m['nama_addon'] ?? '';
-                final priceVal = (m['price'] is num)
-                    ? (m['price'] as num).toInt()
-                    : int.tryParse(m['price']?.toString() ?? '0') ?? 0;
-                full.add({
-                  'id': idVal,
-                  'label': labelVal,
-                  'price': priceVal,
-                  'image': m['image'] ?? m['image_path'] ?? '',
-                });
-              }
-              if (full.isNotEmpty) {
-                addonOptions = full;
-                items[index]['addonOptions'] = full; // cache
-              }
-            }
-          }
+        if (res.addonOptions.isNotEmpty) {
+          addonOptions = res.addonOptions;
+          items[index]['addonOptions'] = res.addonOptions; // cache
         }
-        debugPrint(
-          '[CHECKOUT] EditSheet(user) menuId=$menuId addonOptions=${addonOptions.length}',
-        );
       }
+      debugPrint(
+        '[CHECKOUT] EditSheet(user) addonOptions=${addonOptions.length}',
+      );
     } catch (e) {
       debugPrint('[CHECKOUT] Gagal fetch addon (user) $e');
     }
@@ -1060,103 +763,31 @@ class _CheckoutPageState extends State<CheckoutPage> {
                               });
                               // Sinkron ke server (add_or_update_cart_item.php)
                               try {
-                                final currentQty =
-                                    menu['qty'] ?? items[index]['qty'] ?? 1;
-                                final menuId =
-                                    menu['menuId'] ??
-                                    menu['menu_id'] ??
-                                    menu['id'] ??
-                                    items[index]['menuId'];
-                                final cartItemId =
-                                    menu['id_keranjang_item'] ??
-                                    menu['cartItemId'] ??
-                                    items[index]['id_keranjang_item'];
-                                final prevAddonsDynamic =
-                                    (menu['addon'] is List)
-                                    ? List.from(menu['addon'])
-                                    : <dynamic>[];
-                                final prevOptions =
-                                    (menu['addonOptions'] as List?) ??
-                                    addonOptions;
-                                // Turunkan prev addon IDs (support label atau id tersimpan)
-                                final prevIds = <int>{};
-                                for (final opt in prevOptions) {
-                                  if (opt is! Map) continue;
-                                  final pid = int.tryParse(
-                                    opt['id']?.toString() ?? '',
-                                  );
-                                  if (pid == null) continue;
-                                  final lbl = opt['label']?.toString();
-                                  if (prevAddonsDynamic.contains(lbl) ||
-                                      prevAddonsDynamic.contains(pid)) {
-                                    prevIds.add(pid);
-                                  }
+                                final resp =
+                                    await CheckoutPageService.syncItemQtyToServer(
+                                      item: items[index],
+                                      userId: _userId!,
+                                      geraiId: _geraiId,
+                                      note: noteController.text,
+                                    );
+                                final it = resp.updatedItem;
+                                if (it != null && mounted) {
+                                  setState(() {
+                                    if (it['harga_satuan'] is num) {
+                                      items[index]['harga_satuan'] =
+                                          (it['harga_satuan'] as num).toInt();
+                                    }
+                                    if (it['subtotal'] is num) {
+                                      items[index]['subtotal'] =
+                                          (it['subtotal'] as num).toInt();
+                                    }
+                                  });
                                 }
-                                final mapPayload = <String, dynamic>{
-                                  'user_id': _userId,
-                                  'gerai_id': _geraiId,
-                                  'menu_id': menuId,
-                                  'qty': currentQty,
-                                  'note': noteController.text,
-                                };
-                                if (cartItemId != null) {
-                                  final cid = int.tryParse(
-                                    cartItemId.toString(),
-                                  );
-                                  if (cid != null && cid > 0)
-                                    mapPayload['item_id'] = cid;
-                                }
-                                // Selalu kirim addons (termasuk kosong) agar backend bisa menghapus bila perlu
-                                mapPayload['addons'] = chosenIds;
-                                final payload = jsonEncode(mapPayload);
-                                try {
-                                  final resp = await http.post(
-                                    Uri.parse(
-                                      'http://10.0.2.2/dpr_bites_api/add_or_update_cart_item.php',
-                                    ),
-                                    headers: const {
-                                      'Accept': 'application/json',
-                                      'Content-Type': 'application/json',
-                                    },
-                                    body: payload,
-                                  );
-                                  if (resp.statusCode == 200) {
-                                    try {
-                                      final body = jsonDecode(resp.body);
-                                      if (body is Map &&
-                                          body['success'] == true) {
-                                        final data = body['data'];
-                                        if (data is Map &&
-                                            data['item'] is Map) {
-                                          final it = Map<String, dynamic>.from(
-                                            data['item'],
-                                          );
-                                          setState(() {
-                                            if (it['harga_satuan'] is num) {
-                                              items[index]['harga_satuan'] =
-                                                  (it['harga_satuan'] as num)
-                                                      .toInt();
-                                            }
-                                            if (it['subtotal'] is num) {
-                                              items[index]['subtotal'] =
-                                                  (it['subtotal'] as num)
-                                                      .toInt();
-                                            }
-                                          });
-                                        }
-                                      }
-                                    } catch (_) {}
-                                  }
-                                } catch (e) {
-                                  debugPrint(
-                                    '[CHECKOUT] edit sync http error: $e',
-                                  );
-                                }
-                                _cartDirty =
-                                    true; // ensure cart reloads when popping back
                               } catch (e) {
-                                debugPrint('[CHECKOUT] sync edit failed: $e');
+                                debugPrint('[CHECKOUT] edit sync error: $e');
                               }
+                              _cartDirty =
+                                  true; // ensure cart reloads when popping back
                               if (mounted) Navigator.of(context).pop();
                             },
                           ),
@@ -2078,6 +1709,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 child: CustomButtonOval(
                   text: 'Pesan',
                   onPressed: () async {
+                    if (_creatingTransaction) return; // prevent double
+                    setState(() => _creatingTransaction = true);
                     try {
                       final itemsPayload = items.map((it) {
                         final addonLabels =
@@ -2159,32 +1792,24 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         '[CHECKOUT] Creating transaction payload has id_alamat=' +
                             (map['id_alamat']?.toString() ?? 'NONE'),
                       );
-                      final resp = await http.post(
-                        Uri.parse(
-                          'http://10.0.2.2/dpr_bites_api/create_transaction.php',
-                        ),
-                        headers: const {
-                          'Accept': 'application/json',
-                          'Content-Type': 'application/json',
-                        },
-                        body: jsonEncode(map),
+                      final tx = await CheckoutPageService.createTransaction(
+                        payload: map,
                       );
-                      String? bookingId;
-                      if (resp.statusCode == 200) {
-                        try {
-                          final body = jsonDecode(resp.body);
-                          if (body is Map && body['success'] == true) {
-                            bookingId = body['data']['booking_id'];
-                          }
-                        } catch (_) {}
-                      }
+                      String? bookingId = tx.bookingId;
                       if (mounted) {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                CheckoutProcessPage(bookingId: bookingId),
-                          ),
-                        );
+                        Navigator.of(context)
+                            .push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    CheckoutProcessPage(bookingId: bookingId),
+                              ),
+                            )
+                            .then((value) {
+                              // Setelah kembali dari proses, tutup halaman checkout dan kirim flag refresh ke Cart
+                              if (mounted) {
+                                Navigator.of(context).pop(value == true);
+                              }
+                            });
                       }
                     } catch (e) {
                       debugPrint('[CHECKOUT] create transaksi gagal: $e');
@@ -2195,6 +1820,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                         );
                       }
+                    } finally {
+                      if (mounted) setState(() => _creatingTransaction = false);
                     }
                   },
                 ),
