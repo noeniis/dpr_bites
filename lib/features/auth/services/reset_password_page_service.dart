@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:dpr_bites/features/auth/pages/models/forgot_password_model.dart';
+import 'package:dpr_bites/features/auth/models/reset_password_page_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-class ForgotPasswordService {
-  static Future<ForgotPasswordResult> sendOtp(ForgotPasswordRequest req) async {
+class ResetPasswordPageService {
+  static Future<ResetPasswordResult> reset(ResetPasswordRequest req) async {
     try {
-      final url = Uri.parse('${getBaseUrl()}/forgot_password.php');
+      final url = Uri.parse('${getBaseUrl()}/reset_password.php');
       final resp = await http.post(
         url,
         body: jsonEncode(req.toJson()),
@@ -18,21 +18,21 @@ class ForgotPasswordService {
         if (data is Map) {
           final ok = data['success'] == true;
           final msg = data['message']?.toString();
-          return ForgotPasswordResult(success: ok, message: msg);
+          return ResetPasswordResult(success: ok, message: msg);
         }
-        return const ForgotPasswordResult(
+        return const ResetPasswordResult(
           success: false,
           message: 'Respons tidak valid',
         );
       }
-      debugPrint('ForgotPassword HTTP ${resp.statusCode}: ${resp.body}');
-      return ForgotPasswordResult(
+      debugPrint('ResetPassword HTTP ${resp.statusCode}: ${resp.body}');
+      return ResetPasswordResult(
         success: false,
         message: 'HTTP ${resp.statusCode}',
       );
     } catch (e) {
-      debugPrint('ForgotPassword exception: $e');
-      return ForgotPasswordResult(success: false, message: e.toString());
+      debugPrint('ResetPassword exception: $e');
+      return ResetPasswordResult(success: false, message: e.toString());
     }
   }
 }

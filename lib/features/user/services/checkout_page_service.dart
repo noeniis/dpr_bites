@@ -6,10 +6,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CheckoutPageService {
-  static Future<int?> getUserId() async {
+  static Future<String?> getUserId() async {
     try {
       final p = await SharedPreferences.getInstance();
-      final id = p.getInt('id_users');
+      final id = p.getString('id_users');
       return id;
     } catch (_) {
       return null;
@@ -202,10 +202,10 @@ class CheckoutPageService {
   }
 
   static Future<UpdateCartItemResult> syncItemQtyToServer({
-    required Map<String, dynamic> item,
-    required int userId,
-    required int geraiId,
-    String? note,
+  required Map<String, dynamic> item,
+  required String userId,
+  required int geraiId,
+  String? note,
   }) async {
     // Build addonIds from labels if needed
     List<int> addonIds = [];
@@ -281,9 +281,9 @@ class CheckoutPageService {
   }
 
   static Future<bool> deleteItem({
-    required Map<String, dynamic> item,
-    required int userId,
-    required int geraiId,
+  required Map<String, dynamic> item,
+  required String userId,
+  required int geraiId,
   }) async {
     final menuId =
         item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];

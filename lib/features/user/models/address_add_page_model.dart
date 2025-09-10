@@ -67,7 +67,7 @@ class AddressUpsertRequest {
     required this.alamatUtama,
   });
 
-  Map<String, dynamic> toJsonWithUser(int userId) {
+  Map<String, dynamic> toJsonWithUser(String userId) {
     return {
       'id_users': userId,
       if (idAlamat != null) 'id_alamat': idAlamat,

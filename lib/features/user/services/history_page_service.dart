@@ -5,23 +5,23 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HistoryPageService {
-  static Future<int?> getUserIdFromPrefs() async {
+  static Future<String?> getUserIdFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getInt('id_users');
+      return prefs.getString('id_users');
     } catch (_) {
       return null;
     }
   }
 
-  static Future<HistoryFetchResult> fetchTransactions(int userId) async {
+  static Future<HistoryFetchResult> fetchTransactions(String userId) async {
     try {
       final uri = Uri.parse(
         '${getBaseUrl()}/get_user_transactions.php?user_id=$userId',
       );
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId.toString()},
+        headers: {'Accept': 'application/json', 'X-User-Id': userId},
       );
       if (res.statusCode != 200) {
         return HistoryFetchResult(

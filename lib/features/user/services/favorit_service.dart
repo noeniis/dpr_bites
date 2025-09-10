@@ -6,23 +6,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class FavoritService {
   // Convenience: resolve user id from SharedPreferences (key: 'id_users')
-  static Future<int?> getUserIdFromPrefs() async {
+  static Future<String?> getUserIdFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getInt('id_users');
+    return prefs.getString('id_users');
     } catch (_) {
       return null;
     }
   }
 
-  static Future<FavoriteFetchResult> fetchFavorites(int userId) async {
+  static Future<FavoriteFetchResult> fetchFavorites(String userId) async {
     try {
       final uri = Uri.parse(
         '${getBaseUrl()}/get_user_favorites.php?user_id=$userId',
       );
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId.toString()},
+        headers: {'Accept': 'application/json', 'X-User-Id': userId},
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -71,7 +71,7 @@ class FavoritService {
     }
   }
 
-  static Future<Map<String, int>> fetchCartQuantities(int userId) async {
+  static Future<Map<String, int>> fetchCartQuantities(String userId) async {
     final rebuilt = <String, int>{};
     try {
       final uri = Uri.parse(
@@ -79,7 +79,7 @@ class FavoritService {
       );
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId.toString()},
+        headers: {'Accept': 'application/json', 'X-User-Id': userId},
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -110,7 +110,7 @@ class FavoritService {
   }
 
   static Future<CartUpdateResult> setCartQty({
-    required int? userId,
+    required String? userId,
     required String menuId,
     required String geraiId,
     required int qty,
@@ -122,13 +122,13 @@ class FavoritService {
         'menu_id': int.tryParse(menuId) ?? menuId,
         'qty': qty,
       };
-      if (userId != null) payload['user_id'] = userId;
+  if (userId != null) payload['user_id'] = userId;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          if (userId != null) 'X-User-Id': userId.toString(),
+          if (userId != null) 'X-User-Id': userId,
         },
         body: jsonEncode(payload),
       );
@@ -155,7 +155,7 @@ class FavoritService {
 
   static Future<ToggleFavoriteResult> toggleFavorite({
     required String menuId,
-    required int? userId,
+    required String? userId,
   }) async {
     try {
       final uri = Uri.parse('${getBaseUrl()}/favorite.php');
@@ -163,13 +163,13 @@ class FavoritService {
         'menu_id': menuId,
         'action': 'toggle',
       };
-      if (userId != null) bodyPayload['user_id'] = userId;
+  if (userId != null) bodyPayload['user_id'] = userId;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          if (userId != null) 'X-User-Id': userId.toString(),
+          if (userId != null) 'X-User-Id': userId,
         },
         body: jsonEncode(bodyPayload),
       );

@@ -50,6 +50,9 @@ class _LoginPageState extends State<LoginPage> {
         errorMessage = null;
       });
       // Simpan id_users ke SharedPreferences dan print ke terminal
+      if (result.idUsers != null) {
+        await _authService.saveUserId(result.idUsers!);
+        debugPrint('ID USERS LOGIN: ${result.idUsers}');
       }
       // Redirect sesuai role dari backend
       final roleStr = result.role ?? '';
@@ -309,9 +312,7 @@ class _LoginPageState extends State<LoginPage> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const OnboardingChecklistPage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
                     );
                   },
                   child: Container(

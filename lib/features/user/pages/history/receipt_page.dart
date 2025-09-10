@@ -216,14 +216,7 @@ class _ReceiptPageState extends State<ReceiptPage> {
                               ReviewPage(
                                 idTransaksi: d['id_transaksi'] ?? 0,
                                 idGerai: d['id_gerai'] ?? 0,
-                                idUser:
-                                    int.tryParse(
-                                      (_reviewData?['id_users'] ??
-                                              d['id_users'] ??
-                                              '')
-                                          .toString(),
-                                    ) ??
-                                    0,
+                                idUser: (_reviewData?['id_users'] ?? d['id_users'] ?? '').toString(),
                                 geraiName: restaurantName.toString(),
                                 listingPath: d['listing_path'] as String?,
                                 readOnly: true,
@@ -1109,7 +1102,7 @@ class _ReceiptPageState extends State<ReceiptPage> {
                                     ? idTrans
                                     : int.tryParse(idTrans.toString()) ?? 0,
                                 idGerai: idGerai,
-                                idUser: int.tryParse(idUsers) ?? 0,
+                                idUser: idUsers,
                                 geraiName: restaurantName,
                                 listingPath: d['listing_path']?.toString(),
                               ),

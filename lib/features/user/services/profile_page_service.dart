@@ -9,14 +9,8 @@ import 'package:dpr_bites/features/user/models/profile_page_model.dart';
 class ProfileService {
   static Future<ProfileModel?> fetchUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
-    // id_users bisa berupa int atau string di prefs; normalisasi ke string
-    String? idUsers;
-    final idInt = prefs.getInt('id_users');
-    if (idInt != null) {
-      idUsers = idInt.toString();
-    } else {
-      idUsers = prefs.getString('id_users');
-    }
+    // id_users selalu diambil sebagai String
+    final idUsers = prefs.getString('id_users');
     if (idUsers == null) return null;
 
     final res = await http.post(

@@ -35,7 +35,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _noSelectionMatch = false;
   bool _retryAfterMismatch = false;
   List<int> _missingSelectedIds = [];
-  int? _userId; // ambil dari SharedPreferences
+  String? _userId; // ambil dari SharedPreferences
   int _geraiId = 0;
   List<int> _selectedCartItemIds = [];
   bool _didFetch = false;

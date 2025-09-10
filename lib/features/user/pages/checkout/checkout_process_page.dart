@@ -741,38 +741,17 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     }
     // Require essential ids
     final idTransaksi = _tx!['id_transaksi'];
-    // Inject _geraiId jika id_gerai masih null
     if (_tx!['id_gerai'] == null && _geraiId != null) {
       _tx!['id_gerai'] = _geraiId;
     }
     final idGerai = _tx!['id_gerai'];
-    dynamic idUser = _tx!['id_users'];
-    if (idUser == null) {
-      final uid = await CheckoutProcessPageService.getUserIdFromPrefs();
-      if (uid != null) {
-        if (!mounted) return;
-        setState(() {
-          _tx!['id_users'] = uid;
-        });
-        // ignore: avoid_print
-        print('$debugPrefix Berhasil fallback idUser=$uid via service');
-        _pushingReview = false;
-        await _maybeShowReview(overrideShown: true);
-        return;
-      } else {
-        // ignore: avoid_print
-        print('$debugPrefix Fallback gagal menemukan id user');
-      }
-    }
-    if (idTransaksi == null || idGerai == null || idUser == null) {
+    final idUser = _tx!['id_users']?.toString();
+    if (idTransaksi == null || idGerai == null || idUser == null || idUser.isEmpty) {
       // ignore: avoid_print
-      print(
-        '$debugPrefix BATAL: id null (idTransaksi=$idTransaksi, idGerai=$idGerai, idUser=$idUser)',
-      );
+      print('$debugPrefix BATAL: id null (idTransaksi=$idTransaksi, idGerai=$idGerai, idUser=$idUser)');
       return;
     }
     _pushingReview = true;
-    // Schedule after current frame to avoid setState/build conflicts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         _pushingReview = false;
@@ -781,10 +760,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _shownReview = true;
       _reviewOpenedAtStatus = 'selesai';
       // ignore: avoid_print
-      print(
-        '$debugPrefix PUSH: membuka halaman ulasan (overrideShown=$overrideShown)',
-      );
-      // ignore: use_build_context_synchronously
+      print('$debugPrefix PUSH: membuka halaman ulasan (overrideShown=$overrideShown)');
       Navigator.of(context)
           .push(
             ReviewSheetRoute(
@@ -795,9 +771,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
                 idGerai: idGerai is int
                     ? idGerai
                     : int.tryParse(idGerai.toString()) ?? 0,
-                idUser: idUser is int
-                    ? idUser
-                    : int.tryParse(idUser.toString()) ?? 0,
+                idUser: idUser,
                 geraiName: (_tx!['restaurantName'] ?? '').toString(),
                 listingPath: (() {
                   final v = _tx!['listing_path'] ?? _tx!['listingPath'];

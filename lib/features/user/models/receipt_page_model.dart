@@ -166,7 +166,7 @@ class ReceiptFetchResult {
 class ReviewModel {
   final int idUlasan;
   final int idTransaksi;
-  final int idUsers;
+  final String idUsers;
   final int rating;
   final String? komentar;
   final String? createdAt;
@@ -186,7 +186,7 @@ class ReviewModel {
     return ReviewModel(
       idUlasan: _toInt(json['id_ulasan']),
       idTransaksi: _toInt(json['id_transaksi']),
-      idUsers: _toInt(json['id_users']),
+  idUsers: json['id_users']?.toString() ?? '',
       rating: _toInt(json['rating']),
       komentar: json['komentar']?.toString(),
       createdAt: json['created_at']?.toString(),

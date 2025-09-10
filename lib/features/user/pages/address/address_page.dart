@@ -54,8 +54,8 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<bool> _setDefaultOnServer(AddressModel target) async {
-    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
-    if (idUsers == null || idUsers <= 0 || target.id == null) return false;
+    final String? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers.isEmpty || target.id == null) return false;
     return AddressPageService.setDefaultAddress(
       userId: idUsers,
       addressId: target.id!,
@@ -63,8 +63,8 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<void> _fetchAddresses() async {
-    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
-    if (idUsers == null || idUsers <= 0) {
+    final String? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers.isEmpty) {
       // tidak ada user login, kosongkan list
       setState(() => _addresses = []);
       return;
@@ -145,8 +145,8 @@ class _AddressPageState extends State<AddressPage> {
   }
 
   Future<bool> _deleteOnServer(AddressModel target) async {
-    final int? idUsers = await AddressPageService.getUserIdFromPrefs();
-    if (idUsers == null || idUsers <= 0 || target.id == null) return false;
+    final String? idUsers = await AddressPageService.getUserIdFromPrefs();
+    if (idUsers == null || idUsers.isEmpty || target.id == null) return false;
     return AddressPageService.deleteAddress(
       userId: idUsers,
       addressId: target.id!,

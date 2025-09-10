@@ -12,7 +12,7 @@ class CartPage extends StatefulWidget {
 }
 
 class _CartPageState extends State<CartPage> {
-  int? _userId; // loaded via CartService.getUserIdFromPrefs
+  String? _userId; // loaded via CartService.getUserIdFromPrefs
   List<Map<String, dynamic>> carts = [];
   Map<int, Set<int>> selectedMenus = {};
   bool _loading = false; // minimal spinner to keep UI feel
@@ -136,7 +136,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _init() async {
-    _userId = await CartService.getUserIdFromPrefs();
+  _userId = await CartService.getUserIdFromPrefs();
     await _fetchCart();
   }
 
@@ -145,7 +145,7 @@ class _CartPageState extends State<CartPage> {
       _loading = true;
     });
     try {
-      final result = await CartService.fetchCart(userId: _userId);
+  final result = await CartService.fetchCart(userId: _userId);
       if (mounted) {
         setState(() {
           carts = result.carts;

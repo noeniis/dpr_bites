@@ -26,7 +26,7 @@ class _FavoritPageState extends State<FavoritPage> {
     return grouped;
   }
 
-  int? _userId; // from SharedPreferences
+  String? _userId; // from SharedPreferences
   final Map<String, int> qtyMap = {};
   bool _loading = false;
   String? _error;
@@ -41,7 +41,7 @@ class _FavoritPageState extends State<FavoritPage> {
   }
 
   Future<void> _init() async {
-    _userId = await FavoritService.getUserIdFromPrefs();
+  _userId = await FavoritService.getUserIdFromPrefs();
     await _fetchFavorites();
   }
 
@@ -54,7 +54,7 @@ class _FavoritPageState extends State<FavoritPage> {
         _error = null;
         return;
       }
-      final result = await FavoritService.fetchFavorites(_userId!);
+  final result = await FavoritService.fetchFavorites(_userId!);
       _favorites = result.favorites;
       _restaurants
         ..clear()
@@ -72,7 +72,7 @@ class _FavoritPageState extends State<FavoritPage> {
   Future<void> _fetchCartQuantities() async {
     try {
       if (_userId == null) return;
-      final rebuilt = await FavoritService.fetchCartQuantities(_userId!);
+  final rebuilt = await FavoritService.fetchCartQuantities(_userId!);
       if (mounted) {
         setState(() {
           qtyMap

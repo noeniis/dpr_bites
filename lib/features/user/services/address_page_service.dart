@@ -5,19 +5,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AddressPageService {
-  static Future<int?> getUserIdFromPrefs() async {
+  static Future<String?> getUserIdFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final intId = prefs.getInt('id_users');
-      if (intId != null) return intId;
-      final s = prefs.getString('id_users');
-      return int.tryParse(s ?? '');
+      return prefs.getString('id_users');
     } catch (_) {
       return null;
     }
   }
 
-  static Future<AddressFetchResult> fetchAddresses(int userId) async {
+  static Future<AddressFetchResult> fetchAddresses(String userId) async {
     try {
       final uri = Uri.parse('${getBaseUrl()}/get_user_addresses.php');
       final res = await http.post(
@@ -25,7 +22,7 @@ class AddressPageService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-User-Id': userId.toString(),
+          'X-User-Id': userId,
         },
         body: jsonEncode({'id_users': userId}),
       );
@@ -59,7 +56,7 @@ class AddressPageService {
   }
 
   static Future<bool> setDefaultAddress({
-    required int userId,
+  required String userId,
     required int addressId,
   }) async {
     try {
@@ -69,7 +66,7 @@ class AddressPageService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-User-Id': userId.toString(),
+      'X-User-Id': userId,
         },
         body: jsonEncode({'id_users': userId, 'id_alamat': addressId}),
       );
@@ -82,7 +79,7 @@ class AddressPageService {
   }
 
   static Future<bool> deleteAddress({
-    required int userId,
+  required String userId,
     required int addressId,
   }) async {
     try {
@@ -92,7 +89,7 @@ class AddressPageService {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-User-Id': userId.toString(),
+      'X-User-Id': userId,
         },
         body: jsonEncode({'id_alamat': addressId}),
       );

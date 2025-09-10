@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:dpr_bites/features/auth/pages/models/otp_verification_page_model.dart';
+import 'package:dpr_bites/features/auth/models/otp_verification_page_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 

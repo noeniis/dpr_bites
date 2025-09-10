@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'otp_verification_page.dart';
-import 'models/forgot_password_model.dart';
-import 'services/forgot_password_service.dart';
+import '../models/forgot_password_model.dart';
+import '../services/forgot_password_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});

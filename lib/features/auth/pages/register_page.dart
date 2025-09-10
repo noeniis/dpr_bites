@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
-import 'models/register_page_model.dart';
-import 'services/register_page_service.dart';
+import '../models/register_page_model.dart';
+import '../services/register_page_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});

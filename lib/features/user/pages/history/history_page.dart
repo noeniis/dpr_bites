@@ -17,7 +17,7 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late String filter;
-  int? _userId; // loaded from SharedPreferences
+  String? _userId; // loaded from SharedPreferences
   List<Map<String, dynamic>> _orders = [];
   bool _loading = false;
   String? _error;
@@ -687,7 +687,7 @@ class _OrderHistoryCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+      );
   }
 }
 

@@ -30,7 +30,7 @@ class _AddressAddPageState extends State<AddressAddPage> {
   double? _lat;
   double? _lon;
   String? _alamatLengkapMaps;
-  int? _userId;
+  String? _userId;
 
   @override
   void initState() {
@@ -52,9 +52,10 @@ class _AddressAddPageState extends State<AddressAddPage> {
 
   Future<void> _bootstrap() async {
     setState(() => _loadingDetail = widget.idAlamat != null);
-    final uid = await AddressAddPageService.getUserIdFromPrefs();
-    _userId = uid;
-    if (uid == null || uid <= 0) {
+  final uidRaw = await AddressAddPageService.getUserIdFromPrefs();
+  final String? uid = uidRaw?.toString();
+  _userId = uid;
+  if (uid == null || uid.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -123,9 +124,9 @@ class _AddressAddPageState extends State<AddressAddPage> {
       return;
     }
     setState(() => _loading = true);
-    final int? idUsers =
-        _userId ?? await AddressAddPageService.getUserIdFromPrefs();
-    if (idUsers == null || idUsers <= 0) {
+  final idUsersRaw = _userId ?? await AddressAddPageService.getUserIdFromPrefs();
+  final String? idUsers = idUsersRaw?.toString();
+  if (idUsers == null || idUsers.isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('User belum login')));

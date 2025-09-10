@@ -5,13 +5,11 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AddressAddPageService {
-  static Future<int?> getUserIdFromPrefs() async {
+  // Removed duplicate getUserIdFromPrefs and unused intId
+  static Future<String?> getUserIdFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final intId = prefs.getInt('id_users');
-      if (intId != null) return intId;
-      final s = prefs.getString('id_users');
-      return int.tryParse(s ?? '');
+      return prefs.getString('id_users');
     } catch (_) {
       return null;
     }
@@ -19,7 +17,7 @@ class AddressAddPageService {
 
   static Future<AddressDetailFetchResult> fetchDetail({
     required int idAlamat,
-    required int userId,
+  required String userId,
   }) async {
     final url = Uri.parse('${getBaseUrl()}/alamat_pengantaran_get_detail.php');
     try {
@@ -28,7 +26,7 @@ class AddressAddPageService {
         body: jsonEncode({'id_alamat': idAlamat}),
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId.toString(),
+      'X-User-Id': userId,
         },
       );
       if (res.statusCode != 200) {
@@ -51,7 +49,7 @@ class AddressAddPageService {
 
   static Future<SaveAddressResult> saveAddress({
     required AddressUpsertRequest request,
-    required int userId,
+  required String userId,
   }) async {
     final isEdit = request.idAlamat != null;
     final url = Uri.parse(
@@ -60,13 +58,13 @@ class AddressAddPageService {
           : '${getBaseUrl()}/alamat_pengantaran_add.php',
     );
     try {
-      final body = request.toJsonWithUser(userId);
+    final body = request.toJsonWithUser(userId);
       final res = await http.post(
         url,
         body: jsonEncode(body),
         headers: {
           'Content-Type': 'application/json',
-          'X-User-Id': userId.toString(),
+      'X-User-Id': userId,
         },
       );
       if (res.statusCode != 200) {

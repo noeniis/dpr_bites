@@ -5,10 +5,10 @@ import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/cart_model.dart';
 
 class CartService {
-  static Future<int?> getUserIdFromPrefs() async {
+  static Future<String?> getUserIdFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getInt('id_users');
+  return prefs.getString('id_users');
     } catch (_) {
       return null;
     }
@@ -16,14 +16,14 @@ class CartService {
 
   static String baseApi() => getBaseUrl();
 
-  static Future<CartFetchResult> fetchCart({int? userId}) async {
+  static Future<CartFetchResult> fetchCart({String? userId}) async {
     try {
-      int? uid = userId ?? await getUserIdFromPrefs();
+      String? uid = userId ?? await getUserIdFromPrefs();
       final uri = Uri.parse(
         '${getBaseApiUrlForCart()}/get_user_cart.php?user_id=${uid ?? ''}',
       );
       final headers = <String, String>{'Accept': 'application/json'};
-      if (uid != null) headers['X-User-Id'] = uid.toString();
+      if (uid != null) headers['X-User-Id'] = uid;
       final res = await http.get(uri, headers: headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -57,7 +57,7 @@ class CartService {
   }
 
   static Future<bool> addOrUpdateCartItem({
-    required int? userId,
+    required String? userId,
     required int geraiId,
     required int menuId,
     required int qty,
@@ -98,14 +98,14 @@ class CartService {
     if (noteProvided) {
       mapPayload['note'] = note ?? '';
     }
-    int? uid = userId ?? await getUserIdFromPrefs();
+    String? uid = userId ?? await getUserIdFromPrefs();
     mapPayload['user_id'] = uid ?? mapPayload['user_id'];
 
     final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
     };
-    if (uid != null) headers['X-User-Id'] = uid.toString();
+    if (uid != null) headers['X-User-Id'] = uid;
     final uri = Uri.parse(
       '${getBaseApiUrlForCart()}/add_or_update_cart_item.php',
     );

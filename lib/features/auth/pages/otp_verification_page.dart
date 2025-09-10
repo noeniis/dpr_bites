@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../common/widgets/custom_widgets.dart';
 import '../../../app/gradient_background.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
-import 'models/otp_verification_page_model.dart';
-import 'services/otp_verification_page_service.dart';
+import '../models/otp_verification_page_model.dart';
+import '../services/otp_verification_page_service.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   final String email;

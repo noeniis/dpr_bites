@@ -1,6 +1,6 @@
 class ReviewModel {
   final int idTransaksi;
-  final int idUsers;
+  final String idUsers;
   final int rating; // 1..5
   final String komentar; // optional text (could be empty)
   final bool anonymous; // true if anonymous
