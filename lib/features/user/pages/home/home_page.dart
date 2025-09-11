@@ -1,4 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' show LatLng;
+import 'package:geocoding/geocoding.dart' as geocoding;
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_address.dart';
@@ -19,7 +23,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with RouteAware {
+class _HomePageState extends State<HomePage>
+    with RouteAware, WidgetsBindingObserver {
   String? searchQuery;
   String? selectedRating;
   String? selectedPrice;
@@ -34,15 +39,87 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
   String _buildingName = '';
   String _detailPengantaran = '';
-  bool _addressLoaded = false;
+
+  bool _locationHandled = false; // ensure only once per mount
+  bool _outOfRangeDialogOpen = false;
+  bool _serviceDialogOpen = false;
+  bool _usedCurrentLocation =
+      false; // set true after we successfully use GPS-based address
+  StreamSubscription<ServiceStatus>? _serviceSub;
+
+  // Polygon Komplek DPR/MPR RI (allowed area)
+  static const List<LatLng> _allowedPolygon = [
+    LatLng(-6.212730101218966, 106.79752892595128),
+    LatLng(-6.212360574458213, 106.798097869374),
+    LatLng(-6.212254995336067, 106.79870474235824),
+    LatLng(-6.212119250719337, 106.79900817885036),
+    LatLng(-6.212126792087837, 106.7994405758516),
+    LatLng(-6.212481236286165, 106.79948609132542),
+    LatLng(-6.211832678635703, 106.80204254377149),
+    LatLng(-6.211712016659093, 106.80219426201755),
+    LatLng(-6.211568730525919, 106.80223219157904),
+    LatLng(-6.211206744302917, 106.80260390132642),
+    LatLng(-6.210248987963318, 106.80380247547028),
+    LatLng(-6.209796504047311, 106.80352179671507),
+    LatLng(-6.209585344753447, 106.803870748681),
+    LatLng(-6.210000121857643, 106.80415142743621),
+    LatLng(-6.210060453045579, 106.80436383298067),
+    LatLng(-6.210075535841469, 106.80461416808669),
+    LatLng(-6.210000121857643, 106.8049251904911),
+    LatLng(-6.208853827930598, 106.80402246692121),
+    LatLng(-6.20837871854989, 106.80359006991996),
+    LatLng(-6.2079941058801715, 106.80331697707706),
+    LatLng(-6.2074435813740605, 106.80282389277737),
+    LatLng(-6.20719471394273, 106.80258114358368),
+    LatLng(-6.206470735292228, 106.80193634103793),
+    LatLng(-6.208484298449314, 106.79953919275025),
+    LatLng(-6.208318387169288, 106.79947850545183),
+    LatLng(-6.2076547415266115, 106.79893231976602),
+    LatLng(-6.20759441006717, 106.79873508602888),
+    LatLng(-6.207624575799798, 106.79854543822132),
+    LatLng(-6.207858360169064, 106.79826475946612),
+    LatLng(-6.207865901598605, 106.79815855669386),
+    LatLng(-6.208016730166707, 106.79787029202636),
+    LatLng(-6.208137392990108, 106.79761237100809),
+    LatLng(-6.208318387173359, 106.79755168370966),
+    LatLng(-6.208378718553962, 106.79767305830649),
+    LatLng(-6.209954873423296, 106.79688412342699),
+    LatLng(-6.210241446569706, 106.79683860794492),
+    LatLng(-6.21070147149229, 106.79692963889256),
+    LatLng(-6.210927713110037, 106.79693722480486),
+    LatLng(-6.2110936235679395, 106.79707377122632),
+    LatLng(-6.211432985705341, 106.7973241063323),
+    LatLng(-6.211704475257758, 106.7970206698402),
+    LatLng(-6.212737642551843, 106.79749858231528),
+  ];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchUserAddress();
     _fetchRestaurants();
     _searchFocus.addListener(() => setState(() {}));
     searchController.addListener(() => setState(() {}));
+
+    // Coba minta izin lokasi dan isi alamat otomatis (tanpa mengubah flow lain)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeRequestLocationAndFill();
+    });
+
+    // Dengarkan perubahan status layanan lokasi (GPS diaktifkan/dimatikan)
+    _serviceSub = Geolocator.getServiceStatusStream().listen((status) async {
+      if (!mounted) return;
+      if (status == ServiceStatus.disabled) {
+        _usedCurrentLocation = false; // akan coba lagi nanti ketika aktif
+        if (!_serviceDialogOpen) {
+          await _promptEnableLocationServices();
+        }
+      } else if (status == ServiceStatus.enabled) {
+        // Saat layanan aktif lagi, coba ambil lokasi dan perbarui alamat
+        await _fetchAndSetCurrentAddress();
+      }
+    });
   }
 
   @override
@@ -65,6 +142,272 @@ class _HomePageState extends State<HomePage> with RouteAware {
     }
   }
 
+  // Request lokasi, cek dalam polygon, reverse geocode dan isi header.
+  Future<void> _maybeRequestLocationAndFill() async {
+    if (_locationHandled) return;
+    _locationHandled = true;
+
+    try {
+      // 1) Minta izin dulu agar prompt tetap muncul walau layanan lokasi mati
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return; // pakai alamat_utama
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        // Pengguna menolak permanen, biarkan fallback alamat_utama
+        return;
+      }
+
+      // 2) Pastikan layanan lokasi aktif; jika tidak, minta user menyalakan
+      var serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled && mounted) {
+        await _promptEnableLocationServices();
+        // Coba cek ulang setelah user menutup dialog / kembali dari pengaturan
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          // Masih mati, biarkan fallback alamat_utama
+          return;
+        }
+      }
+      // 3) Ambil posisi akurat dan perbarui alamat
+      await _fetchAndSetCurrentAddress();
+    } catch (_) {
+      // Abaikan error; tetap pakai alamat_utama
+    }
+  }
+
+  // Ray casting algorithm: treat longitude as X, latitude as Y
+  bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
+    int intersections = 0;
+    final px = point.longitude; // X
+    final py = point.latitude; // Y
+    for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      final xi = polygon[i].longitude;
+      final yi = polygon[i].latitude;
+      final xj = polygon[j].longitude;
+      final yj = polygon[j].latitude;
+
+      final bool intersect =
+          ((yi > py) != (yj > py)) &&
+          (px <
+              (xj - xi) * (py - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) +
+                  xi);
+      if (intersect) intersections++;
+    }
+    return (intersections % 2) == 1;
+  }
+
+  String _joinNonEmpty(List<String?> parts) {
+    return parts
+        .whereType<String>()
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .join(', ');
+  }
+
+  // Prompt untuk menyalakan layanan lokasi (GPS)
+  Future<void> _promptEnableLocationServices() async {
+    if (_serviceDialogOpen) return;
+    _serviceDialogOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: false,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _EnableLocationBottomSheet(
+          onOpenSettings: () async {
+            await Geolocator.openLocationSettings();
+            if (ctx.mounted) Navigator.of(ctx).pop();
+          },
+          onLater: () async {
+            // User memilih nanti saja: kembalikan ke alamat_utama
+            await _fetchUserAddress();
+            if (ctx.mounted) Navigator.of(ctx).pop();
+          },
+        ),
+      );
+    } finally {
+      _serviceDialogOpen = false;
+    }
+  }
+
+  // Reverse geocoding lewat native Geocoding (Android/iOS), berbahasa Indonesia.
+  // Mengembalikan (street, details) dengan format:
+  // street  => hanya nama jalan, mis: "JL. Kebagusan 1"
+  // details => (kelurahan,kecamatan,kota/kabupaten,provinsi)
+  Future<({String street, String details})> _reverseGeocodeNative(
+    double lat,
+    double lon,
+  ) async {
+    try {
+      final placemarks = await geocoding.placemarkFromCoordinates(
+        lat,
+        lon,
+        localeIdentifier: 'id_ID',
+      );
+      if (placemarks.isEmpty) return (street: '', details: '');
+
+      // Pilih placemark yang paling kaya informasi
+      geocoding.Placemark pick = placemarks.first;
+      for (final p in placemarks) {
+        final richness = [
+          p.thoroughfare,
+          p.street,
+          p.subLocality,
+          p.locality,
+          p.subAdministrativeArea,
+          p.administrativeArea,
+        ].where((e) => (e ?? '').trim().isNotEmpty).length;
+        final currRichness = [
+          pick.thoroughfare,
+          pick.street,
+          pick.subLocality,
+          pick.locality,
+          pick.subAdministrativeArea,
+          pick.administrativeArea,
+        ].where((e) => (e ?? '').trim().isNotEmpty).length;
+        if (richness > currRichness) pick = p;
+      }
+
+      // Street: gunakan thoroughfare atau street; jika kosong, jatuhkan ke name/subLocality/locality/subAdministrativeArea
+      String rawStreet = (pick.thoroughfare ?? pick.street ?? '').trim();
+      final lower = rawStreet.toLowerCase();
+      if (lower.contains('unnamed') ||
+          lower.contains('google') ||
+          lower.contains('building')) {
+        rawStreet = '';
+      }
+      if (rawStreet.isEmpty) {
+        rawStreet = (pick.name ?? '').trim();
+      }
+      if (rawStreet.isEmpty) {
+        rawStreet = (pick.subLocality ?? '').trim();
+      }
+      if (rawStreet.isEmpty) {
+        rawStreet = (pick.locality ?? '').trim();
+      }
+      if (rawStreet.isEmpty) {
+        rawStreet = (pick.subAdministrativeArea ?? '').trim();
+      }
+
+      String streetName = rawStreet;
+      if (streetName.toLowerCase().startsWith('jalan ')) {
+        streetName = streetName.replaceFirst(
+          RegExp(r'^jalan\s+', caseSensitive: false),
+          '',
+        );
+      }
+      if (streetName.isNotEmpty &&
+          !(streetName.toLowerCase().startsWith('jl') ||
+              streetName.toLowerCase().startsWith('jln') ||
+              streetName.toLowerCase().startsWith('jalan'))) {
+        streetName = 'JL. $streetName';
+      } else if (streetName.toLowerCase().startsWith('jl')) {
+        // Normalisasi ke "JL." kapital
+        streetName = streetName.replaceFirst(
+          RegExp(r'^jl\.?\s*', caseSensitive: false),
+          'JL. ',
+        );
+      }
+
+      // Komponen wilayah: kelurahan, kecamatan, kota/kabupaten, provinsi
+      final kelurahan = pick.subLocality?.trim();
+      final kecamatan = pick.locality?.trim();
+      final kotaKab = pick.subAdministrativeArea?.trim();
+      final provinsi = pick.administrativeArea?.trim();
+
+      final detailsParts = <String?>[kelurahan, kecamatan, kotaKab, provinsi];
+      final details = _joinNonEmpty(detailsParts);
+
+      return (street: streetName, details: details);
+    } catch (_) {
+      return (street: '', details: '');
+    }
+  }
+
+  // Ambil posisi yang lebih akurat (coba stream jika awalnya kurang akurat)
+  Future<Position> _getAccuratePosition() async {
+    Position pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.bestForNavigation,
+      timeLimit: const Duration(seconds: 10),
+    );
+    try {
+      // Jika akurasi > 80m, coba tunggu update yang lebih baik sebentar
+      if (pos.accuracy > 80) {
+        final settings = const LocationSettings(
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 0,
+        );
+        final improved =
+            await Geolocator.getPositionStream(locationSettings: settings)
+                .firstWhere((p) => p.accuracy <= 50)
+                .timeout(const Duration(seconds: 8));
+        return improved;
+      }
+    } catch (_) {
+      // Abaikan dan gunakan posisi awal
+    }
+    return pos;
+  }
+
+  // Cek izin & layanan, ambil lokasi akurat, cek polygon, reverse geocode OSM, lalu isi header
+  Future<void> _fetchAndSetCurrentAddress() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      final pos = await _getAccuratePosition();
+
+      // Check polygon; show popup jika di luar jangkauan
+      final inside = _isPointInPolygon(
+        LatLng(pos.latitude, pos.longitude),
+        _allowedPolygon,
+      );
+      if (!inside && mounted && !_outOfRangeDialogOpen) {
+        _outOfRangeDialogOpen = true;
+        try {
+          await showDialog(
+            context: context,
+            barrierDismissible: true,
+            builder: (ctx) => const _OutOfRangeModernDialog(),
+            useRootNavigator: true,
+          );
+        } finally {
+          if (mounted) _outOfRangeDialogOpen = false;
+        }
+      }
+
+      final result = await _reverseGeocodeNative(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      // Jika gagal menyusun nama jalan, jangan tampilkan kosong—kembalikan ke alamat_utama
+      if (result.street.trim().isEmpty) {
+        await _fetchUserAddress();
+        return;
+      }
+      setState(() {
+        _buildingName = result.street;
+        _detailPengantaran = result.details.isNotEmpty
+            ? '(${result.details})'
+            : '';
+
+        _usedCurrentLocation = true;
+      });
+    } catch (_) {
+      // Biarkan fallback
+    }
+  }
+
   @override
   void didPopNext() {
     // Dipanggil saat kembali ke halaman ini dari halaman lain
@@ -72,6 +415,13 @@ class _HomePageState extends State<HomePage> with RouteAware {
       setState(() {
         searchController.clear();
       });
+      // Jika belum pernah berhasil pakai lokasi saat ini, coba lagi
+      if (!_usedCurrentLocation) {
+        _locationHandled = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _maybeRequestLocationAndFill();
+        });
+      }
     }
   }
 
@@ -79,7 +429,24 @@ class _HomePageState extends State<HomePage> with RouteAware {
   void dispose() {
     _searchFocus.dispose();
     searchController.dispose();
+    _serviceSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (!mounted) return;
+    if (state == AppLifecycleState.resumed) {
+      // Saat kembali dari Settings, cek layanan & izin, lalu refresh alamat bila memungkinkan
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final perm = await Geolocator.checkPermission();
+      if (serviceEnabled &&
+          (perm == LocationPermission.always ||
+              perm == LocationPermission.whileInUse)) {
+        await _fetchAndSetCurrentAddress();
+      }
+    }
   }
 
   Future<void> _fetchUserAddress() async {
@@ -93,7 +460,6 @@ class _HomePageState extends State<HomePage> with RouteAware {
         _buildingName = 'Tambah Alamat Disini';
         _detailPengantaran = '';
       }
-      _addressLoaded = true;
     });
   }
 
@@ -122,10 +488,11 @@ class _HomePageState extends State<HomePage> with RouteAware {
   String _formatRupiah(dynamic value) {
     if (value == null) return '-';
     int? v;
-    if (value is int)
+    if (value is int) {
       v = value;
-    else if (value is String)
+    } else if (value is String) {
       v = int.tryParse(value);
+    }
     if (v == null) return '-';
     final s = v.toString();
     final buf = StringBuffer();
@@ -218,11 +585,18 @@ class _HomePageState extends State<HomePage> with RouteAware {
                     );
                     if (result is DummyAddress) {
                       store.select(result);
+                      setState(() {
+                        _buildingName =
+                            result.alamatLengkapMaps?.isNotEmpty == true
+                            ? result.alamatLengkapMaps!
+                            : result.namaGedung;
+                        _detailPengantaran = result.detailPengantaran;
+                      });
                     }
-                    _fetchUserAddress();
                   },
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 0, bottom: 0),
+                    // Beri jarak kanan agar tidak mentok dengan ikon keranjang
+                    padding: const EdgeInsets.fromLTRB(0, 0, 72, 0),
                     child: Transform.translate(
                       offset: const Offset(0, -21),
                       child: Column(
@@ -242,14 +616,22 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Flexible(
-                                child: Text(
-                                  _addressLoaded ? _buildingName : '',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF602829),
-                                  ),
+                                child: Builder(
+                                  builder: (_) {
+                                    final displayAddress =
+                                        _buildingName.trim().isNotEmpty
+                                        ? _buildingName
+                                        : 'Tambah Alamat Disini';
+                                    return Text(
+                                      displayAddress,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF602829),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               const SizedBox(width: 6),
@@ -261,7 +643,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             ],
                           ),
                           const SizedBox(height: 2),
-                          if (_addressLoaded && _detailPengantaran.isNotEmpty)
+                          if (_detailPengantaran.isNotEmpty)
                             Text(
                               _detailPengantaran,
                               style: const TextStyle(
@@ -321,6 +703,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
           ),
         ),
         body: SafeArea(
+          bottom: false,
           child: Transform.translate(
             offset: const Offset(0, -30),
             child: Padding(
@@ -580,7 +963,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.only(bottom: 25),
+                            padding: const EdgeInsets.only(bottom: 0),
                             itemCount: filteredRestaurants.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 8),
@@ -930,6 +1313,201 @@ class _FilterPill extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutOfRangeModernDialog extends StatelessWidget {
+  const _OutOfRangeModernDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFFD53D3D);
+    const secondary = Color(0xFFB03056);
+    return Dialog(
+      elevation: 0,
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [primary, secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Icon(
+                Icons.location_off_rounded,
+                color: Colors.white,
+                size: 34,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Lokasi Anda Berada Diluar Jangkauan Komplek DPR/MPR RI.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF602829),
+              ),
+            ),
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                width: double.infinity,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [primary, secondary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primary.withOpacity(0.28),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'Tutup',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EnableLocationBottomSheet extends StatelessWidget {
+  final VoidCallback onOpenSettings;
+  final VoidCallback onLater;
+  const _EnableLocationBottomSheet({
+    required this.onOpenSettings,
+    required this.onLater,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const primary = Color(0xFFD53D3D);
+    const secondary = Color(0xFFB03056);
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [primary, secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Icon(
+                Icons.location_searching_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Aktifkan Layanan Lokasi',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF602829),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Untuk mengisi alamat otomatis, mohon nyalakan GPS/Location Services.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onLater,
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      minimumSize: const Size(0, 46),
+                    ),
+                    child: const Text('Nanti Saja'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: onOpenSettings,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      minimumSize: const Size(0, 46),
+                    ),
+                    child: const Text(
+                      'Buka Pengaturan',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
         ),
       ),
     );
