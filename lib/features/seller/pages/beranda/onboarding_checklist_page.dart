@@ -6,7 +6,7 @@ import 'package:dpr_bites/features/seller/pages/profil_gerai/profile_gerai_page.
 import 'package:dpr_bites/features/seller/pages/profil_gerai/daftar_menu_page.dart';
 import 'package:dpr_bites/features/seller/models/seller_user_model.dart';
 import 'package:dpr_bites/features/seller/services/onboarding_checklist_service.dart';
-
+import 'package:dpr_bites/features/auth/pages/logout.dart';
 
 
 class OnboardingChecklistPage extends StatefulWidget {
@@ -98,7 +98,14 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
             IconButton(
               icon: const Icon(Icons.notifications_none, color: Colors.black),
               onPressed: () {},
-            )
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.black),
+              tooltip: 'Logout',
+              onPressed: () async {
+                await logout(context);
+              },
+            ),
           ],
         ),
         body: SafeArea(

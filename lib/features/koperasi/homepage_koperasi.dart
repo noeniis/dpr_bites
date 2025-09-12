@@ -5,6 +5,7 @@ import '../../common/widgets/custom_widgets.dart';
 import 'pengajuan_detail_page.dart';
 import 'services/pengajuan_service.dart';
 import 'models/pengajuan_model.dart';
+import 'package:dpr_bites/features/auth/pages/logout.dart';
 
 class HomepageKoperasi extends StatefulWidget {
   const HomepageKoperasi({Key? key}) : super(key: key);
@@ -38,8 +39,8 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
   _startAutoRefresh();
   }
 
-  void logout() {
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+  void handleLogout() async {
+    await logout(context);
   }
 
   void _loadPengajuan() {
@@ -74,7 +75,7 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),
               tooltip: 'Logout',
-              onPressed: logout,
+              onPressed: handleLogout,
             ),
           ],
         ),

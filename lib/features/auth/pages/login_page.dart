@@ -8,6 +8,7 @@ import 'register_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/onboarding_checklist_page.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
 import 'package:dpr_bites/features/koperasi/homepage_koperasi.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -36,24 +37,16 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text.trim();
 
 
-    if (username == 'koperasi' && password == 'koperasi') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
-      );
-      return;
-    }
-
     final result = await _authService.loginUser(username, password);
     if (result.success) {
       setState(() {
         errorMessage = null;
       });
-      // Simpan id_users ke SharedPreferences dan print ke terminal
-      if (result.idUsers != null) {
-        await _authService.saveUserId(result.idUsers!);
-        debugPrint('ID USERS LOGIN: ${result.idUsers}');
-      }
+      // Debug print JWT token
+      final storage = FlutterSecureStorage();
+      String? token = await storage.read(key: 'jwt_token');
+      debugPrint('JWT TOKEN: $token');
+      debugPrint('ID USERS LOGIN: ${result.idUsers}');
       // Redirect sesuai role dari backend
       final roleStr = result.role ?? '';
       if (roleStr == '0') {
@@ -75,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
           );
         }
-      } else if (roleStr == 'koperasi') {
+      } else if (roleStr == '2') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const HomepageKoperasi()),

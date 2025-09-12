@@ -2,26 +2,28 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/profile_page_model.dart';
 
 class ProfileService {
-  static Future<ProfileModel?> fetchUserProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    // id_users selalu diambil sebagai String
-    final idUsers = prefs.getString('id_users');
-    if (idUsers == null) return null;
+  static final _storage = FlutterSecureStorage();
 
-    final res = await http.post(
-      Uri.parse('${getBaseUrl()}/get_user_profile.php'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'id_users': idUsers}),
+  static Future<ProfileModel?> fetchUserProfile() async {
+    String? token = await _storage.read(key: 'jwt_token');
+    if (token == null) return null;
+
+    final res = await http.get(
+      Uri.parse('${getBaseUrl()}/protected.php'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
     );
     if (res.statusCode != 200) return null;
     final json = jsonDecode(res.body);
-    if (json is! Map || json['success'] != true) return null;
-    final data = json['user'] ?? json['data'];
+    if (json is! Map || json['message'] != 'Access granted') return null;
+    final data = json['user'];
     if (data is Map) {
       return ProfileModel.fromJson(Map<String, dynamic>.from(data));
     }
@@ -32,15 +34,9 @@ class ProfileService {
     ProfileModel model, {
     String? password,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    String? idUsers;
-    final idInt = prefs.getInt('id_users');
-    if (idInt != null) {
-      idUsers = idInt.toString();
-    } else {
-      idUsers = prefs.getString('id_users');
-    }
-    if (idUsers == null) return false;
+    String? token = await _storage.read(key: 'jwt_token');
+    String? idUsers = await _storage.read(key: 'id_users');
+    if (token == null || idUsers == null) return false;
 
     final body = model.toJson();
     body['id_users'] = idUsers;
@@ -50,7 +46,10 @@ class ProfileService {
 
     final res = await http.post(
       Uri.parse('${getBaseUrl()}/edit_user_profile.php'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
       body: jsonEncode(body),
     );
     if (res.statusCode != 200) return false;
