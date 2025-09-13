@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:geocoding/geocoding.dart' as geocoding;
+import 'package:location/location.dart' as loc;
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
 import '../../../../common/data/dummy_address.dart';
@@ -235,20 +236,18 @@ class _HomePageState extends State<HomePage>
   }
 
   // Reverse geocoding lewat native Geocoding (Android/iOS), berbahasa Indonesia.
-  // Mengembalikan (street, details) dengan format:
+  // Mengembalikan (street, details, countryCode) dengan format:
   // street  => hanya nama jalan, mis: "JL. Kebagusan 1"
   // details => (kelurahan,kecamatan,kota/kabupaten,provinsi)
-  Future<({String street, String details})> _reverseGeocodeNative(
-    double lat,
-    double lon,
-  ) async {
+  Future<({String street, String details, String countryCode})>
+  _reverseGeocodeNative(double lat, double lon) async {
     try {
       final placemarks = await geocoding.placemarkFromCoordinates(
         lat,
         lon,
         localeIdentifier: 'id_ID',
       );
-      if (placemarks.isEmpty) return (street: '', details: '');
+      if (placemarks.isEmpty) return (street: '', details: '', countryCode: '');
 
       // Pilih placemark yang paling kaya informasi
       geocoding.Placemark pick = placemarks.first;
@@ -321,15 +320,77 @@ class _HomePageState extends State<HomePage>
 
       final detailsParts = <String?>[kelurahan, kecamatan, kotaKab, provinsi];
       final details = _joinNonEmpty(detailsParts);
+      final cc = (pick.isoCountryCode ?? pick.country ?? '').toUpperCase();
 
-      return (street: streetName, details: details);
+      return (street: streetName, details: details, countryCode: cc);
     } catch (_) {
-      return (street: '', details: '');
+      return (street: '', details: '', countryCode: '');
     }
+  }
+
+  // Deteksi koordinat default emulator (sekitar Googleplex, Mountain View)
+  bool _looksLikeDefaultUS(double lat, double lon) {
+    final bool nearGoogleplex =
+        lat > 37.3 && lat < 37.5 && lon > -122.2 && lon < -121.9;
+    final bool nearNullIsland = lat.abs() < 0.0001 && lon.abs() < 0.0001;
+    return nearGoogleplex || nearNullIsland;
+  }
+
+  Future<void> _showInfo(String message) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+    );
   }
 
   // Ambil posisi yang lebih akurat (coba stream jika awalnya kurang akurat)
   Future<Position> _getAccuratePosition() async {
+    // Coba gunakan plugin 'location' untuk koordinat akurat saat ini
+    try {
+      final location = loc.Location();
+      bool serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          // Jatuh ke Geolocator
+          throw Exception('service disabled');
+        }
+      }
+      var permission = await location.hasPermission();
+      if (permission == loc.PermissionStatus.denied) {
+        permission = await location.requestPermission();
+        if (permission == loc.PermissionStatus.denied) {
+          throw Exception('perm denied');
+        }
+      }
+      if (permission == loc.PermissionStatus.deniedForever) {
+        throw Exception('perm denied forever');
+      }
+      await location.changeSettings(
+        accuracy: loc.LocationAccuracy.navigation,
+        interval: 0,
+        distanceFilter: 0,
+      );
+      final data = await location.getLocation();
+      if (data.latitude != null && data.longitude != null) {
+        // Bungkus ke Position agar kompatibel dengan downstream
+        return Position(
+          latitude: data.latitude!,
+          longitude: data.longitude!,
+          timestamp: DateTime.now(),
+          accuracy: (data.accuracy ?? 50).toDouble(),
+          altitude: (data.altitude ?? 0).toDouble(),
+          heading: (data.heading ?? 0).toDouble(),
+          speed: (data.speed ?? 0).toDouble(),
+          speedAccuracy: (data.speedAccuracy ?? 0).toDouble(),
+          altitudeAccuracy: 0.0,
+          headingAccuracy: 0.0,
+        );
+      }
+      // Jika null, fallback ke Geolocator
+    } catch (_) {}
+
     Position pos = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.bestForNavigation,
       timeLimit: const Duration(seconds: 10),
@@ -367,7 +428,7 @@ class _HomePageState extends State<HomePage>
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return;
 
-      final pos = await _getAccuratePosition();
+      var pos = await _getAccuratePosition();
 
       // Check polygon; show popup jika di luar jangkauan
       final inside = _isPointInPolygon(
@@ -388,10 +449,36 @@ class _HomePageState extends State<HomePage>
         }
       }
 
-      final result = await _reverseGeocodeNative(pos.latitude, pos.longitude);
+      var result = await _reverseGeocodeNative(pos.latitude, pos.longitude);
+
+      // Jika hasil geocoding tidak di Indonesia atau terlihat default emulator,
+      // coba sekali lagi dengan menunggu update posisi baru.
+      if ((result.countryCode != 'ID' ||
+              _looksLikeDefaultUS(pos.latitude, pos.longitude)) &&
+          mounted) {
+        try {
+          final settings = const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 0,
+          );
+          // Ambil satu update baru dalam 10 detik
+          pos = await Geolocator.getPositionStream(
+            locationSettings: settings,
+          ).first.timeout(const Duration(seconds: 10));
+          result = await _reverseGeocodeNative(pos.latitude, pos.longitude);
+        } catch (_) {
+          // biarkan result lama
+        }
+      }
       if (!mounted) return;
       // Jika gagal menyusun nama jalan, jangan tampilkan kosong—kembalikan ke alamat_utama
-      if (result.street.trim().isEmpty) {
+      // Jika masih kosong atau bukan Indonesia, fallback ke alamat_utama
+      if (result.street.trim().isEmpty || result.countryCode != 'ID') {
+        if (result.countryCode != 'ID') {
+          await _showInfo(
+            'Lokasi perangkat belum akurat. Menggunakan alamat tersimpan.',
+          );
+        }
         await _fetchUserAddress();
         return;
       }
@@ -684,7 +771,9 @@ class _HomePageState extends State<HomePage>
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFFD53D3D).withOpacity(0.35),
+                            color: const Color(
+                              0xFFD53D3D,
+                            ).withValues(alpha: 0.35),
                             blurRadius: 14,
                             offset: const Offset(0, 6),
                           ),
@@ -731,8 +820,12 @@ class _HomePageState extends State<HomePage>
                           boxShadow: [
                             BoxShadow(
                               color: (focused
-                                  ? const Color(0xFFD53D3D).withOpacity(0.18)
-                                  : const Color(0xFFD53D3D).withOpacity(0.10)),
+                                  ? const Color(
+                                      0xFFD53D3D,
+                                    ).withValues(alpha: 0.18)
+                                  : const Color(
+                                      0xFFD53D3D,
+                                    ).withValues(alpha: 0.10)),
                               blurRadius: focused ? 18 : 12,
                               offset: const Offset(0, 4),
                             ),
@@ -750,8 +843,12 @@ class _HomePageState extends State<HomePage>
                                   )
                                 : LinearGradient(
                                     colors: [
-                                      const Color(0xFFD53D3D).withOpacity(0.30),
-                                      const Color(0xFFB03056).withOpacity(0.30),
+                                      const Color(
+                                        0xFFD53D3D,
+                                      ).withValues(alpha: 0.30),
+                                      const Color(
+                                        0xFFB03056,
+                                      ).withValues(alpha: 0.30),
                                     ],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
@@ -762,7 +859,7 @@ class _HomePageState extends State<HomePage>
                             decoration: BoxDecoration(
                               color: focused
                                   ? Colors.white
-                                  : Colors.white.withOpacity(0.98),
+                                  : Colors.white.withValues(alpha: 0.98),
                               borderRadius: BorderRadius.circular(18),
                             ),
                             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1161,7 +1258,7 @@ class _MinimalBottomNav extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: active
                     ? LinearGradient(
-                        colors: [_primary, _primary.withOpacity(0.75)],
+                        colors: [_primary, _primary.withValues(alpha: 0.75)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       )
@@ -1171,7 +1268,7 @@ class _MinimalBottomNav extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 26,
-                color: active ? Colors.white : _primary.withOpacity(0.7),
+                color: active ? Colors.white : _primary.withValues(alpha: 0.7),
               ),
             ),
           ),
@@ -1251,14 +1348,14 @@ class _FilterPill extends StatelessWidget {
               boxShadow: selected
                   ? [
                       BoxShadow(
-                        color: const Color(0xFFD53D3D).withOpacity(0.28),
+                        color: const Color(0xFFD53D3D).withValues(alpha: 0.28),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -1379,7 +1476,7 @@ class _OutOfRangeModernDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: primary.withOpacity(0.28),
+                      color: primary.withValues(alpha: 0.28),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
