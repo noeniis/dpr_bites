@@ -21,7 +21,17 @@ void main() async {
   String? step1 = await storage.read(key: 'step1');
   String? step2 = await storage.read(key: 'step2');
   String? step3 = await storage.read(key: 'step3');
-  runApp(MyApp(token: token, role: role, step1: step1, step2: step2, step3: step3));
+  String? lastRoute = await storage.read(key: 'last_route');
+  runApp(
+    MyApp(
+      token: token,
+      role: role,
+      step1: step1,
+      step2: step2,
+      step3: step3,
+      lastRoute: lastRoute,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -30,7 +40,16 @@ class MyApp extends StatelessWidget {
   final String? step1;
   final String? step2;
   final String? step3;
-  const MyApp({super.key, this.token, this.role, this.step1, this.step2, this.step3});
+  final String? lastRoute;
+  const MyApp({
+    super.key,
+    this.token,
+    this.role,
+    this.step1,
+    this.step2,
+    this.step3,
+    this.lastRoute,
+  });
 
   bool _isStepComplete() {
     return step1 == '1' && step2 == '1' && step3 == '1';
@@ -48,6 +67,7 @@ class MyApp extends StatelessWidget {
     } else if (role == '2') {
       homeWidget = const HomepageKoperasi();
     } else {
+      // Regular user: always start at HomePage on app restart
       homeWidget = const HomePage();
     }
     return MaterialApp(

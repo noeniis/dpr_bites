@@ -410,6 +410,18 @@ class _SearchPageState extends State<SearchPage> {
                                   final minPrice = resto['minPrice'];
                                   final maxPrice = resto['maxPrice'];
                                   final menus = menusForResto(resto['id']);
+                                  final screenW = MediaQuery.of(
+                                    context,
+                                  ).size.width;
+                                  final double cardW = (screenW * 0.42).clamp(
+                                    140.0,
+                                    180.0,
+                                  );
+                                  final double _imgH =
+                                      cardW * 0.62; // keep image proportional
+                                  final double cardH =
+                                      _imgH +
+                                      80; // add buffer to avoid overflow
                                   return Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -421,7 +433,7 @@ class _SearchPageState extends State<SearchPage> {
                                         child: CustomEmptyCard(
                                           width: double.infinity,
                                           margin: const EdgeInsets.only(
-                                            bottom: 12,
+                                            bottom: 8,
                                           ),
                                           child: Padding(
                                             padding: const EdgeInsets.all(12),
@@ -541,31 +553,46 @@ class _SearchPageState extends State<SearchPage> {
                                       menus.isNotEmpty
                                           ? Padding(
                                               padding: const EdgeInsets.only(
-                                                bottom: 16,
+                                                bottom: 8,
                                               ),
                                               child: SizedBox(
-                                                height: 180,
+                                                height: cardH,
                                                 child: ListView.separated(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 2,
+                                                      ),
                                                   scrollDirection:
                                                       Axis.horizontal,
                                                   itemCount: menus.length,
                                                   separatorBuilder: (_, __) =>
-                                                      const SizedBox(width: 12),
-                                                  itemBuilder: (context, i) =>
-                                                      _MenuGridCard(
-                                                        menu: menus[i],
-                                                        onTap: () =>
-                                                            _openMenuDetail(
-                                                              menus[i],
-                                                              geraiId: resto['id']
-                                                                  .toString(),
-                                                            ),
-                                                        onAdd: () =>
-                                                            _handleAddPressed(
-                                                              resto,
-                                                              menus[i],
-                                                            ),
-                                                      ),
+                                                      const SizedBox(width: 8),
+                                                  itemBuilder: (context, i) {
+                                                    final m = menus[i];
+                                                    final priceVal =
+                                                        m['price'] ??
+                                                        m['harga'] ??
+                                                        0;
+                                                    final priceText =
+                                                        'Rp${_formatRupiah(priceVal)}';
+                                                    return _MenuCardModern(
+                                                      menu: m,
+                                                      width: cardW,
+                                                      height: cardH,
+                                                      priceText: priceText,
+                                                      onTap: () =>
+                                                          _openMenuDetail(
+                                                            m,
+                                                            geraiId: resto['id']
+                                                                .toString(),
+                                                          ),
+                                                      onAdd: () =>
+                                                          _handleAddPressed(
+                                                            resto,
+                                                            m,
+                                                          ),
+                                                    );
+                                                  },
                                                 ),
                                               ),
                                             )
@@ -585,107 +612,147 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-class _MenuGridCard extends StatelessWidget {
+// Old _MenuGridCard removed after redesign
+
+class _MenuCardModern extends StatelessWidget {
   final Map<String, dynamic> menu;
+  final double width;
+  final double height;
+  final String priceText;
   final VoidCallback onTap;
   final VoidCallback onAdd;
-  const _MenuGridCard({
+
+  const _MenuCardModern({
     required this.menu,
+    required this.width,
+    required this.height,
+    required this.priceText,
     required this.onTap,
     required this.onAdd,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: CustomEmptyCard(
-        width: 140,
-        height: 145,
-        margin: const EdgeInsets.only(bottom: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
-              ),
-              child:
-                  (menu['image'] is String &&
-                      (menu['image'] as String).startsWith('http'))
-                  ? Image.network(
-                      menu['image'],
-                      height: 68,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        height: 68,
-                        width: double.infinity,
-                        color: Colors.black12,
-                        child: const Icon(
-                          Icons.fastfood,
-                          color: Colors.black38,
+    final String title = (menu['name'] ?? menu['nama_menu'] ?? '').toString();
+    final String imageUrl = (menu['image'] ?? menu['gambar_menu'] ?? '')
+        .toString();
+    final double radius = 16;
+    final double imgH = width * 0.62; // responsive image height
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Material(
+        color: Colors.white,
+        elevation: 2,
+        shadowColor: const Color(0x22000000),
+        borderRadius: BorderRadius.circular(radius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              SizedBox(
+                height: imgH,
+                width: double.infinity,
+                child: imageUrl.startsWith('http')
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.black12,
+                          child: const Center(
+                            child: Icon(Icons.fastfood, color: Colors.black38),
+                          ),
                         ),
-                      ),
-                    )
-                  : Image.asset(
-                      menu['image'] ?? 'assets/placeholder.png',
-                      height: 68,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    (menu['name'] ?? '').toString(),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    "${menu['price']}",
-                    style: const TextStyle(fontSize: 13),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      child: Material(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(99),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(99),
-                          onTap: onAdd,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Color(0xFFD53D3D),
-                                width: 1.6,
+                      )
+                    : (imageUrl.isNotEmpty
+                          ? Image.asset(imageUrl, fit: BoxFit.cover)
+                          : Container(
+                              color: Colors.black12,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.fastfood,
+                                  color: Colors.black38,
+                                ),
                               ),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              size: 18,
+                            )),
+              ),
+              // Content
+              // Content section (no Expanded to avoid middle gaps)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            priceText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13.5,
                               color: Color(0xFFD53D3D),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 32,
+                          width: 32,
+                          child: Material(
+                            color: Colors.transparent,
+                            shape: const CircleBorder(),
+                            child: Ink(
+                              decoration: const ShapeDecoration(
+                                shape: CircleBorder(),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFFD53D3D),
+                                    Color(0xFFB03056),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: onAdd,
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.add,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

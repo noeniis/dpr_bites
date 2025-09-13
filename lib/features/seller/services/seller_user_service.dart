@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
@@ -17,7 +16,13 @@ class SellerUserService {
     }
     return null;
   }
-  static Future<bool> updateStepSellerStatus(String idUsers, {int? step1, int? step2, int? step3}) async {
+
+  static Future<bool> updateStepSellerStatus(
+    String idUsers, {
+    int? step1,
+    int? step2,
+    int? step3,
+  }) async {
     final body = <String, String>{'id_users': idUsers};
     if (step1 != null) body['step1'] = step1.toString();
     if (step2 != null) body['step2'] = step2.toString();

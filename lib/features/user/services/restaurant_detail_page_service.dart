@@ -1,11 +1,26 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:dpr_bites/features/user/models/restaurant_detail_page_model.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class RestaurantDetailPageService {
-  static Future<String?> getUserId() async => Prefs.getUserIdString();
+  static final _storage = const FlutterSecureStorage();
+  static Future<String?> getUserId() async {
+    try {
+      return await _storage.read(key: 'id_users');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> _getJwt() async {
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (_) {
+      return null;
+    }
+  }
 
   static Future<RestaurantDetailFetchResult> fetchDetail(
     String restaurantId,
@@ -94,13 +109,18 @@ class RestaurantDetailPageService {
   }) async {
     try {
       final userId = await getUserId();
-      if (userId == null) return null;
+      final jwt = await _getJwt();
+      if (userId == null || jwt == null || jwt.isEmpty) return null;
       final uri = Uri.parse(
-        '${getBaseUrl()}/get_cart.php?user_id=$userId&gerai_id=$restaurantId',
+        '${getBaseUrl()}/get_cart.php?gerai_id=$restaurantId',
       );
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId},
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $jwt',
+          'X-User-Id': userId, // optional legacy fallback
+        },
       );
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body);
@@ -127,8 +147,9 @@ class RestaurantDetailPageService {
             [];
         if (addonList.isNotEmpty) addons[menuId] = addonList;
         final noteVal = it['note'];
-        if (noteVal is String && noteVal.trim().isNotEmpty)
+        if (noteVal is String && noteVal.trim().isNotEmpty) {
           notes[menuId] = noteVal;
+        }
         final subtotalVal = it['subtotal'];
         int? subtotal = int.tryParse((subtotalVal ?? '').toString());
         if (subtotal == null || subtotal == 0) {
@@ -163,13 +184,14 @@ class RestaurantDetailPageService {
   }) async {
     try {
       final userId = await getUserId();
+      final jwt = await _getJwt();
+      if (jwt == null || jwt.isEmpty) return;
       final uri = Uri.parse('${getBaseUrl()}/add_or_update_cart_item.php');
       final mapPayload = <String, dynamic>{
         'gerai_id': restaurantId,
         'menu_id': int.tryParse(menuId) ?? menuId,
         'qty': qty,
       };
-      if (userId != null) mapPayload['user_id'] = userId;
       if (addonIds.isNotEmpty) mapPayload['addons'] = addonIds;
       if (noteProvided) mapPayload['note'] = note ?? '';
       await http.post(
@@ -177,6 +199,7 @@ class RestaurantDetailPageService {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwt',
           if (userId != null) 'X-User-Id': userId,
         },
         body: jsonEncode(mapPayload),

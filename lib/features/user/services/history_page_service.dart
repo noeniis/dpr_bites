@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/history_page_model.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class HistoryPageService {
+  static final _storage = const FlutterSecureStorage();
   static Future<String?> getUserIdFromPrefs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('id_users');
+      return await _storage.read(key: 'id_users');
     } catch (_) {
       return null;
     }
@@ -16,12 +16,17 @@ class HistoryPageService {
 
   static Future<HistoryFetchResult> fetchTransactions(String userId) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse(
         '${getBaseUrl()}/get_user_transactions.php?user_id=$userId',
       );
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId},
+        headers: {
+          'Accept': 'application/json',
+          'X-User-Id': userId,
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
       );
       if (res.statusCode != 200) {
         return HistoryFetchResult(

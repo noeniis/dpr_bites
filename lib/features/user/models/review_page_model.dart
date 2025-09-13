@@ -1,13 +1,11 @@
 class ReviewModel {
   final int idTransaksi;
-  final String idUsers;
   final int rating; // 1..5
   final String komentar; // optional text (could be empty)
   final bool anonymous; // true if anonymous
 
   ReviewModel({
     required this.idTransaksi,
-    required this.idUsers,
     required this.rating,
     required this.komentar,
     required this.anonymous,
@@ -15,7 +13,6 @@ class ReviewModel {
 
   Map<String, dynamic> toJson() => {
     'id_transaksi': idTransaksi,
-    'id_users': idUsers,
     'rating': rating,
     'komentar': komentar,
     'anonymous': anonymous ? 1 : 0,

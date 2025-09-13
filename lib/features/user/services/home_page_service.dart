@@ -1,17 +1,18 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:dpr_bites/features/user/models/home_page_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 class HomePageService {
-  static Future<String?> getUserId() async {
-    return await Prefs.getUserIdString();
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static Future<String?> _getJwt() async {
+    return await _storage.read(key: 'jwt_token');
   }
 
   static Future<HomeAddressFetchResult> fetchUserAddress() async {
-    final idUsers = await getUserId();
-    if (idUsers == null) {
+    final jwt = await _getJwt();
+    if (jwt == null || jwt.isEmpty) {
       return const HomeAddressFetchResult(
         hasAddress: false,
         address: HomeAddressModel(
@@ -23,8 +24,12 @@ class HomePageService {
     try {
       final res = await http.post(
         Uri.parse('${getBaseUrl()}/get_user_address.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id_users': idUsers}),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwt',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({}),
       );
       if (res.statusCode != 200) {
         return const HomeAddressFetchResult(

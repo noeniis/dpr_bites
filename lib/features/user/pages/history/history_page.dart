@@ -6,6 +6,7 @@ import 'package:dpr_bites/features/user/pages/home/home_page.dart';
 import 'package:dpr_bites/features/user/pages/favorit/favorit.dart';
 import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 import 'dart:async';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class HistoryPage extends StatefulWidget {
   final String? initialFilter;
@@ -16,6 +17,7 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
+  final _storage = const FlutterSecureStorage();
   late String filter;
   String? _userId; // loaded from SharedPreferences
   List<Map<String, dynamic>> _orders = [];
@@ -70,6 +72,8 @@ class _HistoryPageState extends State<HistoryPage> {
   void initState() {
     super.initState();
     filter = widget.initialFilter ?? 'berlangsung';
+    // Remember this page as last route for simple restoration
+    _storage.write(key: 'last_route', value: '/history');
     _init();
   }
 
@@ -687,7 +691,7 @@ class _OrderHistoryCard extends StatelessWidget {
           ),
         ),
       ),
-      );
+    );
   }
 }
 

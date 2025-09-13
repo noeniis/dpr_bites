@@ -14,6 +14,7 @@ class PembayaranQrisDialog extends StatefulWidget {
   final String? qrisImageUrl; // URL atau path QRIS spesifik gerai
   final bool showDownload; // tampilkan tombol unduh
   final String? bookingId; // untuk penamaan file unduhan
+  final int? totalPembayaran; // total tagihan transaksi (opsional)
   const PembayaranQrisDialog({
     Key? key,
     required this.onKonfirmasi,
@@ -21,6 +22,7 @@ class PembayaranQrisDialog extends StatefulWidget {
     this.qrisImageUrl,
     this.showDownload = false,
     this.bookingId,
+    this.totalPembayaran,
   }) : super(key: key);
 
   @override
@@ -34,6 +36,22 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
   // String? _lastSavedPath; // no longer needed without direct open action
 
   bool get _canConfirm => _buktiPembayaran != null && !_isLoading;
+
+  String _formatRupiah(int value) {
+    final s = value.toString();
+    final buf = StringBuffer();
+    int count = 0;
+    for (int i = s.length - 1; i >= 0; i--) {
+      buf.write(s[i]);
+      count++;
+      if (count == 3 && i != 0) {
+        buf.write('.');
+        count = 0;
+      }
+    }
+    final rev = buf.toString().split('').reversed.join();
+    return 'Rp' + rev;
+  }
 
   Future<void> _pickImage() async {
     setState(() {
@@ -115,6 +133,18 @@ class _PembayaranQrisDialogState extends State<PembayaranQrisDialog> {
                 child: _buildQrisImage(widget.qrisImageUrl),
               ),
             ),
+            if (widget.totalPembayaran != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Total Pembayaran: ' + _formatRupiah(widget.totalPembayaran!),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textColor,
+                ),
+              ),
+            ],
             if (widget.showDownload) ...[
               const SizedBox(height: 12),
               SizedBox(

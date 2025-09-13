@@ -1,29 +1,33 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/cart_model.dart';
 
 class CartService {
+  static final _storage = const FlutterSecureStorage();
+
   static Future<String?> getUserIdFromPrefs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-  return prefs.getString('id_users');
-    } catch (_) {
-      return null;
-    }
+      // Prefer 'id_users', but also consider common fallbacks if present
+      for (final k in const ['id_users', 'id_user', 'user_id']) {
+        final v = await _storage.read(key: k);
+        if (v != null && v.isNotEmpty) return v;
+      }
+    } catch (_) {}
+    return null;
   }
 
   static String baseApi() => getBaseUrl();
 
   static Future<CartFetchResult> fetchCart({String? userId}) async {
     try {
-      String? uid = userId ?? await getUserIdFromPrefs();
-      final uri = Uri.parse(
-        '${getBaseApiUrlForCart()}/get_user_cart.php?user_id=${uid ?? ''}',
-      );
-      final headers = <String, String>{'Accept': 'application/json'};
-      if (uid != null) headers['X-User-Id'] = uid;
+      final token = await _storage.read(key: 'jwt_token');
+      final uri = Uri.parse('${getBaseApiUrlForCart()}/get_user_cart.php');
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
       final res = await http.get(uri, headers: headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -68,6 +72,7 @@ class CartService {
     bool noteProvided = false,
     int? cartItemId,
   }) async {
+    final token = await _storage.read(key: 'jwt_token');
     // Convert selected addon labels to ids using addonOptions
     final addonIds = <int>[];
     final wanted = addonLabels
@@ -83,7 +88,6 @@ class CartService {
       }
     }
     final mapPayload = <String, dynamic>{
-      'user_id': userId,
       'gerai_id': geraiId,
       'menu_id': menuId,
       'qty': qty,
@@ -98,14 +102,11 @@ class CartService {
     if (noteProvided) {
       mapPayload['note'] = note ?? '';
     }
-    String? uid = userId ?? await getUserIdFromPrefs();
-    mapPayload['user_id'] = uid ?? mapPayload['user_id'];
-
     final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
-    if (uid != null) headers['X-User-Id'] = uid;
     final uri = Uri.parse(
       '${getBaseApiUrlForCart()}/add_or_update_cart_item.php',
     );

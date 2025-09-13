@@ -6,6 +6,7 @@ import 'package:dpr_bites/features/user/pages/profile/profile_page.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'package:dpr_bites/features/user/services/favorit_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class FavoritPage extends StatefulWidget {
   const FavoritPage({super.key});
@@ -15,6 +16,7 @@ class FavoritPage extends StatefulWidget {
 }
 
 class _FavoritPageState extends State<FavoritPage> {
+  final _storage = const FlutterSecureStorage();
   // Group favorite menus by restaurantId
   Map<String, List<Map<String, dynamic>>> get groupedFavorites {
     final Map<String, List<Map<String, dynamic>>> grouped = {};
@@ -37,11 +39,13 @@ class _FavoritPageState extends State<FavoritPage> {
   @override
   void initState() {
     super.initState();
+    // Remember this page for simple restore on restart
+    _storage.write(key: 'last_route', value: '/favorit');
     _init();
   }
 
   Future<void> _init() async {
-  _userId = await FavoritService.getUserIdFromPrefs();
+    _userId = await FavoritService.getUserIdFromPrefs();
     await _fetchFavorites();
   }
 
@@ -54,7 +58,7 @@ class _FavoritPageState extends State<FavoritPage> {
         _error = null;
         return;
       }
-  final result = await FavoritService.fetchFavorites(_userId!);
+      final result = await FavoritService.fetchFavorites(_userId!);
       _favorites = result.favorites;
       _restaurants
         ..clear()
@@ -72,7 +76,7 @@ class _FavoritPageState extends State<FavoritPage> {
   Future<void> _fetchCartQuantities() async {
     try {
       if (_userId == null) return;
-  final rebuilt = await FavoritService.fetchCartQuantities(_userId!);
+      final rebuilt = await FavoritService.fetchCartQuantities(_userId!);
       if (mounted) {
         setState(() {
           qtyMap
@@ -242,8 +246,8 @@ class _FavoritPageState extends State<FavoritPage> {
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
+                      horizontal: 14,
+                      vertical: 10,
                     ),
                     children: [
                       ...groupedFavorites.entries.map((entry) {
@@ -251,7 +255,7 @@ class _FavoritPageState extends State<FavoritPage> {
                         final menus = entry.value;
                         final resto = getRestaurant(restoId);
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 20),
+                          margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(18),
@@ -265,8 +269,8 @@ class _FavoritPageState extends State<FavoritPage> {
                           ),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 18,
+                              horizontal: 14,
+                              vertical: 14,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,12 +359,12 @@ class _FavoritPageState extends State<FavoritPage> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 ...menus.map((menu) {
                                   return Container(
-                                    margin: const EdgeInsets.only(bottom: 14),
+                                    margin: const EdgeInsets.only(bottom: 10),
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
+                                      vertical: 6,
                                       horizontal: 0,
                                     ),
                                     decoration: BoxDecoration(
@@ -613,7 +617,7 @@ class _FavoritPageState extends State<FavoritPage> {
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(width: 14),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:

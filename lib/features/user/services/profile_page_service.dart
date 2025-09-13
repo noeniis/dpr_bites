@@ -10,22 +10,25 @@ class ProfileService {
   static final _storage = FlutterSecureStorage();
 
   static Future<ProfileModel?> fetchUserProfile() async {
-    String? token = await _storage.read(key: 'jwt_token');
+    final token = await _storage.read(key: 'jwt_token');
     if (token == null) return null;
 
-    final res = await http.get(
-      Uri.parse('${getBaseUrl()}/protected.php'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (res.statusCode != 200) return null;
-    final json = jsonDecode(res.body);
-    if (json is! Map || json['message'] != 'Access granted') return null;
-    final data = json['user'];
-    if (data is Map) {
-      return ProfileModel.fromJson(Map<String, dynamic>.from(data));
+    try {
+      final res = await http.get(
+        Uri.parse('${getBaseUrl()}/get_user_profile.php'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body);
+      if (body is Map && body['success'] == true && body['data'] is Map) {
+        final data = Map<String, dynamic>.from(body['data']);
+        return ProfileModel.fromJson(data);
+      }
+    } catch (e) {
+      debugPrint('fetchUserProfile error: ${e.toString()}');
     }
     return null;
   }

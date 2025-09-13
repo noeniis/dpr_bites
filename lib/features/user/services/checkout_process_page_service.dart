@@ -2,21 +2,19 @@ import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/checkout_process_page_model.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 
 class CheckoutProcessPageService {
+  static final _storage = const FlutterSecureStorage();
   static Future<int?> getUserIdFromPrefs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       for (final k in const ['id_users', 'id_user', 'user_id']) {
-        if (prefs.containsKey(k)) {
-          final v = prefs.get(k);
-          if (v != null) {
-            final parsed = int.tryParse(v.toString());
-            if (parsed != null) return parsed;
-          }
+        final v = await _storage.read(key: k);
+        if (v != null && v.isNotEmpty) {
+          final parsed = int.tryParse(v.toString());
+          if (parsed != null) return parsed;
         }
       }
     } catch (_) {}
@@ -37,9 +35,13 @@ class CheckoutProcessPageService {
     final uri = Uri.parse(
       '${getBaseUrl()}/get_transaction_detail.php',
     ).replace(queryParameters: qp);
+    final token = await _storage.read(key: 'jwt_token');
     final resp = await http.get(
       uri,
-      headers: const {'Accept': 'application/json'},
+      headers: {
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
     if (resp.statusCode != 200) {
       return TransactionDetailResult(
@@ -77,12 +79,16 @@ class CheckoutProcessPageService {
       '/get_menu_detail.php?id_menu=',
       '/get_menu_detail_user.php?id_menu=',
     ];
+    final token = await _storage.read(key: 'jwt_token');
     for (final path in bases) {
       try {
         final url = Uri.parse('${getBaseUrl()}$path$idMenu');
         final resp = await http.get(
           url,
-          headers: const {'Accept': 'application/json'},
+          headers: {
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
         );
         if (resp.statusCode != 200) continue;
         final j = jsonDecode(resp.body);
@@ -102,10 +108,14 @@ class CheckoutProcessPageService {
   static Future<Map<int, String>> fetchAddonNameMapByGerai(int idGerai) async {
     if (idGerai <= 0) return {};
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse('${getBaseUrl()}/get_addon.php?id_gerai=$idGerai');
       final resp = await http.get(
         uri,
-        headers: const {'Accept': 'application/json'},
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
       );
       if (resp.statusCode == 200) {
         final j = jsonDecode(resp.body);
@@ -139,11 +149,13 @@ class CheckoutProcessPageService {
     try {
       final bytes = await file.readAsBytes();
       final b64 = base64Encode(bytes);
+      final token = await _storage.read(key: 'jwt_token');
       final resp = await http.post(
         Uri.parse('${getBaseUrl()}/upload_payment_proof_user.php'),
-        headers: const {
+        headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'booking_id': bookingId,
@@ -166,15 +178,16 @@ class CheckoutProcessPageService {
 
   static Future<void> persistPaymentStart(String bookingId, DateTime dt) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('pay_start_' + bookingId, dt.toIso8601String());
+      await _storage.write(
+        key: 'pay_start_' + bookingId,
+        value: dt.toIso8601String(),
+      );
     } catch (_) {}
   }
 
   static Future<DateTime?> loadPaymentStart(String bookingId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final s = prefs.getString('pay_start_' + bookingId);
+      final s = await _storage.read(key: 'pay_start_' + bookingId);
       if (s == null) return null;
       return DateTime.tryParse(s);
     } catch (_) {
@@ -184,25 +197,24 @@ class CheckoutProcessPageService {
 
   static Future<void> removePaymentStart(String bookingId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('pay_start_' + bookingId);
+      await _storage.delete(key: 'pay_start_' + bookingId);
     } catch (_) {}
   }
 
   static Future<void> persistPrepStart(int idTransaksi, DateTime dt) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'prep_start_${idTransaksi.toString()}',
-        dt.toIso8601String(),
+      await _storage.write(
+        key: 'prep_start_${idTransaksi.toString()}',
+        value: dt.toIso8601String(),
       );
     } catch (_) {}
   }
 
   static Future<DateTime?> loadPrepStart(int idTransaksi) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final s = prefs.getString('prep_start_${idTransaksi.toString()}');
+      final s = await _storage.read(
+        key: 'prep_start_${idTransaksi.toString()}',
+      );
       if (s == null) return null;
       return DateTime.tryParse(s);
     } catch (_) {
@@ -212,25 +224,24 @@ class CheckoutProcessPageService {
 
   static Future<void> removePrepStart(int idTransaksi) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('prep_start_${idTransaksi.toString()}');
+      await _storage.delete(key: 'prep_start_${idTransaksi.toString()}');
     } catch (_) {}
   }
 
   static Future<void> persistDiantarStart(int idTransaksi, DateTime dt) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'diantar_start_${idTransaksi.toString()}',
-        dt.toIso8601String(),
+      await _storage.write(
+        key: 'diantar_start_${idTransaksi.toString()}',
+        value: dt.toIso8601String(),
       );
     } catch (_) {}
   }
 
   static Future<DateTime?> loadDiantarStart(int idTransaksi) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final s = prefs.getString('diantar_start_${idTransaksi.toString()}');
+      final s = await _storage.read(
+        key: 'diantar_start_${idTransaksi.toString()}',
+      );
       if (s == null) return null;
       return DateTime.tryParse(s);
     } catch (_) {
@@ -240,8 +251,7 @@ class CheckoutProcessPageService {
 
   static Future<void> removeDiantarStart(int idTransaksi) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('diantar_start_${idTransaksi.toString()}');
+      await _storage.delete(key: 'diantar_start_${idTransaksi.toString()}');
     } catch (_) {}
   }
 
@@ -251,11 +261,13 @@ class CheckoutProcessPageService {
     String? alasan,
   }) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final resp = await http.post(
         Uri.parse('${getBaseUrl()}/update_transaction_status.php'),
-        headers: const {
+        headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
           'booking_id': bookingId,

@@ -35,7 +35,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
   bool _noSelectionMatch = false;
   bool _retryAfterMismatch = false;
   List<int> _missingSelectedIds = [];
-  String? _userId; // ambil dari SharedPreferences
   int _geraiId = 0;
   List<int> _selectedCartItemIds = [];
   bool _didFetch = false;
@@ -80,17 +79,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     _addressStore.addListener(_onAddressChanged);
     // Populate selectedAddress awal jika sudah ada
     _onAddressChanged();
-    // Ambil id_users dari SharedPreferences via service
-    _loadUserId();
-  }
-
-  Future<void> _loadUserId() async {
-    final id = await CheckoutPageService.getUserId();
-    if (id != null && mounted) {
-      setState(() {
-        _userId = id;
-      });
-    }
   }
 
   Future<void> _fetchCheckoutData() async {
@@ -175,11 +163,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     item['__busy'] = true;
     if (mounted) setState(() {});
     try {
-      final userId = _userId;
-      if (userId == null) return;
       final res = await CheckoutPageService.syncItemQtyToServer(
         item: item,
-        userId: userId,
         geraiId: _geraiId,
       );
       if (res.updatedItem != null) {
@@ -211,11 +196,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
     if (menuId == null) return;
     _cartDirty = true;
-    final userId = _userId;
-    if (userId == null) return;
     final ok = await CheckoutPageService.deleteItem(
       item: item,
-      userId: userId,
       geraiId: _geraiId,
     );
     if (ok) {
@@ -766,7 +748,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                                 final resp =
                                     await CheckoutPageService.syncItemQtyToServer(
                                       item: items[index],
-                                      userId: _userId!,
                                       geraiId: _geraiId,
                                       note: noteController.text,
                                     );
@@ -1748,7 +1729,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         };
                       }).toList();
                       final map = {
-                        'id_users': _userId,
                         'id_gerai': _geraiId,
                         'total_harga': total,
                         'is_delivery': isDelivery,

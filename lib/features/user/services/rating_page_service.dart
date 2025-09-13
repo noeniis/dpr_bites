@@ -2,15 +2,31 @@ import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/rating_page_model.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class RatingPageService {
+  static const _storage = FlutterSecureStorage();
+
+  static Future<String?> _getJwt() async {
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<RatingPageFetchResult> fetchRatings(String restaurantId) async {
     try {
+      final jwt = await _getJwt();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (jwt != null && jwt.isNotEmpty) 'Authorization': 'Bearer $jwt',
+      };
       final res = await http.get(
         Uri.parse(
           '${getBaseUrl()}/get_restaurant_ratings.php?id=${Uri.encodeQueryComponent(restaurantId)}',
         ),
-        headers: {'Accept': 'application/json'},
+        headers: headers,
       );
       if (res.statusCode != 200) {
         return RatingPageFetchResult(

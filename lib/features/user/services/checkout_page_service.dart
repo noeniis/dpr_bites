@@ -3,14 +3,13 @@ import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/checkout_page_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class CheckoutPageService {
-  static Future<String?> getUserId() async {
+  static const _storage = FlutterSecureStorage();
+  static Future<String?> _getJwt() async {
     try {
-      final p = await SharedPreferences.getInstance();
-      final id = p.getString('id_users');
-      return id;
+      return await _storage.read(key: 'jwt_token');
     } catch (_) {
       return null;
     }
@@ -20,17 +19,20 @@ class CheckoutPageService {
     required int geraiId,
     List<int> selectedCartItemIds = const [],
   }) async {
-    final userId = await getUserId();
     final base = getBaseUrl();
-    final uri = Uri.parse(
-      '$base/get_checkout_data.php?user_id=${userId ?? ''}&gerai_id=$geraiId',
-    );
+    final jwt = await _getJwt();
+    final ids = selectedCartItemIds.isNotEmpty
+        ? '&selectedCartItemIds=${selectedCartItemIds.join(',')}'
+        : '';
+    final uri = Uri.parse('$base/get_checkout_data.php?gerai_id=$geraiId$ids');
     debugPrint('[CheckoutService] GET $uri');
-    final resp = await http.get(
-      uri,
-      headers: const {'Accept': 'application/json'},
-    );
+    final headers = <String, String>{'Accept': 'application/json'};
+    if (jwt != null && jwt.isNotEmpty) headers['Authorization'] = 'Bearer $jwt';
+    final resp = await http.get(uri, headers: headers);
     if (resp.statusCode != 200) {
+      debugPrint(
+        '[CheckoutService] checkout resp ${resp.statusCode}: ${resp.body.substring(0, resp.body.length > 200 ? 200 : resp.body.length)}',
+      );
       return CheckoutFetchResult(
         success: false,
         restaurantName: '',
@@ -43,6 +45,7 @@ class CheckoutPageService {
       var raw = resp.body.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
       data = jsonDecode(raw);
     } catch (e) {
+      debugPrint('[CheckoutService] JSON parse error: $e');
       return CheckoutFetchResult(
         success: false,
         restaurantName: '',
@@ -51,6 +54,9 @@ class CheckoutPageService {
       );
     }
     if (data is! Map || data['success'] != true) {
+      debugPrint(
+        '[CheckoutService] checkout success false or invalid shape: $data',
+      );
       return CheckoutFetchResult(
         success: false,
         restaurantName: '',
@@ -187,10 +193,12 @@ class CheckoutPageService {
   ) async {
     try {
       final uri = Uri.parse('$baseUrl/get_menu_detail_user.php?id=$menuId');
-      final resp = await http.get(
-        uri,
-        headers: const {'Accept': 'application/json'},
-      );
+      final jwt = await _getJwt();
+      final headers = <String, String>{'Accept': 'application/json'};
+      if (jwt != null && jwt.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $jwt';
+      }
+      final resp = await http.get(uri, headers: headers);
       if (resp.statusCode != 200) return null;
       final raw = resp.body.replaceFirst(RegExp(r'^\uFEFF'), '').trim();
       final data = jsonDecode(raw);
@@ -202,10 +210,9 @@ class CheckoutPageService {
   }
 
   static Future<UpdateCartItemResult> syncItemQtyToServer({
-  required Map<String, dynamic> item,
-  required String userId,
-  required int geraiId,
-  String? note,
+    required Map<String, dynamic> item,
+    required int geraiId,
+    String? note,
   }) async {
     // Build addonIds from labels if needed
     List<int> addonIds = [];
@@ -236,7 +243,6 @@ class CheckoutPageService {
     }
 
     final payload = <String, dynamic>{
-      'user_id': userId,
       'gerai_id': geraiId,
       'menu_id':
           int.tryParse(
@@ -256,12 +262,15 @@ class CheckoutPageService {
       if (cid != null && cid > 0) payload['item_id'] = cid;
     }
     final base = getBaseUrl();
+    final jwt = await _getJwt();
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+    if (jwt != null && jwt.isNotEmpty) headers['Authorization'] = 'Bearer $jwt';
     final resp = await http.post(
       Uri.parse('$base/add_or_update_cart_item.php'),
-      headers: const {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
       body: jsonEncode(payload),
     );
     if (resp.statusCode == 200) {
@@ -281,15 +290,13 @@ class CheckoutPageService {
   }
 
   static Future<bool> deleteItem({
-  required Map<String, dynamic> item,
-  required String userId,
-  required int geraiId,
+    required Map<String, dynamic> item,
+    required int geraiId,
   }) async {
     final menuId =
         item['menu_id'] ?? item['menuId'] ?? item['id_menu'] ?? item['id'];
     if (menuId == null) return false;
     final payload = {
-      'user_id': userId,
       'gerai_id': geraiId,
       'menu_id': int.tryParse(menuId.toString()) ?? menuId,
       'qty': 0,
@@ -301,12 +308,16 @@ class CheckoutPageService {
     }
     final base = getBaseUrl();
     try {
+      final jwt = await _getJwt();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (jwt != null && jwt.isNotEmpty)
+        headers['Authorization'] = 'Bearer $jwt';
       final res = await http.post(
         Uri.parse('$base/add_or_update_cart_item.php'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode(payload),
       );
       if (res.statusCode == 200) {
@@ -323,10 +334,11 @@ class CheckoutPageService {
     final base = getBaseUrl();
     try {
       final uri = Uri.parse('$base/get_menu_detail_user.php?id=$menuId');
-      final resp = await http.get(
-        uri,
-        headers: const {'Accept': 'application/json'},
-      );
+      final jwt = await _getJwt();
+      final headers = <String, String>{'Accept': 'application/json'};
+      if (jwt != null && jwt.isNotEmpty)
+        headers['Authorization'] = 'Bearer $jwt';
+      final resp = await http.get(uri, headers: headers);
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);
         if (body is Map && body['success'] == true) {
@@ -361,13 +373,20 @@ class CheckoutPageService {
   }) async {
     final base = getBaseUrl();
     try {
+      final jwt = await _getJwt();
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      };
+      if (jwt != null && jwt.isNotEmpty)
+        headers['Authorization'] = 'Bearer $jwt';
+      final sanitized = Map<String, dynamic>.from(payload);
+      // Server trusts JWT; drop any id_users sent by caller
+      sanitized.remove('id_users');
       final resp = await http.post(
         Uri.parse('$base/create_transaction.php'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(payload),
+        headers: headers,
+        body: jsonEncode(sanitized),
       );
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body);

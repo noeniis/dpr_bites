@@ -6,10 +6,10 @@ import 'package:dpr_bites/common/utils/base_url.dart';
 
 class OnboardingChecklistService {
   static Future<SellerUserModel?> fetchSellerUserStatus() async {
-  final prefs = await SharedPreferences.getInstance();
-  final idUsers = prefs.getString('id_users');
-  print('DEBUG id_users dari SharedPreferences: $idUsers');
-  if (idUsers == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final idUsers = prefs.getString('id_users');
+    print('DEBUG id_users dari SharedPreferences: $idUsers');
+    if (idUsers == null) return null;
 
     // --- Ambil data user ---
     final userRes = await http.post(
@@ -21,7 +21,7 @@ class OnboardingChecklistService {
     if (userRes.statusCode != 200) return null;
 
     final userJson = jsonDecode(userRes.body);
-    print("DEBUG userJson: $userJson"); 
+    print("DEBUG userJson: $userJson");
 
     if (userJson['success'] != true || userJson['data'] == null) {
       return null;
@@ -40,8 +40,8 @@ class OnboardingChecklistService {
     if (userMap == null) return null;
 
     // --- Ambil status_pengajuan dari tabel gerai ---
-  String statusPengajuanGerai = '';
-  String alasanTolak = '';
+    String statusPengajuanGerai = '';
+    String alasanTolak = '';
     final geraiRes = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
       body: {'id_users': idUsers},
@@ -51,16 +51,16 @@ class OnboardingChecklistService {
       final geraiJson = jsonDecode(geraiRes.body);
       print("DEBUG geraiJson: $geraiJson");
       if (geraiJson['success'] == true && geraiJson['data'] != null) {
-    statusPengajuanGerai =
-      geraiJson['data']['status_pengajuan']?.toString() ?? '';
-    alasanTolak = geraiJson['data']['alasan_tolak']?.toString() ?? '';
+        statusPengajuanGerai =
+            geraiJson['data']['status_pengajuan']?.toString() ?? '';
+        alasanTolak = geraiJson['data']['alasan_tolak']?.toString() ?? '';
       }
     }
 
-  return SellerUserModel.fromJson(
-    userMap,
-    statusPengajuanGerai: statusPengajuanGerai,
-    alasanTolak: alasanTolak,
-  );
+    return SellerUserModel.fromJson(
+      userMap,
+      statusPengajuanGerai: statusPengajuanGerai,
+      alasanTolak: alasanTolak,
+    );
   }
 }
