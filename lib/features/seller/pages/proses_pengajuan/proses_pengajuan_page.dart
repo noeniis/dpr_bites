@@ -1,5 +1,4 @@
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/seller_user_service.dart';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
@@ -39,46 +38,33 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   }
 
   Future<void> _prefillGerai() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
-    debugPrint('[DEBUG] id_users dari SharedPreferences: $idUsers');
-    debugPrint('[DEBUG] API dipanggil: GeraiProfilService.fetchGeraiByUser');
-    if (idUsers != null) {
-      final data = await GeraiProfilService.fetchGeraiByUser(idUsers);
-      if (data != null && data['success'] == true && data['data'] != null) {
-        final geraiModel = GeraiProfilModel.fromJson(data['data']);
-        await prefs.setString('id_gerai', geraiModel.idGerai.toString());
-        debugPrint(
-          '[DEBUG] id_gerai disimpan ke SharedPreferences: ${geraiModel.idGerai}',
+    debugPrint('[DEBUG] API dipanggil: GeraiProfilService.fetchGeraiByUser (JWT)');
+    final data = await GeraiProfilService.fetchGeraiByUser('ignored');
+    if (data != null && data['success'] == true && data['data'] != null) {
+      final geraiModel = GeraiProfilModel.fromJson(data['data']);
+      storeNameController.text = geraiModel.namaGerai;
+      detailAddressController.text = geraiModel.detailAlamat;
+      if (geraiModel.latitude != null && geraiModel.longitude != null) {
+        selectedLat = geraiModel.latitude;
+        selectedLng = geraiModel.longitude;
+        final address = await GeraiProfilService.reverseGeocode(
+          selectedLat!,
+          selectedLng!,
         );
-        storeNameController.text = geraiModel.namaGerai;
-        detailAddressController.text = geraiModel.detailAlamat;
-        if (geraiModel.latitude != null && geraiModel.longitude != null) {
-          selectedLat = geraiModel.latitude;
-          selectedLng = geraiModel.longitude;
-          final address = await GeraiProfilService.reverseGeocode(
-            selectedLat!,
-            selectedLng!,
-          );
-          locationController.text = address ?? '';
-          selectedAddress = address ?? '';
-        }
-        optionalPhoneController.text = geraiModel.telepon;
+        locationController.text = address ?? '';
+        selectedAddress = address ?? '';
       }
+      optionalPhoneController.text = geraiModel.telepon;
     }
   }
 
   Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
-    if (idUsers != null) {
-      final user = await SellerUserService.fetchUserById(idUsers);
-      if (user != null) {
-        final userInfo = UserInfoModel.fromJson(user);
-        sellerNameController.text = userInfo.namaLengkap;
-        phoneNumberController.text = userInfo.noHp;
-        emailController.text = userInfo.email;
-      }
+    final user = await SellerUserService.fetchUserById('ignored');
+    if (user != null) {
+      final userInfo = UserInfoModel.fromJson(user);
+      sellerNameController.text = userInfo.namaLengkap;
+      phoneNumberController.text = userInfo.noHp;
+      emailController.text = userInfo.email;
     }
     setState(() {
       isLoadingUser = false;
@@ -287,18 +273,11 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
               child: CustomButtonKotak(
                 text: "Simpan dan lanjutkan",
                 onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString(
-                    'telepon_gerai',
-                    phoneNumberController.text,
-                  );
-                  final idUsers = prefs.getString('id_users');
                   setState(() {
                     isSaving = true;
                   });
                   // Validasi
-                  if (idUsers == null ||
-                      storeNameController.text.isEmpty ||
+                  if (storeNameController.text.isEmpty ||
                       selectedLat == null ||
                       selectedLng == null ||
                       phoneNumberController.text.isEmpty) {
@@ -313,7 +292,6 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                     return;
                   }
                   final data = {
-                    'id_users': idUsers,
                     'nama_gerai': storeNameController.text,
                     'latitude': selectedLat?.toString() ?? '',
                     'longitude': selectedLng?.toString() ?? '',
