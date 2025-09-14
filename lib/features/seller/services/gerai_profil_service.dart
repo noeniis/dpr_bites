@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/gerai_profil_model.dart';
 
 class GeraiProfilService {
+  static const _storage = FlutterSecureStorage();
+
   static Future<bool> insertGeraiProfil(Map<String, dynamic> data) async {
     final url = Uri.parse('${getBaseUrl()}/gerai_profil.php');
     final body = jsonEncode({
@@ -16,19 +18,31 @@ class GeraiProfilService {
       'hari_buka': data['hari_buka'] ?? '',
       'jam_buka': data['jam_buka'] ?? '',
       'jam_tutup': data['jam_tutup'] ?? '',
-      'id_users': data['id_users'] ?? '',
+      // id_users no longer needed in body; server derives from JWT
     });
-  print('[DEBUG] insertGeraiProfil: id_gerai=${data['id_gerai']}, id_users=${data['id_users']}');
-    final response = await http.post(url, body: body, headers: {'Content-Type': 'application/json'});
+    final token = await _storage.read(key: 'jwt_token');
+    print('[DEBUG] insertGeraiProfil: id_gerai=${data['id_gerai']}');
+    final response = await http.post(
+      url,
+      body: body,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
   print('[DEBUG] insertGeraiProfil response: ${response.body}');
     final res = jsonDecode(response.body);
     return res['status'] == 'success';
   }
   static Future<GeraiProfilModel?> fetchGeraiProfilByUser(String idUsers) async {
+    final token = await _storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_profil.php'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'id_users': idUsers}),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({}),
     );
     print('[DEBUG] fetchGeraiProfilByUser response: ${response.body}');
     if (response.statusCode == 200) {
@@ -102,10 +116,11 @@ class GeraiProfilService {
     required String idUsers,
     required String sertifikasiHalal,
   }) async {
+    final token = await _storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_or_update_gerai.php'),
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
       body: {
-        'id_users': idUsers,
         'sertifikasi_halal': sertifikasiHalal,
       },
     );
@@ -118,8 +133,10 @@ class GeraiProfilService {
     required String idGerai,
     required String qrisPath,
   }) async {
+    final token = await _storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_or_update_gerai.php'),
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
       body: {
         'id_gerai': idGerai,
         'qris_path': qrisPath,
@@ -129,9 +146,10 @@ class GeraiProfilService {
     return res['success'] == true;
   }
   static Future<Map<String, dynamic>?> fetchGeraiByUser(String idUsers) async {
+    final token = await _storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
-      body: {'id_users': idUsers},
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -141,8 +159,10 @@ class GeraiProfilService {
   }
 
   static Future<bool> addOrUpdateGerai(Map<String, dynamic> data) async {
+    final token = await _storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_or_update_gerai.php'),
+      headers: {if (token != null) 'Authorization': 'Bearer $token'},
       body: data,
     );
     print("DEBUG response.statusCode: ${response.statusCode}");
@@ -150,11 +170,7 @@ class GeraiProfilService {
     final res = jsonDecode(response.body);
     if (res['success'] == true) {
       // Simpan id_gerai ke SharedPreferences jika ada
-      if (res['id_gerai'] != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('id_gerai', res['id_gerai'].toString());
-        print('[DEBUG] id_gerai disimpan ke SharedPreferences: ${res['id_gerai']}');
-      }
+      // Removed SharedPreferences storage for id_gerai to keep auth stateless
       return true;
     }
     return false;
