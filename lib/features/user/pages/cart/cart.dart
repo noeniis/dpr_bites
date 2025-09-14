@@ -136,7 +136,7 @@ class _CartPageState extends State<CartPage> {
   }
 
   Future<void> _init() async {
-  _userId = await CartService.getUserIdFromPrefs();
+    _userId = await CartService.getUserIdFromPrefs();
     await _fetchCart();
   }
 
@@ -145,10 +145,11 @@ class _CartPageState extends State<CartPage> {
       _loading = true;
     });
     try {
-  final result = await CartService.fetchCart(userId: _userId);
+      final result = await CartService.fetchCart(userId: _userId);
       if (mounted) {
         setState(() {
           carts = result.carts;
+          _sanitizeSelection();
         });
       }
     } catch (_) {
@@ -158,6 +159,20 @@ class _CartPageState extends State<CartPage> {
           _loading = false;
         });
     }
+  }
+
+  void _sanitizeSelection() {
+    final newSel = <int, Set<int>>{};
+    for (final entry in selectedMenus.entries) {
+      final r = entry.key;
+      if (r < 0 || r >= carts.length) continue;
+      final menus = (carts[r]['menus'] as List?) ?? const [];
+      final filtered = entry.value
+          .where((i) => i >= 0 && i < menus.length)
+          .toSet();
+      if (filtered.isNotEmpty) newSel[r] = filtered;
+    }
+    selectedMenus = newSel;
   }
 
   Future<void> _syncItem({
@@ -463,13 +478,15 @@ class _CartPageState extends State<CartPage> {
   int get totalPrice {
     int total = 0;
     selectedMenus.forEach((r, setIdx) {
-      final menus = carts[r]['menus'] as List;
+      if (r < 0 || r >= carts.length) return; // guard invalid restaurant index
+      final menus = (carts[r]['menus'] as List?) ?? const [];
       for (final idx in setIdx) {
         if (idx < 0 || idx >= menus.length) continue;
-        final m = menus[idx];
-        total +=
-            ((m['price'] as int) + (m['addonPrice'] as int)) *
-            (m['qty'] as int);
+        final m = menus[idx] as Map;
+        final base = (m['price'] as int?) ?? 0;
+        final add = (m['addonPrice'] as int?) ?? 0;
+        final qty = (m['qty'] as int?) ?? 1;
+        total += (base + add) * qty;
       }
     });
     return total;

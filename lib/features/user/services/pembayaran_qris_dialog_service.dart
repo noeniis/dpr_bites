@@ -4,12 +4,15 @@ import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/pembayaran_qris_dialog_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 
 class PembayaranQrisDialogService {
+  static const _storage = FlutterSecureStorage();
+
   /// Build a full URL to the QRIS image, supporting relative paths from backend.
   static String buildQrisUrl(String? raw) {
     if (raw == null || raw.isEmpty) return '';
@@ -36,7 +39,12 @@ class PembayaranQrisDialogService {
   }) async {
     try {
       if (url.isEmpty) return QrisDownloadResult.failure('URL kosong');
-      final resp = await http.get(Uri.parse(url));
+      final token = await _storage.read(key: 'jwt_token');
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer ' + token;
+      }
+      final resp = await http.get(Uri.parse(url), headers: headers);
       if (resp.statusCode != 200) {
         return QrisDownloadResult.failure(
           'Gagal unduh (HTTP ' + resp.statusCode.toString() + ')',

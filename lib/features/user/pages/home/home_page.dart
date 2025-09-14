@@ -652,6 +652,7 @@ class _HomePageState extends State<HomePage>
     final store = AddressStore.instance;
     return GradientBackground(
       child: Scaffold(
+        extendBody: true,
         backgroundColor: Colors.transparent,
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(90),
@@ -1060,7 +1061,9 @@ class _HomePageState extends State<HomePage>
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.only(bottom: 0),
+                            padding: const EdgeInsets.only(
+                              bottom: kBottomNavigationBarHeight + 16,
+                            ),
                             itemCount: filteredRestaurants.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 8),

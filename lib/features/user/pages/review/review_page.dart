@@ -5,7 +5,7 @@ import 'package:dpr_bites/features/user/services/review_page_service.dart';
 class ReviewPage extends StatefulWidget {
   final int idTransaksi;
   final int idGerai;
-  final String? idUser; // buyer id, can be null
+  final String? idUser; // buyer id (legacy), no longer required
   final String geraiName;
   final String? listingPath; // URL or local path for store image
   final bool readOnly; // display only
@@ -15,7 +15,7 @@ class ReviewPage extends StatefulWidget {
     super.key,
     required this.idTransaksi,
     required this.idGerai,
-  this.idUser,
+    this.idUser,
     required this.geraiName,
     this.listingPath,
     this.readOnly = false,
@@ -33,7 +33,6 @@ class _ReviewPageState extends State<ReviewPage> {
   bool _submitting = false;
   String? _error;
   bool _anonymous = false; // user choose anonymity
-  String? _idUser; // will be set from widget or SharedPreferences
 
   @override
   void initState() {
@@ -43,16 +42,6 @@ class _ReviewPageState extends State<ReviewPage> {
       _controller.text = widget.initialKomentar!;
     }
     // If opened in read-only mode we cannot change anonymity.
-    _idUser = widget.idUser;
-  if (_idUser == null || _idUser!.isEmpty) {
-      _fetchUserIdFromPrefs();
-    }
-  }
-
-  Future<void> _fetchUserIdFromPrefs() async {
-    final id = await ReviewService.getUserIdFromPrefs();
-    if (!mounted) return;
-  setState(() => _idUser = id?.toString() ?? '');
   }
 
   Future<void> _submit() async {
@@ -63,12 +52,8 @@ class _ReviewPageState extends State<ReviewPage> {
       _error = null;
     });
     try {
-    if (_idUser == null || _idUser!.isEmpty) {
-        throw Exception('User ID tidak ditemukan. Silakan login ulang.');
-      }
       final model = ReviewModel(
         idTransaksi: widget.idTransaksi,
-        idUsers: _idUser!,
         rating: _rating,
         komentar: _controller.text.trim(),
         anonymous: _anonymous,

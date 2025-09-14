@@ -2,14 +2,22 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/favorit_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class FavoritService {
+  static final _storage = const FlutterSecureStorage();
+  static Future<String?> _getJwt() async {
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Convenience: resolve user id from SharedPreferences (key: 'id_users')
   static Future<String?> getUserIdFromPrefs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('id_users');
+      return await _storage.read(key: 'id_users');
     } catch (_) {
       return null;
     }
@@ -17,12 +25,23 @@ class FavoritService {
 
   static Future<FavoriteFetchResult> fetchFavorites(String userId) async {
     try {
-      final uri = Uri.parse(
-        '${getBaseUrl()}/get_user_favorites.php?user_id=$userId',
-      );
+      final uri = Uri.parse('${getBaseUrl()}/get_user_favorites.php');
+      final jwt = await _getJwt();
+      if (jwt == null || jwt.isEmpty) {
+        return FavoriteFetchResult(
+          favorites: const [],
+          restaurants: const {},
+          error: 'Tidak ada token. Silakan login ulang.',
+        );
+      }
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId},
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $jwt',
+          // optional legacy header for compatibility
+          if (userId.isNotEmpty) 'X-User-Id': userId,
+        },
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -74,12 +93,16 @@ class FavoritService {
   static Future<Map<String, int>> fetchCartQuantities(String userId) async {
     final rebuilt = <String, int>{};
     try {
-      final uri = Uri.parse(
-        '${getBaseUrl()}/get_user_cart.php?user_id=$userId',
-      );
+      final uri = Uri.parse('${getBaseUrl()}/get_user_cart.php');
+      final jwt = await _getJwt();
+      if (jwt == null || jwt.isEmpty) return rebuilt;
       final res = await http.get(
         uri,
-        headers: {'Accept': 'application/json', 'X-User-Id': userId},
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $jwt',
+          if (userId.isNotEmpty) 'X-User-Id': userId,
+        },
       );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
@@ -117,17 +140,19 @@ class FavoritService {
   }) async {
     try {
       final uri = Uri.parse('${getBaseUrl()}/add_or_update_cart_item.php');
+      final jwt = await _getJwt();
+      if (jwt == null || jwt.isEmpty) return CartUpdateResult(success: false);
       final payload = <String, dynamic>{
         'gerai_id': int.tryParse(geraiId) ?? geraiId,
         'menu_id': int.tryParse(menuId) ?? menuId,
         'qty': qty,
       };
-  if (userId != null) payload['user_id'] = userId;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwt',
           if (userId != null) 'X-User-Id': userId,
         },
         body: jsonEncode(payload),
@@ -159,16 +184,19 @@ class FavoritService {
   }) async {
     try {
       final uri = Uri.parse('${getBaseUrl()}/favorite.php');
+      final jwt = await _getJwt();
+      if (jwt == null || jwt.isEmpty)
+        return ToggleFavoriteResult(success: false);
       final bodyPayload = <String, dynamic>{
         'menu_id': menuId,
         'action': 'toggle',
       };
-  if (userId != null) bodyPayload['user_id'] = userId;
       final res = await http.post(
         uri,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwt',
           if (userId != null) 'X-User-Id': userId,
         },
         body: jsonEncode(bodyPayload),

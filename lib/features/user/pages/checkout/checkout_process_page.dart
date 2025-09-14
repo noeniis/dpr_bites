@@ -192,6 +192,8 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
   int? _geraiId; // cache id gerai hasil resolve (backend mungkin belum kirim)
   String?
   _bookingCreatedAtDisplay; // cache format tanggal booking agar tidak hitung ulang tiap build
+  bool _navigatedOnCancel = false; // navigate to history once when cancelled
+  bool _qrisDialogOpen = false; // track QRIS dialog visibility
 
   Future<void> _resolveGeraiIdFromMenu(int idMenu) async {
     if (idMenu <= 0 || _geraiId != null) return;
@@ -224,6 +226,28 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _metode = (data['metode_pembayaran'] ?? '').toString();
       _tx = data;
       _items = res.items;
+
+      // If order just became cancelled, navigate to History (dibatalkan)
+      // Skip auto-navigation when auto-cancel due to timeout to show popup instead
+      if (previousStatus != 'dibatalkan' &&
+          status == 'dibatalkan' &&
+          !_navigatedOnCancel &&
+          !_autoCancelled) {
+        _navigatedOnCancel = true;
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (_) => const HistoryPage(initialFilter: 'dibatalkan'),
+              ),
+              (route) => false,
+            );
+          });
+        }
+        // Stop further processing for this fetch cycle
+        return;
+      }
       // Fallback isi id_users jika null supaya halaman ulasan bisa auto muncul
       if ((_tx!['id_users'] == null || _tx!['id_users'].toString().isEmpty)) {
         final uid = await CheckoutProcessPageService.getUserIdFromPrefs();
@@ -456,6 +480,13 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
 
   void _showTimeoutDialog() {
     if (!mounted) return;
+    // Close QRIS dialog first if it's open to avoid stacked dialogs
+    if (_qrisDialogOpen) {
+      try {
+        Navigator.of(context, rootNavigator: true).pop();
+      } catch (_) {}
+      _qrisDialogOpen = false;
+    }
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
@@ -671,6 +702,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     final metode = (_tx!['metode_pembayaran'] ?? '').toString();
     if (status == 'konfirmasi_pembayaran' && metode == 'qris') {
       _shownQris = true;
+      _qrisDialogOpen = true;
       final qrisPath = (_tx!['qris_path'] ?? '').toString();
       showDialog(
         context: context,
@@ -680,6 +712,7 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
             qrisImageUrl: qrisPath.isEmpty ? null : qrisPath,
             showDownload: true,
             bookingId: (_tx?['booking_id'] ?? widget.bookingId)?.toString(),
+            totalPembayaran: _computeTotalPembayaran(),
             onKonfirmasi: (file) async {
               final r = await CheckoutProcessPageService.uploadPaymentProof(
                 bookingId: _tx!['booking_id'].toString(),
@@ -708,8 +741,47 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
             },
           );
         },
-      );
+      ).then((_) {
+        _qrisDialogOpen = false;
+      });
     }
+  }
+
+  int? _computeTotalPembayaran() {
+    try {
+      if (_items.isEmpty) return null;
+      int grand = 0;
+      for (final it in _items) {
+        final subtotalRaw = it['subtotal'];
+        int? subtotal = _asInt(subtotalRaw);
+        if (subtotal == null) {
+          final qty = _asInt(it['qty']) ?? 1;
+          final hargaSatuan = _asInt(it['harga_satuan']) ?? 0;
+          int addonsSum = 0;
+          final addons = it['addons'];
+          if (addons is List) {
+            for (final a in addons) {
+              if (a is Map) {
+                final h = _asInt(a['harga']) ?? 0;
+                addonsSum += h;
+              }
+            }
+          }
+          subtotal = qty * (hargaSatuan + addonsSum);
+        }
+        grand += subtotal;
+      }
+      return grand;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int? _asInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is String) return int.tryParse(v);
+    return null;
   }
 
   Future<void> _maybeShowReview({bool overrideShown = false}) async {
@@ -746,9 +818,14 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
     }
     final idGerai = _tx!['id_gerai'];
     final idUser = _tx!['id_users']?.toString();
-    if (idTransaksi == null || idGerai == null || idUser == null || idUser.isEmpty) {
+    if (idTransaksi == null ||
+        idGerai == null ||
+        idUser == null ||
+        idUser.isEmpty) {
       // ignore: avoid_print
-      print('$debugPrefix BATAL: id null (idTransaksi=$idTransaksi, idGerai=$idGerai, idUser=$idUser)');
+      print(
+        '$debugPrefix BATAL: id null (idTransaksi=$idTransaksi, idGerai=$idGerai, idUser=$idUser)',
+      );
       return;
     }
     _pushingReview = true;
@@ -760,7 +837,9 @@ class _CheckoutProcessPageState extends State<CheckoutProcessPage> {
       _shownReview = true;
       _reviewOpenedAtStatus = 'selesai';
       // ignore: avoid_print
-      print('$debugPrefix PUSH: membuka halaman ulasan (overrideShown=$overrideShown)');
+      print(
+        '$debugPrefix PUSH: membuka halaman ulasan (overrideShown=$overrideShown)',
+      );
       Navigator.of(context)
           .push(
             ReviewSheetRoute(

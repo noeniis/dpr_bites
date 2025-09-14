@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:dpr_bites/features/user/services/profile_page_service.dart';
 import 'package:dpr_bites/features/user/models/profile_page_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,6 +23,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool isEditing = false;
   String editingField = '';
   bool isUploadingPhoto = false;
+  final _storage = const FlutterSecureStorage();
   final nameController = TextEditingController();
   final usernameController = TextEditingController();
   final phoneController = TextEditingController();
@@ -32,6 +34,8 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    // Remember this page as last route for simple restoration on restart
+    _storage.write(key: 'last_route', value: '/profile');
     _loadProfile();
   }
 

@@ -30,13 +30,13 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
   final phoneNumberController = TextEditingController();
   final optionalPhoneController = TextEditingController();
   final emailController = TextEditingController();
-    bool isLoadingUser = true;
+  bool isLoadingUser = true;
   @override
   void initState() {
     super.initState();
     _loadUserData();
-      _prefillGerai();
-    }
+    _prefillGerai();
+  }
 
   Future<void> _prefillGerai() async {
     final prefs = await SharedPreferences.getInstance();
@@ -47,14 +47,19 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
       final data = await GeraiProfilService.fetchGeraiByUser(idUsers);
       if (data != null && data['success'] == true && data['data'] != null) {
         final geraiModel = GeraiProfilModel.fromJson(data['data']);
-    await prefs.setString('id_gerai', geraiModel.idGerai.toString());
-    debugPrint('[DEBUG] id_gerai disimpan ke SharedPreferences: ${geraiModel.idGerai}');
+        await prefs.setString('id_gerai', geraiModel.idGerai.toString());
+        debugPrint(
+          '[DEBUG] id_gerai disimpan ke SharedPreferences: ${geraiModel.idGerai}',
+        );
         storeNameController.text = geraiModel.namaGerai;
         detailAddressController.text = geraiModel.detailAlamat;
         if (geraiModel.latitude != null && geraiModel.longitude != null) {
           selectedLat = geraiModel.latitude;
           selectedLng = geraiModel.longitude;
-          final address = await GeraiProfilService.reverseGeocode(selectedLat!, selectedLng!);
+          final address = await GeraiProfilService.reverseGeocode(
+            selectedLat!,
+            selectedLng!,
+          );
           locationController.text = address ?? '';
           selectedAddress = address ?? '';
         }
@@ -62,7 +67,6 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
       }
     }
   }
-
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -102,7 +106,9 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
       var status = await Permission.location.request();
       if (!status.isGranted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Akses lokasi diperlukan untuk memilih lokasi.')),
+          const SnackBar(
+            content: Text('Akses lokasi diperlukan untuk memilih lokasi.'),
+          ),
         );
         return;
       }
@@ -131,7 +137,9 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
       );
-      if (result is Map<String, dynamic> && result['lat'] != null && result['lng'] != null) {
+      if (result is Map<String, dynamic> &&
+          result['lat'] != null &&
+          result['lng'] != null) {
         setState(() {
           selectedLat = result['lat'];
           selectedLng = result['lng'];
@@ -142,9 +150,9 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Terjadi error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Terjadi error: $e')));
     }
   }
 
@@ -195,7 +203,7 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
               children: [
                 const Text(
                   "Informasi umum",
-                
+
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
@@ -236,26 +244,26 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 12),
-                  AbsorbPointer(
-                    child: CustomInputField(
-                      controller: sellerNameController,
-                      hintText: "Nama penjual",
-                    ),
+                AbsorbPointer(
+                  child: CustomInputField(
+                    controller: sellerNameController,
+                    hintText: "Nama penjual",
                   ),
-                  const SizedBox(height: 12),
-                  AbsorbPointer(
-                    child: CustomInputField(
-                      controller: phoneNumberController,
-                      hintText: "Nomor Handphone",
-                    ),
+                ),
+                const SizedBox(height: 12),
+                AbsorbPointer(
+                  child: CustomInputField(
+                    controller: phoneNumberController,
+                    hintText: "Nomor Handphone",
                   ),
-                  const SizedBox(height: 12),
-                  AbsorbPointer(
-                    child: CustomInputField(
-                      controller: emailController,
-                      hintText: "Email penjual",
-                    ),
+                ),
+                const SizedBox(height: 12),
+                AbsorbPointer(
+                  child: CustomInputField(
+                    controller: emailController,
+                    hintText: "Email penjual",
                   ),
+                ),
                 const SizedBox(height: 12),
                 CustomInputField(
                   controller: optionalPhoneController,
@@ -267,7 +275,12 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
           ),
         ),
         bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), // Tambah jarak bawah
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            32,
+          ), // Tambah jarak bawah
           child: SafeArea(
             child: SizedBox(
               width: double.infinity,
@@ -275,13 +288,28 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                 text: "Simpan dan lanjutkan",
                 onPressed: () async {
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('telepon_gerai', phoneNumberController.text);
+                  await prefs.setString(
+                    'telepon_gerai',
+                    phoneNumberController.text,
+                  );
                   final idUsers = prefs.getString('id_users');
-                  setState(() { isSaving = true; });
+                  setState(() {
+                    isSaving = true;
+                  });
                   // Validasi
-                  if (idUsers == null || storeNameController.text.isEmpty || selectedLat == null || selectedLng == null || phoneNumberController.text.isEmpty) {
-                    setState(() { isSaving = false; });
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lengkapi semua data utama!')));
+                  if (idUsers == null ||
+                      storeNameController.text.isEmpty ||
+                      selectedLat == null ||
+                      selectedLng == null ||
+                      phoneNumberController.text.isEmpty) {
+                    setState(() {
+                      isSaving = false;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Lengkapi semua data utama!'),
+                      ),
+                    );
                     return;
                   }
                   final data = {
@@ -292,8 +320,12 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                     'detail_alamat': detailAddressController.text,
                     'telepon': optionalPhoneController.text,
                   };
-                  final success = await GeraiProfilService.addOrUpdateGerai(data);
-                  setState(() { isSaving = false; });
+                  final success = await GeraiProfilService.addOrUpdateGerai(
+                    data,
+                  );
+                  setState(() {
+                    isSaving = false;
+                  });
                   if (success) {
                     final ktpResult = await Navigator.push(
                       context,
@@ -306,7 +338,9 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                       );
                     }
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal simpan data gerai!')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Gagal simpan data gerai!')),
+                    );
                   }
                 },
               ),

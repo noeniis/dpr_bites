@@ -1,16 +1,18 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:dpr_bites/common/utils/prefs_helper.dart';
 import 'package:dpr_bites/features/user/models/receipt_page_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ReceiptPageService {
+  static final _storage = const FlutterSecureStorage();
   static Future<ReceiptFetchResult> fetchReceipt({
     String? bookingId,
     int? idTransaksi,
   }) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
+      final idUsers = await _storage.read(key: 'id_users');
       final qp = <String, String>{};
       if (bookingId != null && bookingId.isNotEmpty) {
         qp['booking_id'] = bookingId;
@@ -24,10 +26,12 @@ class ReceiptPageService {
       final uri = Uri.parse(
         '${getBaseUrl()}/get_transaction_receipt.php',
       ).replace(queryParameters: qp);
-      final res = await http.get(
-        uri,
-        headers: const {'Accept': 'application/json'},
-      );
+      final headers = <String, String>{
+        'Accept': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+        if (idUsers != null) 'X-User-Id': idUsers,
+      };
+      final res = await http.get(uri, headers: headers);
       if (res.statusCode != 200) {
         return ReceiptFetchResult(error: 'HTTP ${res.statusCode}');
       }
@@ -57,7 +61,8 @@ class ReceiptPageService {
 
   static Future<ReviewFetchResult> fetchReviewStatus(int idTransaksi) async {
     try {
-      final idUsers = await Prefs.getUserIdString();
+      final idUsers = await _storage.read(key: 'id_users');
+      final token = await _storage.read(key: 'jwt_token');
       if (idUsers == null) return const ReviewFetchResult(hasReview: false);
       final uri = Uri.parse('${getBaseUrl()}/get_ulasan.php').replace(
         queryParameters: {
@@ -67,7 +72,11 @@ class ReceiptPageService {
       );
       final res = await http.get(
         uri,
-        headers: const {'Accept': 'application/json'},
+        headers: {
+          'Accept': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+          'X-User-Id': idUsers,
+        },
       );
       if (res.statusCode != 200)
         return const ReviewFetchResult(hasReview: false);
@@ -92,8 +101,8 @@ class ReceiptPageService {
       if (status != 'konfirmasi_pembayaran') return false;
       final bookingId = (data['booking_id'] ?? '').toString();
       if (bookingId.isEmpty) return false;
-      final prefs = await SharedPreferences.getInstance();
-      final startRaw = prefs.getString('pay_start_' + bookingId);
+      final token = await _storage.read(key: 'jwt_token');
+      final startRaw = await _storage.read(key: 'pay_start_' + bookingId);
       if (startRaw == null) return false;
       final start = DateTime.tryParse(startRaw);
       if (start == null) return false;
@@ -108,9 +117,10 @@ class ReceiptPageService {
       });
       final res = await http.post(
         Uri.parse('${getBaseUrl()}/update_transaction_status.php'),
-        headers: const {
+        headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: body,
       );
@@ -120,7 +130,10 @@ class ReceiptPageService {
           Uri.parse(
             '${getBaseUrl()}/get_transaction_receipt.php',
           ).replace(queryParameters: {'booking_id': bookingId}),
-          headers: const {'Accept': 'application/json'},
+          headers: {
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
         );
         if (det.statusCode == 200) {
           final jb = jsonDecode(det.body);
@@ -139,7 +152,7 @@ class ReceiptPageService {
           data['status'] = 'dibatalkan';
           data['catatan_pembatalan'] = 'Pembayaran Dibatalkan';
         }
-        await prefs.remove('pay_start_' + bookingId);
+        await _storage.delete(key: 'pay_start_' + bookingId);
         return true;
       }
     } catch (_) {}

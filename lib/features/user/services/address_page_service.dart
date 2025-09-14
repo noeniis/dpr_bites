@@ -1,21 +1,24 @@
 import 'dart:convert';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/user/models/address_page_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AddressPageService {
+  static final _storage = const FlutterSecureStorage();
   static Future<String?> getUserIdFromPrefs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('id_users');
-    } catch (_) {
-      return null;
-    }
+      for (final k in const ['id_users', 'id_user', 'user_id']) {
+        final v = await _storage.read(key: k);
+        if (v != null && v.isNotEmpty) return v;
+      }
+    } catch (_) {}
+    return null;
   }
 
   static Future<AddressFetchResult> fetchAddresses(String userId) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse('${getBaseUrl()}/get_user_addresses.php');
       final res = await http.post(
         uri,
@@ -23,6 +26,7 @@ class AddressPageService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'X-User-Id': userId,
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({'id_users': userId}),
       );
@@ -56,17 +60,19 @@ class AddressPageService {
   }
 
   static Future<bool> setDefaultAddress({
-  required String userId,
+    required String userId,
     required int addressId,
   }) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse('${getBaseUrl()}/set_default_address.php');
       final res = await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-      'X-User-Id': userId,
+          'X-User-Id': userId,
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({'id_users': userId, 'id_alamat': addressId}),
       );
@@ -79,17 +85,19 @@ class AddressPageService {
   }
 
   static Future<bool> deleteAddress({
-  required String userId,
+    required String userId,
     required int addressId,
   }) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final uri = Uri.parse('${getBaseUrl()}/delete_address.php');
       final res = await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-      'X-User-Id': userId,
+          'X-User-Id': userId,
+          if (token != null) 'Authorization': 'Bearer $token',
         },
         body: jsonEncode({'id_alamat': addressId}),
       );
