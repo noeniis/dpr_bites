@@ -6,6 +6,7 @@ import '../../../../common/widgets/custom_widgets.dart';
 import 'halal_page.dart';
 import 'ktp_form_page.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'seller_pick_location_page.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../common/data/dummy_address.dart';
@@ -305,6 +306,14 @@ class _ProsesPengajuanPageState extends State<ProsesPengajuanPage> {
                     isSaving = false;
                   });
                   if (success) {
+                    // Ambil id_gerai dari backend setelah simpan
+                    final geraiData = await GeraiProfilService.fetchGeraiByUser('ignored');
+                    if (geraiData != null && geraiData['success'] == true && geraiData['data'] != null && geraiData['data']['id_gerai'] != null) {
+                      final idGeraiBaru = geraiData['data']['id_gerai'].toString();
+                      final storage = FlutterSecureStorage();
+                      await storage.write(key: 'id_gerai', value: idGeraiBaru);
+                      debugPrint('[DEBUG] id_gerai disimpan ke storage: $idGeraiBaru');
+                    }
                     final ktpResult = await Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const KtpFormPage()),

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:dpr_bites/features/seller/services/pesanan_service.dart';
-
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/models/pesanan/order_api_model.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/features/seller/pages/pesanan/detail_pesanan.dart';
@@ -23,6 +22,7 @@ class _PesananPageState extends State<PesananPage> {
   bool isLoading = true;
   late String _selectedFilter;
   String? idGerai;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   DateTime? _selectedDate;
 
   final List<String> _filters = const [
@@ -57,8 +57,7 @@ class _PesananPageState extends State<PesananPage> {
 
   Future<void> loadIdGeraiAndFetch() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final id = prefs.getString('id_gerai');
+      final id = await _secureStorage.read(key: 'id_gerai');
 
       if (!mounted) return;
       setState(() {

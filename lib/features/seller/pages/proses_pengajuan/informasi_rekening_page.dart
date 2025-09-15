@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'pengajuan_selesai_page.dart';
 import 'dart:io';
 import 'dart:ui';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../services/qris_service.dart';
 
 class InformasiRekeningPage extends StatefulWidget {
@@ -17,6 +17,7 @@ class InformasiRekeningPage extends StatefulWidget {
 }
 
 class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
+  final _storage = FlutterSecureStorage();
   String? _qrisUrlFromDb;
   @override
   void initState() {
@@ -25,8 +26,7 @@ class _InformasiRekeningPageState extends State<InformasiRekeningPage> {
   }
 
   Future<void> _fetchQrisFromDb() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users') ?? '';
+    final idUsers = await _storage.read(key: 'id_users') ?? '';
     if (idUsers.isEmpty) return;
     final qrisUrl = await QrisService.getQrisUrlByUser(idUsers);
     if (qrisUrl != null && qrisUrl.isNotEmpty) {

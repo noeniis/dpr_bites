@@ -22,6 +22,7 @@ class _EditAddonPageState extends State<EditAddonPage> {
   XFile? _addonImage;
   String? _addonImageUrl;
   bool _isTersedia = false;
+  late TextEditingController _stokController;
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _EditAddonPageState extends State<EditAddonPage> {
     _namaAddonController = TextEditingController(text: (addon['nama_addon'] ?? addon['nama'])?.toString() ?? '');
     _deskripsiController = TextEditingController(text: (addon['deskripsi'] ?? addon['desc'])?.toString() ?? '');
     _hargaController = TextEditingController(text: (addon['harga'] ?? addon['harga'])?.toString() ?? '');
+  _stokController = TextEditingController(text: (addon['stok'] ?? addon['stok'])?.toString() ?? '0');
     if (addon['image_path'] != null && addon['image_path'].toString().isNotEmpty) {
       _addonImageUrl = addon['image_path'];
     }
@@ -42,6 +44,7 @@ class _EditAddonPageState extends State<EditAddonPage> {
     _namaAddonController.dispose();
     _deskripsiController.dispose();
     _hargaController.dispose();
+    _stokController.dispose();
     super.dispose();
   }
 
@@ -72,6 +75,7 @@ class _EditAddonPageState extends State<EditAddonPage> {
       harga: int.tryParse(_hargaController.text) ?? 0,
       imagePath: gambarAddon,
       tersedia: _isTersedia,
+      stok: int.tryParse(_stokController.text) ?? 0,
     );
     if (success) {
       widget.onSave?.call({...widget.addon,
@@ -80,6 +84,7 @@ class _EditAddonPageState extends State<EditAddonPage> {
         'tersedia': _isTersedia ? '1' : '0',
         'image_path': gambarAddon,
         'deskripsi': _deskripsiController.text,
+        'stok': _stokController.text,
       });
       Navigator.pop(context, true);
     } else {
@@ -224,6 +229,25 @@ class _EditAddonPageState extends State<EditAddonPage> {
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
                             hintText: "Rp Masukkan harga add-on",
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          "Stok",
+                          style: TextStyle(fontSize: 16, fontFamily: 'Inter', color: Color(0xFF333333)),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _stokController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            hintText: "Masukkan jumlah stok",
                             filled: true,
                             fillColor: Colors.white,
                             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -7,7 +7,7 @@ import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import '../../services/gerai_profil_service.dart';
 import '../../models/gerai_profil_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class KelolaProfilGeraiPage extends StatefulWidget {
   const KelolaProfilGeraiPage({Key? key}) : super(key: key);
@@ -33,10 +33,10 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
   Future<void> _loadProfilGerai() async {
     try {
       setState(() { _isLoading = true; _errorMsg = null; });
-      final prefs = await SharedPreferences.getInstance();
-      String? idUsers = prefs.getString('id_users');
+      final storage = FlutterSecureStorage();
+      String? idUsers = await storage.read(key: 'id_users');
       if (idUsers == null || idUsers.isEmpty) {
-        print('[DEBUG] id_users tidak ditemukan di SharedPreferences');
+        print('[DEBUG] id_users tidak ditemukan di secure storage');
         setState(() { _isLoading = false; _errorMsg = 'User belum login'; });
         return;
       }

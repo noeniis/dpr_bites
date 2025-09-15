@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/addon_model.dart';
 
 class AddonService {
   static Future<List<AddonModel>> fetchAddonsByGerai({required int idGerai}) async {
-    final url = Uri.parse('${getBaseUrl()}/get_addon.php?id_gerai=$idGerai');
-    final response = await http.get(url);
+  final storage = FlutterSecureStorage();
+  final jwt = await storage.read(key: 'jwt_token');
+  final url = Uri.parse('${getBaseUrl()}/get_addon.php?id_gerai=$idGerai');
+  final response = await http.get(url, headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null);
     print('[DEBUG AddonService] response get_addon.php: ${response.body}');
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -21,14 +23,16 @@ class AddonService {
     }
     return [];
   }
-  /// Ambil idUser dari SharedPreferences dan idGerai dari API
+  /// Ambil idUser dari flutter_secure_storage dan idGerai dari API
   static Future<Map<String, String?>> getGeraiIdByUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUser = prefs.getString('id_users');
+  final storage = FlutterSecureStorage();
+  final idUser = await storage.read(key: 'id_users');
     String? idGerai;
     if (idUser != null) {
+      final jwt = await storage.read(key: 'jwt_token');
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+        headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
         body: {'id_users': idUser},
       );
       final data = jsonDecode(response.body);
@@ -60,6 +64,7 @@ class AddonService {
     required int harga,
     required String imagePath,
     required bool tersedia,
+    int? stok,
   }) async {
     final bodyData = {
       'id_addon': idAddon.toString(),
@@ -68,10 +73,16 @@ class AddonService {
       'harga': harga.toString(),
       'image_path': imagePath,
       'tersedia': tersedia ? '1' : '0',
+      if (stok != null) 'stok': stok.toString(),
     };
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/update_addon.php'),
-      headers: {"Content-Type": "application/json"},
+      headers: {
+        "Content-Type": "application/json",
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
+      },
       body: jsonEncode(bodyData),
     );
     if (response.statusCode == 200) {
@@ -81,8 +92,11 @@ class AddonService {
     return false;
   }
   static Future<bool> deleteAddonWithImage({required int idAddon}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/delete_addon.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_addon': idAddon.toString()},
     );
     if (response.statusCode == 200) {
@@ -91,25 +105,27 @@ class AddonService {
     }
     return false;
   }
-  /// Ambil semua addon milik gerai dari SharedPreferences
+  /// Ambil semua addon milik gerai dari flutter_secure_storage
   static Future<List<AddonModel>> fetchAddonsByGeraiFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idGeraiStr = prefs.getString('id_gerai');
+  final storage = FlutterSecureStorage();
+  final idGeraiStr = await storage.read(key: 'id_gerai');
     if (idGeraiStr == null) return [];
     final idGerai = int.tryParse(idGeraiStr) ?? 0;
     return await fetchAddonsByGerai(idGerai: idGerai);
   }
   /// Ambil semua addon yang terhubung ke menu tertentu (relasi menu_addon)
   static Future<List<AddonModel>> fetchMenuAddons({required int idMenu}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final idGeraiStr = prefs.getString('id_gerai');
+  final storage = FlutterSecureStorage();
+  final idGeraiStr = await storage.read(key: 'id_gerai');
     if (idGeraiStr == null) return [];
     final idGerai = int.tryParse(idGeraiStr) ?? 0;
     // Fetch semua addon milik gerai
     final allAddons = await fetchAddonsByGerai(idGerai: idGerai);
     // Fetch relasi menu_addon dari API
+  final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_menu_addon.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_menu': idMenu.toString()},
     );
     if (response.statusCode == 200) {
@@ -124,8 +140,11 @@ class AddonService {
   }
 
   static Future<AddonModel?> getAddonDetail({required int idAddon}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_addon_detail.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_addon': idAddon.toString()},
     );
     if (response.statusCode == 200) {
@@ -154,10 +173,13 @@ class AddonService {
         return {'success': false, 'error': 'Gagal upload gambar'};
       }
     }
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_addon.php'),
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
       },
       body: {
         'id_gerai': idGerai,
@@ -182,8 +204,11 @@ class AddonService {
     required int harga,
     required bool tersedia,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/edit_addon.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {
         'id_addon': idAddon.toString(),
         'nama_addon': namaAddon,
@@ -199,8 +224,11 @@ class AddonService {
   }
 
   static Future<bool> deleteAddon({required int idAddon}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/delete_addon.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_addon': idAddon.toString()},
     );
     if (response.statusCode == 200) {

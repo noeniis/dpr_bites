@@ -117,13 +117,16 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
                     return const Center(child: Text('Tidak ada pengajuan'));
                   }
                   final pengajuanList = snapshot.data!;
+                  // Urutkan dari yang paling baru (idGerai terbesar) di atas
+                  List<PengajuanModel> sortedList = List.from(pengajuanList);
+                  sortedList.sort((a, b) => b.idGerai.compareTo(a.idGerai));
                   List<PengajuanModel> filteredList;
                   if (filterStatus == 'pending') {
-                    filteredList = pengajuanList.where((data) {
+                    filteredList = sortedList.where((data) {
                       return (data.step1?.toString() == '1' && data.step2?.toString() == '1');
                     }).toList();
                   } else {
-                    filteredList = pengajuanList;
+                    filteredList = sortedList;
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.all(16),

@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:dpr_bites/common/utils/base_url.dart';
 import 'detail_order_model.dart';
 
 class TransactionDetailModel {
@@ -66,15 +69,35 @@ class TransactionDetailModel {
   }
 
   static Future<TransactionDetailModel?> fetchByBookingId(String bookingId) async {
-    final uri = Uri.http('10.0.2.2', '/dpr_bites_api/get_transaction_detail.php', {
-      'booking_id': bookingId,
-    });
-    final response = await http.get(uri);
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
+
+    final base = getBaseUrl();
+    final uri = Uri.parse('$base/get_transaction_detail.php').replace(queryParameters: {'booking_id': bookingId});
+
+    final headers = <String, String>{'Accept': 'application/json'};
+    if (jwt != null && jwt.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $jwt';
+    }
+
+    final response = await http.get(uri, headers: headers);
+    // Debugging: log jwt presence and request/response to help trace why detail may be missing
+    try {
+      debugPrint('fetchByBookingId jwt present: ${jwt != null && jwt.isNotEmpty}');
+      debugPrint('fetchByBookingId bookingId: $bookingId');
+      // Use debugPrint so it shows in Flutter logs
+      debugPrint('fetchByBookingId: ${uri.toString()}');
+      debugPrint('fetchByBookingId response status: ${response.statusCode}');
+      debugPrint('fetchByBookingId response body: ${response.body}');
+    } catch (_) {}
+
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data['success'] == true && data['data'] != null) {
         return TransactionDetailModel.fromJson(data['data']);
       }
+      // If success==false, also log message for clarity
+      debugPrint('fetchByBookingId: server returned success=false, message: ${data['message'] ?? 'no message'}');
     }
     return null;
   }

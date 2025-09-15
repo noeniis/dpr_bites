@@ -3,7 +3,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:dpr_bites/features/seller/models/menu_model.dart';
@@ -12,12 +12,14 @@ import 'package:dpr_bites/features/seller/models/addon_model.dart';
 
 
 class MenuService {
-  /// Update menu dengan body Map (untuk kebutuhan UI yang sudah clean code)
   static Future<bool> updateMenu(Map<String, dynamic> bodyData) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/update_menu.php'),
       headers: {
         "Content-Type": "application/json",
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
       },
       body: jsonEncode(bodyData),
     );
@@ -28,27 +30,33 @@ class MenuService {
     return false;
   }
     static Future<Map<String, dynamic>?> fetchMenuDetail({required int idGerai, required int idMenu}) async {
-    final response = await http.post(
-      Uri.parse('${getBaseUrl()}/get_menu_detail.php'),
-      body: {'id_gerai': idGerai.toString(), 'filter': 'all'},
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true && data['data'] != null) {
-        // Cari menu yang id_menu-nya sama
-        final menuList = data['data'] as List;
-        final menuDetail = menuList.firstWhere(
-          (m) => int.tryParse(m['id_menu'].toString()) == idMenu,
-          orElse: () => null,
-        );
-        return menuDetail;
+      final storage = FlutterSecureStorage();
+      final jwt = await storage.read(key: 'jwt_token');
+      final response = await http.post(
+        Uri.parse('${getBaseUrl()}/get_menu_detail.php'),
+        headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
+        body: {'id_gerai': idGerai.toString(), 'filter': 'all'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          // Cari menu yang id_menu-nya sama
+          final menuList = data['data'] as List;
+          final menuDetail = menuList.firstWhere(
+            (m) => int.tryParse(m['id_menu'].toString()) == idMenu,
+            orElse: () => null,
+          );
+          return menuDetail;
+        }
       }
+      return null;
     }
-    return null;
-  }
   static Future<List<EtalaseModel>> fetchEtalaseByUser({required String idUsers}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final responseGerai = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_users': idUsers},
     );
     print('get_gerai_by_user response: ' + responseGerai.body);
@@ -67,8 +75,11 @@ class MenuService {
   }
 
   static Future<List<AddonModel>> fetchAddonsByUser({required String idUsers}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final responseGerai = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_users': idUsers},
     );
     print('get_gerai_by_user response: ' + responseGerai.body);
@@ -101,16 +112,22 @@ class MenuService {
     String filter = 'all',
   }) async {
     // Ambil id_gerai dari backend
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final responseGerai = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_users': idUsers},
     );
+    debugPrint('fetchMenusByUser: get_gerai_by_user response: ' + responseGerai.body);
     if (responseGerai.statusCode == 200) {
       final dataGerai = jsonDecode(responseGerai.body);
       if (dataGerai['success'] == true && dataGerai['data'] != null && dataGerai['data']['id_gerai'] != null) {
         final idGerai = int.tryParse(dataGerai['data']['id_gerai'].toString());
         if (idGerai != null) {
-          return await fetchMenusByGerai(idGerai: idGerai, filter: filter);
+          final menus = await fetchMenusByGerai(idGerai: idGerai, filter: filter);
+          debugPrint('fetchMenusByUser: fetchMenusByGerai result: ' + menus.map((m) => m.toJson()).toList().toString());
+          return menus;
         }
       }
     }
@@ -121,13 +138,17 @@ class MenuService {
     required int idGerai,
     String filter = 'all',
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_menus.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {
         'id_gerai': idGerai.toString(),
         'filter': filter,
       },
     );
+    debugPrint('fetchMenusByGerai: get_menus response: ' + response.body);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data['success'] == true && data['data'] != null) {
@@ -143,8 +164,11 @@ class MenuService {
     required String idUsers,
     String filter = 'all',
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_menus.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {
         'id_users': idUsers,
         'filter': filter,
@@ -164,8 +188,11 @@ class MenuService {
   static Future<MenuModel?> getMenuDetail({
     required int idMenu,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_menu_detail.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_menu': idMenu.toString()},
     );
     if (response.statusCode == 200) {
@@ -189,8 +216,11 @@ class MenuService {
     required int jumlahStok,
     required bool tersedia,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/edit_menu.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {
         'id_menu': idMenu.toString(),
         'id_gerai': idGerai.toString(),
@@ -214,8 +244,11 @@ class MenuService {
   static Future<bool> deleteMenu({
     required int idMenu,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/delete_menu.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_menu': idMenu.toString()},
     );
     if (response.statusCode == 200) {
@@ -228,8 +261,11 @@ class MenuService {
   static Future<List<EtalaseModel>> fetchEtalase({
     required int idGerai,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_etalase.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_gerai': idGerai.toString()},
     );
     if (response.statusCode == 200) {
@@ -246,8 +282,11 @@ class MenuService {
   static Future<List<AddonModel>> fetchAddons({
     required int idMenu,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_addon.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {'id_menu': idMenu.toString()},
     );
     if (response.statusCode == 200) {
@@ -294,8 +333,13 @@ class MenuService {
     required int jumlahStok,
     required bool tersedia,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_menu.php'),
+      headers: {
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
+      },
       body: {
         'id_gerai': idGerai.toString(),
         'id_etalase': idEtalase?.toString() ?? '',
@@ -331,8 +375,11 @@ class MenuService {
     } else {
       return false;
     }
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_menus.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: body,
     );
     if (response.statusCode == 200) {
@@ -346,8 +393,11 @@ class MenuService {
     required int idMenu,
     required List<int> idAddons,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_menu_addon.php'),
+      headers: {if (jwt != null) 'Authorization': 'Bearer $jwt'},
       body: {
         'id_menu': idMenu.toString(),
         'id_addons': jsonEncode(idAddons),
@@ -361,12 +411,15 @@ class MenuService {
   }
 
   static Future<int?> getIdGerai() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUser = prefs.getString('id_users');
-    debugPrint('DEBUG getIdGerai: id_users dari SharedPreferences: $idUser');
-    if (idUser == null) return null;
+  // Migrated: Use flutter_secure_storage only
+    final storage = FlutterSecureStorage();
+    final idUser = await storage.read(key: 'id_users');
+    final jwt = await storage.read(key: 'jwt_token');
+    debugPrint('DEBUG getIdGerai: id_users dari SecureStorage: $idUser');
+    if (idUser == null || jwt == null) return null;
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+      headers: {'Authorization': 'Bearer $jwt'},
       body: {'id_users': idUser},
     );
     debugPrint('DEBUG getIdGerai: response body: ${response.body}');
@@ -375,7 +428,8 @@ class MenuService {
       if (data['success'] == true && data['data'] != null && data['data']['id_gerai'] != null) {
         final idGeraiStr = data['data']['id_gerai'].toString();
         debugPrint('DEBUG getIdGerai: id_gerai dari response: $idGeraiStr');
-        await prefs.setString('id_gerai', idGeraiStr);
+  final storage = FlutterSecureStorage();
+  await storage.write(key: 'id_gerai', value: idGeraiStr);
         return int.tryParse(idGeraiStr);
       } else {
         debugPrint('DEBUG getIdGerai: id_gerai tidak ditemukan di response!');

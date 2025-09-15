@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'features/seller/pages/beranda/dashboard_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app/app_theme.dart';
@@ -15,6 +17,7 @@ import 'features/koperasi/homepage_koperasi.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null);
   final storage = FlutterSecureStorage();
   String? token = await storage.read(key: 'jwt_token');
   String? role = await storage.read(key: 'role');
@@ -75,6 +78,15 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.mainTheme,
       initialRoute: '/',
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        const Locale('id', 'ID'),
+        const Locale('en', 'US'),
+      ],
       routes: {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),

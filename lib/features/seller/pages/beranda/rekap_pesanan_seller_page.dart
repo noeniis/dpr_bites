@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
-import 'package:http/http.dart' as http;
 import 'package:dpr_bites/features/seller/services/rekap_pesanan_service.dart';
 import 'package:dpr_bites/features/seller/models/rekap_pesanan_model.dart';
-import 'dart:convert';
-import '../../../../common/utils/base_url.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 
@@ -38,8 +35,8 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
   }
 
   Future<void> _fetchIdGeraiAndRekap() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idGerai = prefs.getString('id_gerai');
+    final storage = FlutterSecureStorage();
+    final idGerai = await storage.read(key: 'id_gerai');
     if (idGerai == null) {
       setState(() { _error = 'ID Gerai tidak ditemukan'; _loading = false; });
       return;

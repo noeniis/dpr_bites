@@ -3,7 +3,7 @@ import '../../../../app/gradient_background.dart';
 import '../../../../app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'informasi_rekening_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../services/halal_status_service.dart';
 
 class HalalPage extends StatefulWidget {
@@ -14,6 +14,7 @@ class HalalPage extends StatefulWidget {
 }
 
 class _HalalPageState extends State<HalalPage> {
+  final _storage = FlutterSecureStorage();
   @override
   void initState() {
     super.initState();
@@ -21,8 +22,7 @@ class _HalalPageState extends State<HalalPage> {
   }
 
   Future<void> _loadHalalStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users') ?? '';
+    final idUsers = await _storage.read(key: 'id_users') ?? '';
     if (idUsers.isEmpty) return;
     final status = await HalalStatusService.getHalalStatus(idUsers);
     setState(() {
@@ -30,8 +30,7 @@ class _HalalPageState extends State<HalalPage> {
     });
   }
   Future<void> _saveHalalStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users') ?? '';
+    final idUsers = await _storage.read(key: 'id_users') ?? '';
     final success = await HalalStatusService.saveHalalStatus(idUsers, _selectedOption);
     if (success) {
       Navigator.push(

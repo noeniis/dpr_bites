@@ -1,4 +1,4 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/services/dashboard_service.dart';
 import 'package:dpr_bites/features/seller/models/dashboard_rekap_model.dart';
 import 'package:flutter/material.dart';
@@ -37,21 +37,19 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
   }
 
   Future<void> _fetchNamaGerai() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUser = prefs.getString('id_users');
-
+    final storage = FlutterSecureStorage();
+    final idUser = await storage.read(key: 'id_users');
     if (idUser == null) {
       if (!mounted) return;
       setState(() { _namaGerai = '-'; _loadingGerai = false; });
       return;
     }
-
     try {
       final dataGerai = await DashboardService.fetchGeraiByUser(idUser);
       final idGerai = dataGerai?['id_gerai']?.toString();
       if (dataGerai != null && dataGerai['nama_gerai'] != null) {
         if (idGerai != null && idGerai.isNotEmpty) {
-          await prefs.setString('id_gerai', idGerai);
+          await storage.write(key: 'id_gerai', value: idGerai);
           if (!mounted) return;
           setState(() {
             _idGerai = idGerai;
@@ -63,7 +61,6 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
         }
       }
     } catch (_) {}
-
     if (!mounted) return;
     setState(() { _namaGerai = '-'; _loadingGerai = false; });
   }
@@ -72,8 +69,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
     if (!mounted) return;
     setState(() { _loadingRekap = true; });
 
-    final prefs = await SharedPreferences.getInstance();
-    final idGerai = _idGerai ?? prefs.getString('id_gerai');
+  final storage = FlutterSecureStorage();
+  final idGerai = _idGerai ?? await storage.read(key: 'id_gerai');
     if (idGerai == null) {
       if (!mounted) return;
       setState(() { _loadingRekap = false; });

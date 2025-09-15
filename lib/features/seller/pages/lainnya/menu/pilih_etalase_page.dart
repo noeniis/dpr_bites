@@ -1,12 +1,9 @@
 import 'package:dpr_bites/features/seller/services/etalase_service.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:dpr_bites/features/seller/models/etalase_model.dart';
-import 'package:dpr_bites/common/utils/base_url.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class PilihEtalasePage extends StatefulWidget {
   final List<EtalaseModel> selectedEtalase;
@@ -23,7 +20,6 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
   late List<EtalaseModel> _selected;
   List<EtalaseModel> _etalase = [];
   final TextEditingController _newEtalaseController = TextEditingController();
-  String? _idUser;
   String? _idGerai;
   bool _loading = true;
 
@@ -71,26 +67,19 @@ class _PilihEtalasePageState extends State<PilihEtalasePage> {
 
   Future<void> _loadUserAndGeraiAndEtalase() async {
     setState(() { _loading = true; });
-    final prefs = await SharedPreferences.getInstance();
-    _idUser = prefs.getString('id_users');
-    if (_idUser != null) {
-      final responseGerai = await http.post(
-        Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
-        body: {'id_users': _idUser},
-      );
-      final dataGerai = jsonDecode(responseGerai.body);
-      if (dataGerai['success'] == true && dataGerai['data'] != null && dataGerai['data']['id_gerai'] != null) {
-        _idGerai = dataGerai['data']['id_gerai'].toString();
-        final etalaseList = await EtalaseService.fetchEtalase(idGerai: int.parse(_idGerai!));
-        setState(() {
-          _etalase = etalaseList;
-          _loading = false;
-        });
-      } else {
-        setState(() { _loading = false; });
-      }
+    final storage = FlutterSecureStorage();
+    _idGerai = await storage.read(key: 'id_gerai');
+    if (_idGerai != null) {
+      final etalaseList = await EtalaseService.fetchEtalase(idGerai: int.parse(_idGerai!));
+      setState(() {
+        _etalase = etalaseList;
+        _loading = false;
+      });
     } else {
       setState(() { _loading = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID Gerai tidak ditemukan!')),
+      );
     }
   }
 

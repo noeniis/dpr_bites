@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/common/utils/base_url.dart';
 
 class SellerUserService {
-  static const _storage = FlutterSecureStorage();
+  static final FlutterSecureStorage _storage = FlutterSecureStorage();
 
   static Future<String?> fetchGeraiStatusPengajuan(String idUsers) async {
     // idUsers parameter kept for backward compatibility but ignored.

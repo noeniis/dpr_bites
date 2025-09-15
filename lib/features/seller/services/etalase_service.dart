@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
 import '../models/etalase_model.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class EtalaseService {
   static Future<List<EtalaseModel>> fetchEtalaseByUser({required String idUsers}) async {
-  print('[DEBUG EtalaseService] Ambil id_gerai dari SharedPreferences...');
-    final prefs = await SharedPreferences.getInstance();
-    final idGeraiStr = prefs.getString('id_gerai');
-  print('[DEBUG EtalaseService] id_gerai dari SharedPreferences: ' + (idGeraiStr ?? 'NULL'));
+  print('[DEBUG EtalaseService] Ambil id_gerai dari SecureStorage...');
+    final storage = FlutterSecureStorage();
+    final idGeraiStr = await storage.read(key: 'id_gerai');
+  print('[DEBUG EtalaseService] id_gerai dari SecureStorage: ' + (idGeraiStr ?? 'NULL'));
     if (idGeraiStr != null) {
       final idGerai = int.tryParse(idGeraiStr);
       if (idGerai != null) {
@@ -21,8 +21,11 @@ class EtalaseService {
 
   static Future<List<EtalaseModel>> fetchEtalase({required int idGerai}) async {
   print('[DEBUG EtalaseService] Fetch etalase API dengan id_gerai: ' + idGerai.toString());
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.get(
       Uri.parse('${getBaseUrl()}/get_etalase.php?id_gerai=$idGerai'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
     );
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -35,8 +38,11 @@ class EtalaseService {
     return [];
   }
   static Future<EtalaseModel?> getEtalaseDetail({required int idEtalase}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/get_etalase_detail.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_etalase': idEtalase.toString()},
     );
     if (response.statusCode == 200) {
@@ -52,8 +58,11 @@ class EtalaseService {
     required int idGerai,
     required String namaEtalase,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/add_etalase.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {
         'id_gerai': idGerai.toString(),
         'nama_etalase': namaEtalase,
@@ -70,8 +79,11 @@ class EtalaseService {
     required int idEtalase,
     required String namaEtalase,
   }) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/edit_etalase.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {
         'id_etalase': idEtalase.toString(),
         'nama_etalase': namaEtalase,
@@ -85,8 +97,11 @@ class EtalaseService {
   }
 
   static Future<bool> deleteEtalase({required int idEtalase}) async {
+    final storage = FlutterSecureStorage();
+    final jwt = await storage.read(key: 'jwt_token');
     final response = await http.post(
       Uri.parse('${getBaseUrl()}/delete_etalase.php'),
+      headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null,
       body: {'id_etalase': idEtalase.toString()},
     );
     if (response.statusCode == 200) {

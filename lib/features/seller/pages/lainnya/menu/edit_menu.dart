@@ -1,7 +1,7 @@
 import 'package:dpr_bites/features/seller/models/menu_model.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dpr_bites/features/seller/services/menu_service.dart';
 import 'package:dpr_bites/features/seller/services/addon_service.dart';
@@ -11,6 +11,7 @@ import 'pilih_etalase_page.dart';
 import 'add_on_list_page.dart';
 import 'package:dpr_bites/features/seller/models/etalase_model.dart';
 import 'package:dpr_bites/features/seller/models/addon_model.dart';
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
 class EditMenuPage extends StatefulWidget {
   final MenuModel menu;
@@ -71,8 +72,7 @@ class _EditMenuPageState extends State<EditMenuPage> {
   }
 
   Future<void> _fetchEtalaseAndAddOn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUser = prefs.getString('id_users');
+    final idUser = await _secureStorage.read(key: 'id_users');
     if (idUser != null) {
       // Ambil semua etalase master untuk pilihan
       final etalaseList = await MenuService.fetchEtalaseByUser(idUsers: idUser);

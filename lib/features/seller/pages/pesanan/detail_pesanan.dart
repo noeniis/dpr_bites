@@ -1,5 +1,6 @@
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:dpr_bites/features/seller/models/pesanan/order_api_model.dart';
 import 'package:dpr_bites/features/seller/models/pesanan/transaction_detail_model.dart';
@@ -286,19 +287,27 @@ class _DetailPesananPageState extends State<DetailPesananPage> {
                     );
                     try {
                       final idTransaksi = detail.idTransaksi;
-                      final statusSuccess = await TransactionDetailService.updateStatus(
+                      final resp = await TransactionDetailService.updateStatusRaw(
                         idTransaksi: idTransaksi,
                         newStatus: "disiapkan",
                       );
                       Navigator.of(context, rootNavigator: true).pop(); // close loading
-                      if (statusSuccess) {
+                      final statusCode = resp['statusCode'] as int? ?? 0;
+                      final body = resp['body'] as String? ?? '';
+                      final success = statusCode == 200 && body.contains('success');
+                      if (success) {
                         Navigator.pop(context, {'status': 'disiapkan'});
                       } else {
+                        String message = 'Gagal mengubah status pesanan. Coba lagi.';
+                        try {
+                          final parsed = body.isNotEmpty ? jsonDecode(body) : null;
+                          if (parsed is Map && parsed['message'] != null) message = parsed['message'];
+                        } catch (_) {}
                         showDialog(
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('Gagal'),
-                            content: Text('Gagal mengubah status pesanan. Coba lagi.'),
+                            content: Text(message),
                             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
                           ),
                         );

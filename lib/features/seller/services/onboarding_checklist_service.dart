@@ -53,9 +53,14 @@ class OnboardingChecklistService {
         final geraiJson = jsonDecode(geraiRes.body);
         print('DEBUG geraiJson: $geraiJson');
         if (geraiJson['success'] == true && geraiJson['data'] != null) {
-          statusPengajuanGerai =
-              geraiJson['data']['status_pengajuan']?.toString() ?? '';
+          statusPengajuanGerai = geraiJson['data']['status_pengajuan']?.toString() ?? '';
           alasanTolak = geraiJson['data']['alasan_tolak']?.toString() ?? '';
+          // Simpan id_gerai ke secure storage jika ada
+          final idGerai = geraiJson['data']['id_gerai']?.toString();
+          if (idGerai != null && idGerai.isNotEmpty) {
+            await _storage.write(key: 'id_gerai', value: idGerai);
+            print('[ONBOARDING] id_gerai disimpan ke storage: $idGerai');
+          }
         }
       }
 

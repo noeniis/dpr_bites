@@ -1,9 +1,10 @@
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'gerai_profil_service.dart';
 
 class QrisService {
+  static final _storage = FlutterSecureStorage();
   // Get QRIS URL by user
   static Future<String?> getQrisUrlByUser(String idUsers) async {
     final data = await GeraiProfilService.fetchGeraiByUser(idUsers);
@@ -19,8 +20,7 @@ class QrisService {
     final file = File(qrisImage.path);
     final urlQris = await GeraiProfilService.uploadQrisToCloudinary(file);
     if (urlQris == null) return false;
-    final prefs = await SharedPreferences.getInstance();
-    final idGerai = prefs.getString('id_gerai') ?? '';
+    final idGerai = await _storage.read(key: 'id_gerai') ?? '';
     return await GeraiProfilService.addOrUpdateQris(
       idGerai: idGerai,
       qrisPath: urlQris,

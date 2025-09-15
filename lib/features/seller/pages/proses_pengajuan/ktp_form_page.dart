@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../app/gradient_background.dart';
 import '../../../../common/widgets/custom_widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../services/penjual_info_service.dart';
 import '../../services/seller_user_service.dart';
 import 'package:dpr_bites/features/seller/models/user_info_model.dart';
@@ -19,6 +19,7 @@ class KtpFormPage extends StatefulWidget {
 }
 
 class _KtpFormPageState extends State<KtpFormPage> {
+  final _storage = FlutterSecureStorage();
   String? ktpImagePath;
   final nameController = TextEditingController();
   final nikController = TextEditingController();
@@ -29,8 +30,7 @@ class _KtpFormPageState extends State<KtpFormPage> {
   DateTime? birthDate;
 
   Future<void> _prefillKtpData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users') ?? '';
+    final idUsers = await _storage.read(key: 'id_users') ?? '';
     final data = await PenjualInfoService.fetchPenjualInfo(idUsers);
     if (data != null && data['success'] == true && data['data'] != null) {
       final ktpInfo = KtpInfoModel.fromJson(data['data']);
@@ -47,12 +47,15 @@ class _KtpFormPageState extends State<KtpFormPage> {
   }
 
   Future<void> _prefillNamaLengkap() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users') ?? '';
+    final idUsers = await _storage.read(key: 'id_users') ?? '';
     final user = await SellerUserService.fetchUserById(idUsers);
     if (user != null) {
       final userInfo = UserInfoModel.fromJson(user);
       nameController.text = userInfo.namaLengkap;
+      // Jika nomor telepon penjual belum terisi, isi dari user info
+      if ((noTeleponPenjualController.text.isEmpty || noTeleponPenjualController.text == '') && userInfo.noHp.isNotEmpty) {
+        noTeleponPenjualController.text = userInfo.noHp;
+      }
       setState(() {});
     }
   }
@@ -67,14 +70,12 @@ class _KtpFormPageState extends State<KtpFormPage> {
   }
 
   Future<void> _debugIdGerai() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idGerai = prefs.getString('id_gerai') ?? '';
+    final idGerai = await _storage.read(key: 'id_gerai') ?? '';
     print('[DEBUG] id_gerai pada initState ktp_form_page: $idGerai');
   }
 
   Future<void> _prefillNoTeleponPenjual() async {
-    final prefs = await SharedPreferences.getInstance();
-    final teleponGerai = prefs.getString('telepon_gerai');
+    final teleponGerai = await _storage.read(key: 'telepon_gerai');
     if (teleponGerai != null && teleponGerai.isNotEmpty) {
       noTeleponPenjualController.text = teleponGerai;
     }
@@ -280,14 +281,12 @@ class _KtpFormPageState extends State<KtpFormPage> {
                 text: 'Simpan',
                 onPressed: () async {
                   try {
-                    // Simpan ke SharedPreferences
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString(
-                        'no_telepon_penjual', noTeleponPenjualController.text);
+                    // Simpan ke flutter_secure_storage
+                    await _storage.write(key: 'no_telepon_penjual', value: noTeleponPenjualController.text);
 
                     // Kirim data ke backend
-                    final idUsers = prefs.getString('id_users') ?? '';
-                    final idGerai = prefs.getString('id_gerai') ?? '';
+                    final idUsers = await _storage.read(key: 'id_users') ?? '';
+                    final idGerai = await _storage.read(key: 'id_gerai') ?? '';
                     print('[DEBUG] id_gerai sebelum submit: $idGerai');
                     final Map<String, dynamic> data = {
                       'id_users': idUsers,
@@ -307,8 +306,7 @@ class _KtpFormPageState extends State<KtpFormPage> {
                       }
                     }
 
-                    final success =
-                        await PenjualInfoService.addOrUpdatePenjualInfo(data);
+                    final success = await PenjualInfoService.addOrUpdatePenjualInfo(data);
                     if (success) {
                       Navigator.push(
                         context,

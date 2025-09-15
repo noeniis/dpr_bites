@@ -7,7 +7,7 @@ import 'package:dpr_bites/features/seller/services/menu_service.dart';
 import 'package:dpr_bites/features/seller/models/menu_model.dart';
 import 'package:dpr_bites/features/seller/models/addon_model.dart';
 import 'package:dpr_bites/features/seller/services/addon_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/edit_addon_page.dart';
 import 'edit_menu.dart';
 import 'package:dpr_bites/features/seller/pages/beranda/dashboard_page.dart';
@@ -34,6 +34,7 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
   List<MenuModel> _menus = [];
   List<AddonModel> _addons = [];
   String? _idUsers;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
   bool _isLoadingAddons = true;
   bool _isLoading = true;
 
@@ -73,8 +74,7 @@ class _MenuRestoPageState extends State<MenuRestoPage> {
   Future<void> _fetchMenus({String filter = 'all'}) async {
     setState(() { _isLoading = true; });
     if (_idUsers == null) {
-      final prefs = await SharedPreferences.getInstance();
-      _idUsers = prefs.getString('id_users');
+      _idUsers = await _secureStorage.read(key: 'id_users');
     }
     if (_idUsers == null) {
       setState(() { _menus = []; _isLoading = false; });

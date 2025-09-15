@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:dpr_bites/features/seller/models/etalase_model.dart';
 import 'package:dpr_bites/features/seller/models/menu_model.dart';
 import 'package:dpr_bites/features/seller/services/menu_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/services/seller_user_service.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 
@@ -98,8 +98,8 @@ class _PeriksaMenuPageState extends State<PeriksaMenuPage> {
       }
       // Update step3 menjadi 1
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final idUsers = prefs.getString('id_users');
+        final storage = FlutterSecureStorage();
+        final idUsers = await storage.read(key: 'id_users');
         if (idUsers != null) {
           await SellerUserService.updateStepSellerStatus(idUsers, step3: 1);
         }

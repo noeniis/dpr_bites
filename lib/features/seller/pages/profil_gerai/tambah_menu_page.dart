@@ -4,7 +4,7 @@ import '../../../../app/gradient_background.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/models/etalase_model.dart';
 import 'package:dpr_bites/features/seller/models/menu_model.dart';
 import 'package:dpr_bites/features/seller/models/addon_model.dart';
@@ -31,10 +31,16 @@ class TambahMenuPageState extends State<TambahMenuPage> {
   }
 
   Future<void> _fetchEtalase() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idGerai = prefs.getString('id_gerai');
+    final storage = FlutterSecureStorage();
+    final idGerai = await storage.read(key: 'id_gerai');
     if (idGerai != null) {
       await EtalaseService.fetchEtalase(idGerai: int.parse(idGerai));
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('id_gerai tidak ditemukan. Silakan selesaikan onboarding atau login ulang.')),
+        );
+      });
     }
   }
 

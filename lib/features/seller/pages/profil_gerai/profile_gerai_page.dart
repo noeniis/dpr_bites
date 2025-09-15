@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
@@ -51,8 +51,8 @@ class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
 
   Future<void> _loadProfilGerai() async {
     setState(() { _isLoading = true; _errorMsg = null; });
-    final prefs = await SharedPreferences.getInstance();
-    String? idUsers = prefs.getString('id_users');
+    final storage = FlutterSecureStorage();
+    String? idUsers = await storage.read(key: 'id_users');
     if (idUsers == null || idUsers.isEmpty) {
       setState(() { _isLoading = false; _errorMsg = 'User belum login'; });
       return;
@@ -178,9 +178,9 @@ class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
     }
     final jamBuka = formatTime24(selectedTimeStart);
     final jamTutup = formatTime24(selectedTimeEnd);
-    final prefs = await SharedPreferences.getInstance();
-    final idUsers = prefs.getString('id_users');
-    final idGerai = _idGerai;
+  final storage = FlutterSecureStorage();
+  final idUsers = await storage.read(key: 'id_users');
+  final idGerai = _idGerai;
     if (idGerai == null || idUsers == null) {
       setState(() { _isLoading = false; });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -388,19 +388,20 @@ class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
         ),
         bottomNavigationBar: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-          child: CustomButtonKotak(
-            text: "Simpan dan lanjutkan",
-            onPressed: () async {
-
-              if (!_validateFields()) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Semua field wajib diisi')),
-                );
-                return;
-              }
-              await _saveProfilGerai();
-            },
-          ),
+            child: CustomButtonKotak(
+              text: _isLoading ? "Menyimpan..." : "Simpan dan lanjutkan",
+              onPressed: _isLoading
+                  ? null
+                  : () async {
+                      if (!_validateFields()) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Semua field wajib diisi')),
+                        );
+                        return;
+                      }
+                      await _saveProfilGerai();
+                    },
+            ),
         ),
       ),
     );

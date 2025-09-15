@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dpr_bites/features/seller/models/pesanan/order_api_model.dart';
 
 class PesananService {
@@ -16,7 +17,9 @@ class PesananService {
     final baseUrl = getBaseUrl();
     final uri = Uri.parse('$baseUrl/get_pesanan_seller.php').replace(queryParameters: params);
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 12));
+  final storage = FlutterSecureStorage();
+  final jwt = await storage.read(key: 'jwt_token');
+  final response = await http.get(uri, headers: jwt != null ? {'Authorization': 'Bearer $jwt'} : null).timeout(const Duration(seconds: 12));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is Map && data['success'] == true && data['pesanan'] is List) {

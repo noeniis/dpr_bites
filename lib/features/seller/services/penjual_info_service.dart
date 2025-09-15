@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:dpr_bites/common/utils/base_url.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class PenjualInfoService {
+  static final _storage = FlutterSecureStorage();
   static Future<String?> uploadImageToCloudinary(File imageFile) async {
     const String uploadPreset = 'dpr_bites';
     const String cloudName = 'dip8i3f6x';
@@ -30,8 +32,10 @@ class PenjualInfoService {
 
   static Future<Map<String, dynamic>?> fetchPenjualInfo(String idUsers) async {
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/get_penjual_info.php'),
+        headers: token != null ? {'Authorization': 'Bearer $token'} : {},
         body: {'id_users': idUsers},
       );
       if (response.statusCode == 200) {
@@ -55,8 +59,10 @@ class PenjualInfoService {
     }
 
     try {
+      final token = await _storage.read(key: 'jwt_token');
       final response = await http.post(
         Uri.parse('${getBaseUrl()}/add_or_update_penjual_info.php'),
+        headers: token != null ? {'Authorization': 'Bearer $token'} : {},
         body: data,
       );
       print('DEBUG penjual_info response.body: ${response.body}');
