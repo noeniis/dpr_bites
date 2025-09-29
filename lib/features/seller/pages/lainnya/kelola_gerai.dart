@@ -2,6 +2,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:dpr_bites/features/seller/pages/proses_pengajuan/seller_pick_location_page.dart';
+import 'package:dpr_bites/common/data/dummy_address.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:dpr_bites/app/gradient_background.dart';
 import 'package:dpr_bites/app/app_theme.dart';
 import 'package:dpr_bites/common/widgets/custom_widgets.dart';
@@ -10,7 +14,7 @@ import '../../models/gerai_profil_model.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class KelolaProfilGeraiPage extends StatefulWidget {
-  const KelolaProfilGeraiPage({Key? key}) : super(key: key);
+  const KelolaProfilGeraiPage({super.key});
 
   @override
   State<KelolaProfilGeraiPage> createState() => _KelolaProfilGeraiPageState();
@@ -36,11 +40,12 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
       final storage = FlutterSecureStorage();
       String? idUsers = await storage.read(key: 'id_users');
       if (idUsers == null || idUsers.isEmpty) {
-        print('[DEBUG] id_users tidak ditemukan di secure storage');
+        debugPrint('[DEBUG] id_users tidak ditemukan di secure storage');
+        if (!mounted) return;
         setState(() { _isLoading = false; _errorMsg = 'User belum login'; });
         return;
       }
-      print('[DEBUG] id_users ditemukan: $idUsers');
+      debugPrint('[DEBUG] id_users ditemukan: $idUsers');
       final profil = await GeraiProfilService.fetchGeraiProfilByUser(idUsers);
       if (profil == null) {
         setState(() { _isLoading = false; _errorMsg = 'Profil gerai tidak ditemukan'; });
@@ -48,6 +53,50 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
       }
       _profilGerai = profil;
       _idGerai = profil.idGerai;
+      // Ambil data gerai (tabel gerai) -- lokasi disimpan di tabel gerai
+      final gerai = await GeraiProfilService.fetchGeraiByUser(idUsers);
+      if (gerai != null && gerai['success'] == true && gerai['data'] != null) {
+        final g = gerai['data'];
+        _selectedLat = g['latitude'] != null && g['latitude'].toString().isNotEmpty ? double.tryParse(g['latitude'].toString()) : null;
+        _selectedLng = g['longitude'] != null && g['longitude'].toString().isNotEmpty ? double.tryParse(g['longitude'].toString()) : null;
+        _geraiNama = g['nama_gerai'] ?? profil.namaGerai;
+        _geraiDetailAlamat = g['detail_alamat'] ?? profil.detailAlamat;
+        _geraiTelepon = g['telepon'] ?? profil.telepon;
+        debugPrint('PARSED GERAI: LAT=$_selectedLat, LNG=$_selectedLng, ALAMAT=$_geraiDetailAlamat');
+        if (_selectedLat != null && _selectedLng != null) {
+          // show detail_alamat immediately while reverse-geocoding in background
+          _selectedAddress = _geraiDetailAlamat;
+          locationController.text = _selectedAddress ?? '';
+          // then try to get a nicer address and update when available
+          final addr = await GeraiProfilService.reverseGeocode(_selectedLat!, _selectedLng!);
+          if (addr != null && addr.isNotEmpty) {
+            _selectedAddress = addr;
+            locationController.text = _selectedAddress ?? '';
+          }
+        } else {
+          // fallback: tampilkan detail_alamat jika lat/lng tidak ada
+          _selectedAddress = _geraiDetailAlamat;
+          locationController.text = _selectedAddress ?? '';
+        }
+      } else {
+        // fallback ke profil
+        _selectedLat = profil.latitude;
+        _selectedLng = profil.longitude;
+        _geraiNama = profil.namaGerai;
+        _geraiDetailAlamat = profil.detailAlamat;
+        _geraiTelepon = profil.telepon;
+        debugPrint('FALLBACK PROFIL: LAT=$_selectedLat, LNG=$_selectedLng, ALAMAT=$_geraiDetailAlamat');
+        if (_selectedLat != null && _selectedLng != null) {
+          final addr = await GeraiProfilService.reverseGeocode(_selectedLat!, _selectedLng!);
+          _selectedAddress = addr ?? profil.detailAlamat;
+          locationController.text = _selectedAddress ?? '';
+        } else {
+          // fallback: tampilkan detail_alamat jika lat/lng tidak ada
+          _selectedAddress = profil.detailAlamat;
+          locationController.text = _selectedAddress ?? '';
+        }
+      }
+
       setState(() {
         _bannerUrl = profil.bannerPath;
         _listingUrl = profil.listingPath;
@@ -63,7 +112,8 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
         _isLoading = false;
       });
     } catch (e, s) {
-      print('ERROR in _loadProfilGerai: $e\n$s');
+      debugPrint('ERROR in _loadProfilGerai: $e\n$s');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMsg = 'Terjadi error: $e';
@@ -80,6 +130,7 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
   XFile? _listingImage;
   String? _bannerUrl;
   String? _listingUrl;
+  final locationController = TextEditingController();
   final menuController = TextEditingController();
   TimeOfDay selectedTimeStart = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay selectedTimeEnd = const TimeOfDay(hour: 16, minute: 0);
@@ -96,8 +147,34 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
     'Minggu': false,
   };
 
+  // Location fields (gerai table)
+  double? _selectedLat;
+  double? _selectedLng;
+  String? _selectedAddress;
+  String? _geraiNama;
+  String? _geraiDetailAlamat;
+  String? _geraiTelepon;
+
+  // Reuse point-in-polygon logic from SellerPickLocationPage
+  bool _isInDprArea(LatLng point) {
+    final x = point.longitude;
+    final y = point.latitude;
+    bool inside = false;
+    for (int i = 0, j = dprPolygon.length - 1; i < dprPolygon.length; j = i++) {
+      final xi = dprPolygon[i].longitude;
+      final yi = dprPolygon[i].latitude;
+      final xj = dprPolygon[j].longitude;
+      final yj = dprPolygon[j].latitude;
+      final intersect = ((yi > y) != (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / ((yj - yi) == 0 ? 1e-12 : (yj - yi)) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
   @override
   void dispose() {
+    locationController.dispose();
     menuController.dispose();
     super.dispose();
   }
@@ -123,6 +200,72 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
         _listingImage = picked;
         _listingUrl = picked.path;
       });
+    }
+  }
+
+  Future<void> handlePickLocation(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      debugPrint('handlePickLocation: called, _selectedLat=$_selectedLat, _selectedLng=$_selectedLng, _isEdit=$_isEdit');
+      var status = await Permission.location.request();
+      if (!mounted) return;
+      if (!status.isGranted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Akses lokasi diperlukan untuk memilih lokasi.')),
+        );
+        return;
+      }
+      final dprLatitudes = dummyAddresses
+          .where((a) => a.latitude != null)
+          .map((a) => a.latitude!)
+          .toList();
+      final dprLongitudes = dummyAddresses
+          .where((a) => a.longitude != null)
+          .map((a) => a.longitude!)
+          .toList();
+      final dprSouthWest = LatLng(
+        dprLatitudes.reduce((a, b) => a < b ? a : b),
+        dprLongitudes.reduce((a, b) => a < b ? a : b),
+      );
+      final dprNorthEast = LatLng(
+        dprLatitudes.reduce((a, b) => a > b ? a : b),
+        dprLongitudes.reduce((a, b) => a > b ? a : b),
+      );
+      debugPrint('handlePickLocation: pushing SellerPickLocationPage');
+      // If existing coordinates exist but are outside DPR polygon, don't use them as initialPosition
+      LatLng? initialPos;
+      if (_selectedLat != null && _selectedLng != null) {
+        final candidate = LatLng(_selectedLat!, _selectedLng!);
+        if (_isInDprArea(candidate)) {
+          initialPos = candidate;
+        } else {
+          debugPrint('Existing coords outside DPR polygon, ignoring as initial position');
+        }
+      }
+      final result = await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => SellerPickLocationPage(
+            dprSouthWest: dprSouthWest,
+            dprNorthEast: dprNorthEast,
+            initialPosition: initialPos,
+          ),
+        ),
+      );
+      if (result is Map<String, dynamic> && result['lat'] != null && result['lng'] != null) {
+        setState(() {
+          _selectedLat = (result['lat'] as num).toDouble();
+          _selectedLng = (result['lng'] as num).toDouble();
+          _selectedAddress = (result['address'] as String?)?.isNotEmpty == true
+              ? result['address'] as String
+              : 'Lat: ${_selectedLat!.toStringAsFixed(6)}, Lng: ${_selectedLng!.toStringAsFixed(6)}';
+          // update displayed address
+          locationController.text = _selectedAddress ?? '';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Terjadi error: $e')));
     }
   }
 
@@ -163,7 +306,8 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
 
   @override
   Widget build(BuildContext context) {
-  print('DEBUG: build KelolaProfilGeraiPage dipanggil');
+  debugPrint('DEBUG: build KelolaProfilGeraiPage dipanggil');
+  debugPrint('DEBUG: locationController.text="${locationController.text}"');
   return GradientBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -236,6 +380,40 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
                         ],
                       ),
                       const SizedBox(height: 20),
+                      const Text("Lokasi Gerai", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () {
+                          if (_selectedLat != null && _selectedLng != null) {
+                            // show detail
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Detail Lokasi'),
+                                content: Text(_selectedAddress ?? '-'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+                                ],
+                              ),
+                            );
+                          } else {
+                            handlePickLocation(context);
+                          }
+                        },
+                        onDoubleTap: _isEdit ? () async => await handlePickLocation(context) : null,
+                        child: AbsorbPointer(
+                          child: CustomInputField(
+                            controller: locationController,
+                            hintText: 'Pilih lokasi gerai',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: _isEdit ? () => handlePickLocation(context) : null,
+                        child: const Text('Pilih Lokasi di Peta'),
+                      ),
+                      const SizedBox(height: 12),
                       const Text("Kategori/Jenis masakan", style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
                       TextField(
@@ -290,6 +468,8 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
           child: CustomButtonKotak(
             text: _isEdit ? "Simpan Perubahan" : "Edit Profil",
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               if (!_isEdit) {
                 setState(() {
                   _isEdit = true;
@@ -297,7 +477,8 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
                 return;
               }
               if (!_validateFields()) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                if (!mounted) return;
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Semua field wajib diisi')),
                 );
                 return;
@@ -321,9 +502,37 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
               // id_gerai didapat dari _idGerai (sudah diisi saat load profil)
               final idGerai = _idGerai;
               if (idGerai == null) {
-                setState(() { _isLoading = false; });
-                ScaffoldMessenger.of(context).showSnackBar(
+                if (mounted) setState(() { _isLoading = false; });
+                if (!mounted) return;
+                messenger.showSnackBar(
                   const SnackBar(content: Text('ID gerai tidak ditemukan')),);
+                return;
+              }
+              // Persist gerai (latitude/longitude/detail alamat/telepon) first
+              final namaGeraiToSend = _geraiNama ?? _profilGerai?.namaGerai ?? '';
+              final geraiData = {
+                'id_gerai': idGerai.toString(),
+                'nama_gerai': namaGeraiToSend,
+                'latitude': _selectedLat?.toString() ?? (_profilGerai?.latitude?.toString() ?? ''),
+                'longitude': _selectedLng?.toString() ?? (_profilGerai?.longitude?.toString() ?? ''),
+                'detail_alamat': locationController.text.isNotEmpty ? locationController.text : (_geraiDetailAlamat ?? _profilGerai?.detailAlamat ?? ''),
+                'telepon': _geraiTelepon ?? _profilGerai?.telepon ?? '',
+              };
+              final geraiSaved = await GeraiProfilService.addOrUpdateGerai(geraiData);
+              if (!geraiSaved) {
+                if (mounted) setState(() { _isLoading = false; _isEdit = false; });
+                if (!mounted) return;
+                navigator
+                    .push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => AlertDialog(
+                          title: const Text('Gagal'),
+                          content: const Text('Gagal menyimpan data lokasi gerai.'),
+                          actions: [TextButton(onPressed: () => navigator.pop(), child: const Text('OK'))],
+                        ),
+                      ),
+                    )
+                    .then((_) {});
                 return;
               }
               final service = GeraiProfilService();
@@ -336,29 +545,34 @@ class _KelolaProfilGeraiPageState extends State<KelolaProfilGeraiPage> {
                 jamBuka: jamBuka,
                 jamTutup: jamTutup,
               );
-              setState(() {
-                _isEdit = false;
-                _isLoading = false;
-                if (success) {
-                  _bannerUrl = bannerUrl;
-                  _listingUrl = listingUrl;
-                  _bannerImage = null;
-                  _listingImage = null;
-                }
-              });
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(success ? 'Berhasil' : 'Gagal'),
-                  content: Text(success ? 'Profil gerai berhasil diupdate' : 'Gagal update profil gerai'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('OK'),
-                    ),
-                  ],
-                ),
-              );
+              if (mounted) {
+                setState(() {
+                  _isEdit = false;
+                  _isLoading = false;
+                  if (success) {
+                    _bannerUrl = bannerUrl;
+                    _listingUrl = listingUrl;
+                    _bannerImage = null;
+                    _listingImage = null;
+                  }
+                });
+                navigator
+                    .push<void>(
+                      MaterialPageRoute(
+                        builder: (ctx) => AlertDialog(
+                          title: Text(success ? 'Berhasil' : 'Gagal'),
+                          content: Text(success ? 'Profil gerai berhasil diupdate' : 'Gagal update profil gerai'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => navigator.pop(),
+                              child: const Text('OK'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .then((_) {});
+              }
             },
           ),
         ),

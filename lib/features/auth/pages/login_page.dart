@@ -47,39 +47,92 @@ class _LoginPageState extends State<LoginPage> {
       String? token = await storage.read(key: 'jwt_token');
       debugPrint('JWT TOKEN: $token');
       debugPrint('ID USERS LOGIN: ${result.idUsers}');
-      // Redirect sesuai role dari backend
+      // Tampilkan dialog sukses, lalu redirect sesuai role dari backend ketika user menutup dialog
+      if (!mounted) return;
       final roleStr = result.role ?? '';
-      if (roleStr == '0') {
-        // Pegawai
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      } else if (roleStr == '1') {
-        // Penjual
-        if (result.step1 && result.step2 && result.step3) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
-          );
-        }
-      } else if (roleStr == '2') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
-        );
-      } else {
-        // Default: ke HomePage
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      }
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green,
+                  size: 64,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Login Berhasil!',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Anda berhasil masuk ke akun Anda.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15, color: Colors.black54),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFD53D3D),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop(); // tutup dialog
+                      // navigasi sesuai role
+                      if (roleStr == '0') {
+                        // Pegawai
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomePage()),
+                        );
+                      } else if (roleStr == '1') {
+                        // Penjual
+                        if (result.step1 && result.step2 && result.step3) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SellerDashboardPage()),
+                          );
+                        } else {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => const OnboardingChecklistPage()),
+                          );
+                        }
+                      } else if (roleStr == '2') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomepageKoperasi()),
+                        );
+                      } else {
+                        // Default: ke HomePage
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomePage()),
+                        );
+                      }
+                    },
+                    child: const Text('Lanjut'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     } else {
       setState(() {
         errorMessage = result.message ?? 'Username atau password salah';

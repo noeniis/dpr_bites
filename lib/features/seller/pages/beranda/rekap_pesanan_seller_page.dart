@@ -303,9 +303,10 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                               Table(
                                                 border: TableBorder.all(color: AppTheme.primaryColor.withOpacity(0.2)),
                                                 columnWidths: const {
-                                                  0: FlexColumnWidth(3),
-                                                  1: FlexColumnWidth(1),
-                                                },
+                                                0: FlexColumnWidth(2),
+                                                1: FlexColumnWidth(1),
+                                                2: FlexColumnWidth(1.2),
+                                              },
                                                 children: [
                                                   const TableRow(
                                                     decoration: BoxDecoration(color: Color(0xFFE3F2FD)),
@@ -318,6 +319,10 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                         padding: EdgeInsets.symmetric(vertical: 8),
                                                         child: Center(child: Text('Jumlah', style: TextStyle(fontWeight: FontWeight.bold))),
                                                       ),
+                                                      Padding(
+                                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                                        child: Center(child: Text('Pendapatan', style: TextStyle(fontWeight: FontWeight.bold))),
+                                                      ),
                                                     ],
                                                   ),
                                                   ...?_rekapModel?.menuRekap.map((m) => TableRow(
@@ -329,6 +334,10 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                           Padding(
                                                             padding: const EdgeInsets.symmetric(vertical: 8),
                                                             child: Center(child: Text(m['total_terjual']?.toString() ?? '0', style: const TextStyle(fontWeight: FontWeight.bold))),
+                                                          ),
+                                                          Padding(
+                                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                                            child: Center(child: Text('Rp ${NumberFormat('#,###', 'id_ID').format(m['total_pendapatan'] ?? ( (m['harga_satuan'] ?? 0) * (m['total_terjual'] ?? 0) ))}', style: const TextStyle(fontWeight: FontWeight.bold))),
                                                           ),
                                                         ],
                                                       )),
@@ -363,8 +372,9 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                               Table(
                                                 border: TableBorder.all(color: AppTheme.primaryColor.withOpacity(0.2)),
                                                 columnWidths: const {
-                                                  0: FlexColumnWidth(3),
+                                                  0: FlexColumnWidth(2),
                                                   1: FlexColumnWidth(1),
+                                                  2: FlexColumnWidth(1.2),
                                                 },
                                                 children: [
                                                   const TableRow(
@@ -378,6 +388,10 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                         padding: EdgeInsets.symmetric(vertical: 8),
                                                         child: Center(child: Text('Jumlah', style: TextStyle(fontWeight: FontWeight.bold))),
                                                       ),
+                                                      Padding(
+                                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                                        child: Center(child: Text('Pendapatan', style: TextStyle(fontWeight: FontWeight.bold))),
+                                                      ),
                                                     ],
                                                   ),
                                                   ...?_rekapModel?.addonRekap.map((a) => TableRow(
@@ -389,6 +403,10 @@ class _RekapPesananSellerPageState extends State<RekapPesananSellerPage> {
                                                           Padding(
                                                             padding: const EdgeInsets.symmetric(vertical: 8),
                                                             child: Center(child: Text(a['total_terjual']?.toString() ?? '0', style: const TextStyle(fontWeight: FontWeight.bold))),
+                                                          ),
+                                                          Padding(
+                                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                                            child: Center(child: Text('Rp ${NumberFormat('#,###', 'id_ID').format(a['total_pendapatan'] ?? ( (a['harga'] ?? 0) * (a['total_terjual'] ?? 0) ))}', style: const TextStyle(fontWeight: FontWeight.bold))),
                                                           ),
                                                         ],
                                                       )),

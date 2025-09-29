@@ -138,7 +138,7 @@ class _HomepageKoperasiState extends State<HomepageKoperasi> {
                         child: CustomEmptyCard(
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundImage: AssetImage('lib/assets/images/iconCamera.png'),
+                              backgroundImage: AssetImage('lib/assets/images/dummy profile.jpeg'),
                               radius: 28,
                               child: const Icon(Icons.person, color: Colors.white),
                             ),

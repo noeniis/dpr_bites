@@ -9,7 +9,7 @@ import 'package:dpr_bites/features/seller/pages/lainnya/profil_seller.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/menu/menu_resto.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/ulasan.dart';
 import 'package:dpr_bites/features/seller/pages/lainnya/kelola_gerai.dart';
-import 'package:dpr_bites/features/auth/pages/login_page.dart';
+import 'package:dpr_bites/features/auth/pages/logout.dart';
 import 'rekap_pesanan_seller_page.dart';
 
 class SellerDashboardPage extends StatefulWidget {
@@ -401,8 +401,8 @@ class _SellerDashboardPageState extends State<SellerDashboardPage> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.logout, color: Color(0xFFD53D3D)),
                   title: const Text("Keluar", style: TextStyle(color: Color(0xFFD53D3D), fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false);
+                  onTap: () async {
+                    await logout(context);
                   },
                 ),
 

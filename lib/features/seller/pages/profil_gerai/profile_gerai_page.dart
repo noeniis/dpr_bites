@@ -49,6 +49,31 @@ class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
     _loadProfilGerai();
   }
 
+  // Helper: ambil status_pengajuan gerai saat ini dari API (via token-authenticated endpoint)
+  Future<String?> _fetchCurrentGeraiStatus() async {
+    try {
+      final storage = FlutterSecureStorage();
+      final token = await storage.read(key: 'jwt_token');
+      if (token == null || token.isEmpty) return null;
+      final res = await http.post(
+        Uri.parse('${getBaseUrl()}/get_gerai_by_user.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body);
+      if (body['success'] == true && body['data'] != null) {
+        return body['data']['status_pengajuan']?.toString();
+      }
+      return null;
+    } catch (e) {
+      debugPrint('ERROR fetchCurrentGeraiStatus: $e');
+      return null;
+    }
+  }
+
   Future<void> _loadProfilGerai() async {
     setState(() { _isLoading = true; _errorMsg = null; });
     final storage = FlutterSecureStorage();
@@ -211,29 +236,53 @@ class _ProfileGeraiPageState extends State<ProfileGeraiPage> {
         jamBuka: jamBuka,
         jamTutup: jamTutup,
       );
-      // Update status_pengajuan di tabel gerai
-      await http.post(
-        Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "id_gerai": idGerai.toString(),
-          "status_pengajuan": "pending",
-        }),
-      );
+      // Cek status_pengajuan saat ini. Jika sebelumnya 'rejected' atau tidak ada, ubah jadi 'pending'.
+      try {
+        final currentStatus = await _fetchCurrentGeraiStatus();
+        debugPrint('[PROFILE GERAI] currentStatus: $currentStatus');
+        if (currentStatus == null || currentStatus.isEmpty || currentStatus == 'rejected') {
+          final token = await storage.read(key: 'jwt_token');
+          final headers = <String, String>{'Content-Type': 'application/json'};
+          if (token != null && token.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $token';
+          }
+          await http.post(
+            Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
+            headers: headers,
+            body: jsonEncode({
+              "id_gerai": idGerai.toString(),
+              "status_pengajuan": "pending",
+            }),
+          );
+        } else {
+          debugPrint('[PROFILE GERAI] status_pengajuan tidak diubah (saat ini: $currentStatus)');
+        }
+      } catch (e) {
+        debugPrint('ERROR updating status_pengajuan: $e');
+      }
+
       // Update step2 di tabel users
       await SellerUserService.updateStepSellerStatus(idUsers, step2: 1);
     } else {
       // Insert
       success = await GeraiProfilService.insertGeraiProfil(data);
       // Setelah insert, update status_pengajuan dan step2
-      await http.post(
-        Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "id_gerai": idGerai.toString(),
-          "status_pengajuan": "pending",
-        }),
-      );
+      // Untuk insert, set status_pengajuan ke 'pending' (karena belum ada sebelumnya)
+      try {
+        final token = await storage.read(key: 'jwt_token');
+        final headers = <String, String>{'Content-Type': 'application/json'};
+        if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+        await http.post(
+          Uri.parse('${getBaseUrl()}/update_status_pengajuan.php'),
+          headers: headers,
+          body: jsonEncode({
+            "id_gerai": idGerai.toString(),
+            "status_pengajuan": "pending",
+          }),
+        );
+      } catch (e) {
+        debugPrint('ERROR setting status_pengajuan after insert: $e');
+      }
       await SellerUserService.updateStepSellerStatus(idUsers, step2: 1);
     }
     setState(() { _isLoading = false; });

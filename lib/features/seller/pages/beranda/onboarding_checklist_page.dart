@@ -21,6 +21,7 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
   SellerUserModel? userModel;
   List<bool> status = [false, false, false];
   String statusPengajuanGerai = '';
+  bool _pendingDialogShown = false;
   @override
   void initState() {
   super.initState();
@@ -50,7 +51,10 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
   }
 
   Future<void> _checkGeraiPengajuanStatus() async {
-    if (userModel != null && userModel!.statusPengajuanGerai == 'rejected') {
+    if (userModel == null) return;
+
+    // Ditolak
+    if (userModel!.statusPengajuanGerai == 'rejected') {
       final alasanTolak = userModel!.alasanTolak;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         showDialog(
@@ -62,6 +66,33 @@ class _OnboardingChecklistPageState extends State<OnboardingChecklistPage> {
                 'Pengajuan gerai Anda ditolak.\n'
                 'Alasan: ${alasanTolak.isNotEmpty ? alasanTolak : "-"}\n'
                 'Kirim ulang seluruh data hingga peringatan ini tidak muncul.'
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      });
+      return;
+    }
+
+    
+    if (!_pendingDialogShown && userModel!.statusPengajuanGerai == 'pending' && userModel!.step1 == 1 && userModel!.step2 == 1) {
+      _pendingDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Pengajuan dalam Peninjauan'),
+              content: const Text(
+                'Gerai Anda masih dalam tahap peninjauan oleh koperasi.\n'
+                'Mohon tunggu proses verifikasi. Anda akan diberitahu jika ada pembaruan.'
               ),
               actions: [
                 TextButton(
